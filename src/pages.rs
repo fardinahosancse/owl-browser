@@ -1,4 +1,4 @@
-﻿use crate::{Config, Store};
+use crate::{Config, Store};
 use std::collections::HashSet;
 
 const CSS: &str = r#"*{box-sizing:border-box;margin:0;padding:0}
@@ -11,34 +11,41 @@ a{color:inherit;text-decoration:none}
 .grid{display:grid;grid-template-columns:repeat(12,1fr);column-gap:24px}
 header{border-top:6px solid var(--ink);padding:10px 0 0;display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:28px}
 header i{font-style:normal;color:var(--red)}
-h1{font-size:clamp(56px,10vw,150px);line-height:.88;letter-spacing:-.05em;font-weight:700;margin-bottom:36px;animation:rise .7s cubic-bezier(.2,.7,.2,1) both}
+h1{font-size:clamp(44px,6vw,88px);line-height:.92;letter-spacing:-.04em;font-weight:700;margin-bottom:24px;animation:rise .7s cubic-bezier(.2,.7,.2,1) both}
 h1 em{font-style:normal;color:var(--red)}
 h2{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding-top:10px;border-top:2px solid var(--ink);margin-bottom:12px;display:flex;justify-content:space-between}
 h2 span{color:var(--mute)}
 button,.btn{border:0;background:var(--ink);color:var(--on);padding:0 22px;font:700 11px "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;display:inline-flex;align-items:center;min-height:36px;transition:background .15s,color .15s,transform .12s}
-button:hover,.btn:hover{background:var(--red);color:#fff}
+button:hover,.btn:hover{background:var(--red);color:var(--onred)}
 button:active,.btn:active{transform:scale(.96)}
-button.on{background:var(--red);color:#fff}
+button.on{background:var(--red);color:var(--onred)}
 button.ghost{background:var(--soft);color:var(--ink)}button.ghost:hover{background:var(--ink);color:var(--on)}
 :focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .sec{grid-column:1/13;margin-bottom:40px}
 .row{display:grid;grid-template-columns:56px 1fr 2fr 140px;gap:24px;padding:13px 0;border-top:1px solid var(--line);align-items:baseline;animation:rise .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*28ms);transition:background .15s,color .15s,padding .15s}
-a.row:hover{background:var(--ink);color:var(--on);padding-left:8px}
+.row.hv:hover{background:var(--ink);color:var(--on);padding-left:8px}.row.hv:hover .n,.row.hv:hover .u,.row.hv:hover .d,.tile:hover .k{color:var(--mute-on)}.row.hv .t{min-width:0}
+.row.hv .d{display:flex;gap:8px;justify-content:flex-end;align-items:center;overflow:visible}.row.hv .d time{font-size:13px;font-variant-numeric:tabular-nums}
 .n{font-size:11px;font-weight:700;color:var(--mute)}.u,.d{font-size:13px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .t{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.empty{border-top:1px solid var(--line);padding:14px 0;color:var(--mute)}
+.empty{border-top:1px solid var(--line);padding:16px 0;color:var(--mute)}.empty a{color:var(--ink);text-decoration:underline}
+button.sm{min-height:32px;padding:0 12px;font-size:11px}.tb{display:flex;gap:8px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+.ctl{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.gh{margin:34px 0 6px}.gh:first-of-type{margin-top:6px}
+details summary{cursor:pointer;color:var(--mute);font-size:13px;margin-top:6px;text-decoration:underline}details p{margin-top:6px}
+button[disabled]{opacity:.45;cursor:default}button[disabled]:hover{background:var(--ink);color:var(--on)}button.ghost[disabled]:hover{background:var(--soft);color:var(--ink)}
 .set{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;padding:18px 0;border-top:1px solid var(--line);animation:rise .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*35ms)}
 .set p{color:var(--mute);font-size:14px;margin-top:4px}
 .set input,.af input,.pf{font:500 14px "Helvetica Neue",Helvetica,Arial,sans-serif;padding:10px;border:1px solid var(--ink);background:var(--bg);color:var(--ink);width:380px;max-width:100%;outline:0;transition:box-shadow .15s}
 .set input:focus,.af input:focus,.pf:focus{box-shadow:0 0 0 2px var(--red)}
+input::placeholder{color:var(--mute);opacity:1}
 .set input.pin{width:90px;letter-spacing:.3em;text-align:center}
 .set input.pk,.set select.pk{width:210px}
 .set select.pk{font:500 14px "Helvetica Neue",Helvetica,Arial,sans-serif;padding:10px;border:1px solid var(--ink);background:var(--bg);color:var(--ink)}
-.pill{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+.pill{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
 code{font-size:13px;background:var(--soft);padding:2px 6px}
 .themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:14px;margin:4px 0 34px}
 .th{display:block;padding:0;background:none;color:var(--ink);border:2px solid var(--line);text-align:left;min-height:0;letter-spacing:0;animation:rise .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*45ms)}
-.th:hover{background:none;color:var(--ink);border-color:var(--ink);transform:translateY(-3px)}
+.th:hover{background:none;color:var(--ink);border-color:var(--ink)}
 .th.on{border-color:var(--red)}
 .th .pv{display:block;height:88px;background:var(--b);position:relative}
 .th .pv::before{content:"";position:absolute;left:12px;top:14px;width:52%;height:10px;background:var(--i)}
@@ -46,15 +53,15 @@ code{font-size:13px;background:var(--soft);padding:2px 6px}
 .th .pv u{position:absolute;left:12px;top:32px;width:30%;height:4px;background:var(--i);opacity:.5}
 .th .l{display:flex;justify-content:space-between;padding:9px 10px;font:700 11px "Helvetica Neue",Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase}
 .th.on .l::after{content:"\25CF";color:var(--red)}
-.tg.on{background:var(--red)}
+.tg{min-width:64px;justify-content:center}.tg.on{background:var(--red);color:var(--onred)}.tg.on:hover{background:var(--ink);color:var(--on)}
 /* ===== landing home ===== */
 body.landing{padding:0}
 .land section{padding:clamp(64px,11vh,120px) 40px}
-.hero{min-height:100vh;display:grid;grid-template-rows:auto 1fr auto;padding-top:0!important;padding-bottom:36px!important}
+.hero{min-height:56vh;display:grid;grid-template-rows:auto 1fr auto;padding-top:0!important;padding-bottom:36px!important}
 .hero header{margin-bottom:0}
 .hcore{display:flex;flex-direction:column;justify-content:center;gap:clamp(18px,4vh,44px)}
 .hcore>*{animation:rise .9s cubic-bezier(.2,.7,.2,1) both}.hcore>:nth-child(2){animation-delay:.08s}.hcore>:nth-child(3){animation-delay:.16s}
-.clock{font:italic 400 clamp(96px,26vh,300px)/.82 Georgia,"Palatino Linotype","Book Antiqua",serif;letter-spacing:-.045em;white-space:nowrap;font-variant-numeric:oldstyle-nums}
+.clock{font:italic 400 clamp(80px,19vh,240px)/.82 Georgia,"Palatino Linotype","Book Antiqua",serif;letter-spacing:-.045em;white-space:nowrap;font-variant-numeric:oldstyle-nums}
 .clock small{font:700 .17em/1 "Helvetica Neue",Helvetica,Arial,sans-serif;font-style:normal;letter-spacing:0;color:var(--red);margin-left:.3em;vertical-align:top;display:inline-block;padding-top:.35em}
 .hello{display:flex;justify-content:space-between;align-items:baseline;font-size:clamp(18px,3vh,28px);font-weight:500}
 .hello b{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin-right:14px}
@@ -65,8 +72,9 @@ form.s input{flex:1;min-width:0;border:0;outline:0;font:500 clamp(24px,5vh,40px)
 form.s input::placeholder{color:var(--mute)}
 form.s kbd{align-self:center;font:700 12px "Helvetica Neue",Arial;color:var(--mute);padding-right:6px}
 .scroll{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);padding-top:14px}
-.scroll span:first-child::after{content:"\2193";display:inline-block;margin-left:10px;animation:bob 1.6s ease-in-out infinite}
-@keyframes bob{50%{transform:translateY(6px)}}
+.scroll span:first-child::after{content:"\2193";display:inline-block;margin-left:10px}
+.huge.sm{font-size:clamp(32px,4vw,56px);margin-bottom:22px;max-width:none}.land section.q{padding-top:28px}
+.scroll a{text-decoration:underline;text-underline-offset:3px}.scroll a:hover{color:var(--red)}
 .huge{font-size:clamp(48px,9vw,140px);line-height:.88;letter-spacing:-.05em;font-weight:700;margin-bottom:clamp(28px,6vh,64px);max-width:12ch}
 .huge em{font-style:normal;color:var(--red)}
 .tiles{display:grid;grid-template-columns:repeat(4,1fr);border-left:1px solid var(--line);margin-bottom:56px}
@@ -75,7 +83,7 @@ form.s kbd{align-self:center;font:700 12px "Helvetica Neue",Arial;color:var(--mu
 .tile .k{font-size:11px;font-weight:700;color:var(--mute);letter-spacing:.1em}
 .tile img,.tile .l{width:32px;height:32px}
 .tile .l{background:var(--ink);color:var(--on);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px}
-.tile:hover .l{background:var(--red);color:#fff}
+.tile:hover .l{background:var(--red);color:var(--onred)}
 .tile span.h{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .groups{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
 .grp h3{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--red);padding:9px 0 6px;border-top:2px solid var(--ink)}
@@ -107,9 +115,9 @@ form.s kbd{align-self:center;font:700 12px "Helvetica Neue",Arial;color:var(--mu
 .key:hover{background:var(--ink);color:var(--on)}
 .key kbd{font:italic 400 clamp(26px,3vw,44px)/1 Georgia,serif;letter-spacing:-.02em}
 .key span{font-size:13px;color:var(--mute)}
-.fin{background:var(--red);color:#fff;padding-bottom:36px!important}
+.fin{background:var(--red);color:var(--onred);padding-bottom:36px!important}
 .fin .word{font:italic 400 clamp(120px,30vw,520px)/.8 Georgia,"Palatino Linotype",serif;letter-spacing:-.06em;margin:0 0 40px -.04em}
-.fin .facts{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;border-top:2px solid #fff;padding-top:14px}
+.fin .facts{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;border-top:2px solid var(--onred);padding-top:14px}
 .fin .facts b{display:block;font-size:clamp(24px,3vw,44px);letter-spacing:-.03em}
 .fin .facts span{font-size:13px;opacity:.85}
 .fin .foot{margin-top:56px;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;display:flex;justify-content:space-between;opacity:.9}
@@ -119,19 +127,23 @@ form.s kbd{align-self:center;font:700 12px "Helvetica Neue",Arial;color:var(--mu
 .js .rv .tile,.js .rv .stat,.js .rv .key,.js .rv .grp,.js .rv .br{opacity:0;transform:translateY(20px);transition:opacity .6s cubic-bezier(.2,.7,.2,1) var(--d,0s),transform .6s cubic-bezier(.2,.7,.2,1) var(--d,0s),background .2s,color .2s,padding .15s}
 .js .rv.in .tile,.js .rv.in .stat,.js .rv.in .key,.js .rv.in .grp,.js .rv.in .br{opacity:1;transform:none}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.js .rv,.js .rv *{opacity:1!important;transform:none!important}}
-@media(max-width:900px){.tiles,.groups,.stats,.keys,.fin .facts{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:40px 1fr}.row .u,.row .d{display:none}.hello{display:block}.time{grid-template-columns:1fr;gap:24px}.bars .br{grid-template-columns:28px 110px 1fr 70px}}"#;
+@media(max-width:900px){.tiles,.groups,.stats,.keys,.fin .facts{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:40px 1fr}.row .u{display:none}.row .d{grid-column:2}.row.hv .d{justify-content:flex-start}.set{grid-template-columns:1fr}.ctl{justify-content:flex-start}.set input,.set select,.set .pk{width:100%!important}.hello{display:block}.time{grid-template-columns:1fr;gap:24px}.bars .br{grid-template-columns:28px 110px 1fr 70px}}"#;
 
 const SHARED_JS: &str = r#"<script>
 (function(){
  const send=o=>ipc.postMessage(JSON.stringify(o)),$=i=>document.getElementById(i);
  document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;
-  if(a==='clear_history'){send({cmd:'clear_history'});location.reload()}
-  else if(a==='tog'){b.classList.toggle('on');const o=b.classList.contains('on');b.textContent=o?'On':'Off';send({cmd:'set',key:b.dataset.key,val:o})}
+  if(a==='clear_history'){if(!confirm('Delete all '+(b.dataset.n||'')+' history entries? This cannot be undone.'))return;send({cmd:'clear_history'});location.reload()}
+  else if(a==='hrm'){send({cmd:'hist_remove',t:+b.dataset.t,url:b.dataset.u});const r=b.closest('.row');if(r)r.remove()}
+  else if(a==='bmrm'){if(!confirm('Remove this bookmark?'))return;send({cmd:'bm_remove',url:b.dataset.url});setTimeout(()=>location.reload(),150)}
+  else if(a==='restart'){send({cmd:'restart'})}
+  else if(a==='opendata'){send({cmd:'open_data'})}
+  else if(a==='tog'){b.classList.toggle('on');const o=b.classList.contains('on');b.textContent=o?'On':'Off';b.setAttribute('aria-checked',o);send({cmd:'set',key:b.dataset.key,val:o})}
   else if(a==='setpin'){send({cmd:'set_pin',old:$('op').value,new:$('np').value})}
   else if(a==='clearusage'){send({cmd:'clear_usage'});b.textContent='Cleared'}
   else if(a==='setsync'){send({cmd:'set_sync',path:$('sy').value});alert('Saved. Restart Owl to apply.')}
   else if(a==='setsyncpass'){send({cmd:'set_sync_pass',pass:$('sp').value});alert('Saved. Restart Owl to apply.')}
-  else if(a==='bmedit'){const g=prompt('Group (empty = remove)',b.dataset.group);if(g===null)return;const u=b.dataset.url;send(g.trim()?{cmd:'bm_group',url:u,group:g.trim()}:{cmd:'bm_remove',url:u});setTimeout(()=>location.reload(),150)}
+  else if(a==='bmedit'){const g=prompt('Move this bookmark to which group?',b.dataset.group||'General');if(g===null||!g.trim())return;send({cmd:'bm_group',url:b.dataset.url,group:g.trim()});setTimeout(()=>location.reload(),150)}
   else if(a==='http_allow'){send({cmd:'http_allow',url:b.dataset.url})}
   else if(a==='setprofile'){send({cmd:'set_profile',name:$('pn').value,email:$('pe').value});b.textContent='Saved'}
   else if(a==='setproxy'){send({cmd:'set_proxy',proxy:$('px').value})}
@@ -286,26 +298,18 @@ pub fn newtab(s: &Store, c: &Config, sess: u32, total: u64, pw_count: usize, tod
 <div class=hello data-name=\"{name}\"><span><b id=gr></b><span id=wd></span></span><span id=dt></span></div>\
 <div class=clock id=c>00:00<small>00</small></div>\
 <form class=s id=f><input id=q autofocus autocomplete=off spellcheck=false placeholder=\"Search privately or type an address\"><kbd>/</kbd></form></div>\
-<div class=scroll><span>Scroll</span><span>Jump back in \u{00b7} Privacy \u{00b7} Time \u{00b7} Downloads</span></div></section>\
-<section class=rv><h2 style=\"margin-bottom:28px\">Quick access <span>press 1\u{2013}8</span></h2><div class=huge>Jump back in<em>.</em></div><div class=tiles>{tiles}</div><h2>Bookmarks</h2><div class=groups>{gh}</div></section>\
-<section class=\"inv rv\"><div class=huge>Private by default<em>.</em></div><div class=stats>\
+<div class=scroll><span>Scroll</span><span><a href=\"#quick\">Jump back in</a> \u{00b7} <a href=\"#priv\">Privacy</a> \u{00b7} <a href=\"#time\">Time</a> \u{00b7} <a href=\"#dl\">Downloads</a> \u{00b7} <a href=\"owl://about\">About</a></span></div></section>\
+<section class=\"rv q\" id=quick><h2 style=\"margin-bottom:20px\">Quick access <span>press 1\u{2013}8</span></h2><div class=\"huge sm\">Jump back in<em>.</em></div><div class=tiles>{tiles}</div><h2>Bookmarks</h2><div class=groups>{gh}</div></section>\
+<section class=\"inv rv\" id=priv><div class=huge>Private by default<em>.</em></div><div class=stats>\
 <a class=stat href=\"owl://settings\"><b class=r data-n=\"{total}\">{total}</b><span>trackers and ads blocked, all time</span></a>\
 <a class=stat href=\"owl://settings\"><b data-n=\"{sess}\">{sess}</b><span>blocked this session. Blocking is {}</span></a>\
 <a class=stat href=\"owl://settings\"><b>{}</b><span>HTTPS-only mode, refuses plain http</span></a>\
 <a class=stat href=\"owl://passwords\"><b data-n=\"{pw_count}\">{pw_count}</b><span>passwords, encrypted by Windows for your account</span></a></div></section>\
-<section class=rv><h2 style=\"margin-bottom:28px\">Time online <span>stays on this PC</span></h2><div class=huge>Where your time goes<em>.</em></div>\
+<section class=rv id=time><h2 style=\"margin-bottom:28px\">Time online <span>stays on this PC</span></h2><div class=huge>Where your time goes<em>.</em></div>\
 <div class=time><div class=tbig><b><span data-n=\"{th}\">{th}</span>h <span data-n=\"{tm}\">{tm}</span>m</b><span>today</span>\
 <b><span data-n=\"{ah}\">{ah}</span>h <span data-n=\"{am}\">{am}</span>m</b><span>all time</span></div><div class=bars>{bars}</div></div></section>\
-<section class=\"dls rv\"><div class=huge>Downloads<em>.</em></div>{dl}<p style=\"margin-top:24px\"><a class=btn href=\"owl://downloads\">Open manager</a></p></section>\
-<section class=rv><div class=huge>Keyboard first<em>.</em></div><div class=keys>\
-<div class=key><kbd>Ctrl T</kbd><span>New tab</span></div><div class=key><kbd>Ctrl L</kbd><span>Address bar</span></div>\
-<div class=key><kbd>Ctrl D</kbd><span>Bookmark</span></div><div class=key><kbd>Ctrl F</kbd><span>Find in page</span></div>\
-<div class=key><kbd>Ctrl B</kbd><span>Bookmark bar</span></div><div class=key><kbd>Ctrl H</kbd><span>History</span></div>\
-<div class=key><kbd>Alt \u{2190} \u{2192}</kbd><span>Back and forward</span></div><div class=key><kbd>F11</kbd><span>Full screen</span></div></div></section>\
-<section class=\"fin rv\"><div class=word>Owl.</div><div class=facts>\
-<div><b>0.9 MB</b><span>the whole browser</span></div><div><b>Rust</b><span>built with tao and wry</span></div>\
-<div><b>No account</b><span>nothing to sign in to</span></div><div><b>1966</b><span>default key, change it in settings</span></div></div>\
-<div class=foot><span>Owl</span><span>Ultra-light browser</span></div></section></div>",
+<section class=\"dls rv\" id=dl><div class=huge>Downloads<em>.</em></div>{dl}<p style=\"margin-top:24px\"><a class=btn href=\"owl://downloads\">Open manager</a></p></section>\
+</div>",
         on(c.block), on(c.https_only),
         name = esc(&s.name),
         hdr = hdr("Home")
@@ -315,23 +319,58 @@ pub fn newtab(s: &Store, c: &Config, sess: u32, total: u64, pw_count: usize, tod
 }
 
 fn list_page(title: &str, rows: &str, extra: &str, head: &str, theme: &str) -> String {
-    page(title, &format!("{}<div class=grid><div class=sec><h1>{title}<em>.</em></h1>{extra}{rows}</div></div>", hdr(title)), head, theme, "")
+    page(title, &format!("{}<main class=grid><div class=sec><h1>{title}<em>.</em></h1>{extra}{rows}</div></main>", hdr(title)), head, theme, "")
 }
 
-pub fn notfound(theme: &str) -> String {
-    list_page("404", "", "", "", theme)
+/// One empty-state pattern everywhere: a short sentence and one way forward.
+fn empty(msg: &str, link: Option<(&str, &str)>) -> String {
+    match link {
+        Some((href, label)) => format!("<div class=empty>{msg} <a href=\"{href}\">{label}</a></div>"),
+        None => format!("<div class=empty>{msg}</div>"),
+    }
+}
+
+pub fn notfound(path: &str, theme: &str) -> String {
+    let shown: String = path.chars().take(120).collect();
+    let body = format!(
+        "{}<main class=grid><div class=sec><h1>Not found<em>.</em></h1>\
+<p style=\"max-width:60ch;margin-bottom:24px\">There is no Owl page at <code>owl://{}</code>.</p>\
+<p><a class=btn href=\"owl://newtab\">Go home</a></p></div></main>",
+        hdr("404"), esc(shown.trim_start_matches('/'))
+    );
+    page("Not found", &body, "", theme, "")
 }
 
 pub fn history(s: &Store, theme: &str) -> String {
     let mut o = String::new();
+    let total = s.history.len().min(500);
     for (i, e) in s.history.iter().rev().take(500).enumerate() {
         let t = if e.title.is_empty() { &e.url } else { &e.title };
-        o += &format!("<a class=row style=\"--i:{}\" href=\"{h}\"><span class=n>{:02}</span><span class=t>{}</span><span class=u>{u}</span><span class=d></span></a>", i.min(14), i + 1, esc(t), u = esc(&e.url), h = esc(&safe_href(&e.url)));
+        o += &format!(
+            "<div class=\"row hv h\" style=\"--i:{}\" data-t=\"{}\" data-q=\"{}\"><span class=n>{:02}</span><a class=t href=\"{h}\">{}</a><span class=u>{u}</span>\
+<span class=d><time></time><button class=\"ghost sm\" data-act=hrm data-t=\"{}\" data-u=\"{u}\" aria-label=\"Remove {} from history\">Remove</button></span></div>",
+            i.min(14), e.t, esc(&format!("{} {}", t, e.url).to_lowercase()), i + 1, esc(t), e.t, esc(t),
+            u = esc(&e.url), h = esc(&safe_href(&e.url))
+        );
     }
-    if o.is_empty() {
-        o = "<div class=empty>Nothing here yet.</div>".into();
-    }
-    list_page("History", &o, "<p style=\"margin-bottom:20px\"><button data-act=clear_history>Clear history</button></p>", "", theme)
+    let list = if o.is_empty() { empty("No history yet. Pages you visit appear here.", None) } else { format!("<div id=hl>{o}</div>") };
+    let extra = format!(
+        "<div class=tb><label class=vh for=hq>Search history</label><input class=pf id=hq placeholder=\"Search history\" style=\"flex:1;min-width:200px\"{}><button class=ghost data-act=clear_history data-n=\"{total}\"{}>Clear history</button></div>",
+        if total == 0 { " disabled" } else { "" },
+        if total == 0 { " disabled" } else { "" }
+    );
+    let js = r#"<script>
+(function(){const L=document.getElementById('hl');if(!L)return;
+ const rows=[...L.querySelectorAll('.row')],fmt=d=>d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+ const day=d=>{const n=new Date(),a=new Date(n.getFullYear(),n.getMonth(),n.getDate()),b=new Date(d.getFullYear(),d.getMonth(),d.getDate()),k=Math.round((a-b)/864e5);
+  return k===0?'Today':k===1?'Yesterday':d.toLocaleDateString([], {weekday:'long',day:'numeric',month:'long'})};
+ let last='';rows.forEach(r=>{const d=new Date(+r.dataset.t*1000);r.querySelector('time').textContent=fmt(d);const g=day(d);
+  if(g!==last){last=g;const h=document.createElement('h2');h.className='dh';h.textContent=g;L.insertBefore(h,r)}});
+ document.getElementById('hq').oninput=e=>{const v=e.target.value.toLowerCase();rows.forEach(r=>r.style.display=r.dataset.q.includes(v)?'':'none');
+  L.querySelectorAll('.dh').forEach(h=>{let n=h.nextElementSibling,any=false;while(n&&!n.classList.contains('dh')){if(n.style.display!=='none')any=true;n=n.nextElementSibling}h.style.display=any?'':'none'})};
+})();
+</script>"#;
+    list_page("History", &format!("{list}{js}"), &extra, "<style>.dh{margin-top:26px}.vh{position:absolute;left:-9999px}</style>", theme)
 }
 
 pub fn bookmarks(s: &Store, theme: &str) -> String {
@@ -346,12 +385,14 @@ pub fn bookmarks(s: &Store, theme: &str) -> String {
         }
         let t = if e.title.is_empty() { &e.url } else { &e.title };
         o += &format!(
-            "<div class=row style=\"--i:{}\"><span class=n>\u{2605}</span><a class=t href=\"{h}\">{}</a><span class=u>{u}</span><span class=d><a class=pill data-act=bmedit data-url=\"{u}\" data-group=\"{}\">Edit</a></span></div>",
-            i.min(14), esc(t), esc(&e.group), u = esc(&e.url), h = esc(&safe_href(&e.url)),
+            "<div class=\"row hv\" style=\"--i:{}\"><span class=n>\u{2605}</span><a class=t href=\"{h}\">{}</a><span class=u>{u}</span>\
+<span class=d><button class=\"ghost sm\" data-act=bmedit data-url=\"{u}\" data-group=\"{}\" aria-label=\"Move {} to another group\">Move</button>\
+<button class=\"ghost sm\" data-act=bmrm data-url=\"{u}\" aria-label=\"Remove {} from bookmarks\">Remove</button></span></div>",
+            i.min(14), esc(t), esc(&e.group), esc(t), esc(t), u = esc(&e.url), h = esc(&safe_href(&e.url)),
         );
     }
     if o.is_empty() {
-        o = "<div class=empty>No bookmarks yet. Press the star in the address bar.</div>".into();
+        o = empty("No bookmarks yet. Press the star in the address bar to save a page.", None);
     }
     list_page("Bookmarks", &o, "", "", theme)
 }
@@ -364,32 +405,34 @@ pub fn downloads(theme: &str) -> String {
 .dr .nm{font-size:18px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dr .pa{font-size:12px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
 .dr .bar{margin-top:8px}.dr .bar i{transition:width .5s ease}.dr .inf{font-size:12px;font-variant-numeric:tabular-nums}.dr .inf b{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:3px}
-.dr .ac{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}.dr .ac button{min-height:28px;padding:0 10px;font-size:10px}
+.dr .ac{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}.dr .ac button{min-height:32px;padding:0 12px;font-size:11px}
 .dr.done .bar i{background:var(--ink)}.dr.failed .bar i,.dr.cancelled .bar i{background:var(--mute)}.dr.paused .bar i{background:var(--mute)}
-@media(max-width:900px){.dr{grid-template-columns:1fr}}
+button[disabled]{opacity:.45;cursor:default}
+@media(max-width:900px){.dr{grid-template-columns:1fr}.dr .ac{justify-content:flex-start}}
 </style>"#;
-    let extra = r#"<div class=tb><button class=on data-f=all>All</button><button class=ghost data-f=active>Active</button><button class=ghost data-f=done>Completed</button><span class=sp></span><span class=agg id=agg></span><button class=ghost id=clr>Clear finished</button></div><div id=list><div class=empty>Loading&hellip;</div></div>
+    let extra = r#"<div class=tb role=group aria-label="Filter downloads"><button class=on data-f=all aria-pressed=true>All</button><button class=ghost data-f=active aria-pressed=false>Active</button><button class=ghost data-f=done aria-pressed=false>Completed</button><span class=sp></span><span class=agg id=agg aria-live=polite></span><button class=ghost id=clr disabled>Clear finished</button></div><div id=list><div class=empty>Files you download appear here.</div></div>
 <script>
 const send=o=>ipc.postMessage(JSON.stringify(o));let F='all',D=[],sig='';
 const sz=b=>b>=1e9?(b/1e9).toFixed(2)+' GB':b>=1e6?(b/1e6).toFixed(1)+' MB':b>=1e3?Math.round(b/1e3)+' KB':b+' B';
 const eta=s=>{if(!isFinite(s)||s<=0)return '';s=Math.round(s);return s>3600?Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m':s>60?Math.floor(s/60)+'m '+s%60+'s':s+'s'};
 const act=d=>d.status==='downloading'||d.status==='paused'||d.status==='pending';
 function draw(){const L=document.getElementById('list');const rows=D.filter(d=>F==='all'||(F==='active'?act(d):d.status==='done'));
- if(!rows.length){L.innerHTML='<div class=empty>Nothing here.</div>';return}
+ if(!rows.length){L.innerHTML='<div class=empty>'+(F==='active'?'Nothing is downloading right now.':F==='done'?'No completed downloads yet.':'Files you download appear here.')+'</div>';return}
  const first=!L.querySelector('.dr');
  L.innerHTML=rows.map((d,i)=>{const pct=d.total>0?Math.min(100,d.received*100/d.total):(d.status==='done'?100:0);
   const sp=d.status==='downloading'?sz(d.speed)+'/s':'';const e=d.status==='downloading'&&d.total>0&&d.speed>0?eta((d.total-d.received)/d.speed):'';
   const b=[];if(d.status==='downloading')b.push(['Pause','dl_pause']);if(d.status==='paused')b.push(['Resume','dl_resume']);
   if(act(d))b.push(['Cancel','dl_cancel']);if(d.status==='done'){b.push(['Open','dl_open']);b.push(['Show','dl_reveal'])}
   if(d.status==='failed'||d.status==='cancelled'||d.status==='interrupted')b.push(['Retry','dl_retry']);if(!act(d))b.push(['Remove','dl_remove']);
-  return '<div class="dr '+d.status+'" style="'+(first?'animation-delay:'+Math.min(i,10)*30+'ms':'animation:none')+'"><span class=n>'+String(i+1).padStart(2,'0')+'</span><div><div class=nm></div><div class=pa></div><div class=bar><i style="width:'+pct+'%"></i></div></div>'+
+  return '<div class="dr '+d.status+'" style="'+(first?'animation-delay:'+Math.min(i,10)*30+'ms':'animation:none')+'"><span class=n>'+String(i+1).padStart(2,'0')+'</span><div><div class=nm></div><div class=pa></div><div class=bar role=progressbar aria-valuemin=0 aria-valuemax=100 aria-valuenow='+Math.round(pct)+'><i style="width:'+pct+'%"></i></div></div>'+
   '<div class=inf><b>'+d.status+'</b>'+sz(d.received)+(d.total>0?' of '+sz(d.total):'')+(sp?' &middot; '+sp:'')+(e?' &middot; '+e:'')+'</div><div class=ac>'+b.map(x=>'<button class=ghost data-c='+x[1]+' data-i='+d.id+'>'+x[0]+'</button>').join('')+'</div></div>'}).join('');
  L.querySelectorAll('.dr').forEach((el,i)=>{el.querySelector('.nm').textContent=rows[i].name;el.querySelector('.pa').textContent=rows[i].path;el.querySelector('.nm').title=rows[i].url});
  L.querySelectorAll('button[data-c]').forEach(x=>x.onclick=()=>send({cmd:x.dataset.c,id:+x.dataset.i}))}
 async function poll(){try{D=await (await fetch('/downloads.json',{cache:'no-store'})).json();const a=D.filter(d=>d.status==='downloading');
- document.getElementById('agg').textContent=a.length?a.length+' active \u00b7 '+sz(a.reduce((s,d)=>s+d.speed,0))+'/s':D.length+' files';
+ document.getElementById('agg').textContent=a.length?a.length+' active \u00b7 '+sz(a.reduce((s,d)=>s+d.speed,0))+'/s':D.length+(D.length===1?' file':' files');
+ document.getElementById('clr').disabled=!D.some(d=>!act(d));
  const k=JSON.stringify(D)+F;if(k!==sig){sig=k;draw()}}catch(e){}}
-document.querySelectorAll('.tb button[data-f]').forEach(b=>b.onclick=()=>{F=b.dataset.f;document.querySelectorAll('.tb button[data-f]').forEach(x=>x.className=x===b?'on':'ghost');sig='';poll()});
+document.querySelectorAll('.tb button[data-f]').forEach(b=>b.onclick=()=>{F=b.dataset.f;document.querySelectorAll('.tb button[data-f]').forEach(x=>{x.className=x===b?'on':'ghost';x.setAttribute('aria-pressed',x===b)});sig='';poll()});
 document.getElementById('clr').onclick=()=>{send({cmd:'dl_clear'});setTimeout(poll,150)};poll();setInterval(poll,700);
 </script>"#;
     list_page("Downloads", "", extra, css, theme)
@@ -399,21 +442,23 @@ pub fn passwords(list: &[(String, String)], theme: &str) -> String {
     let mut o = String::new();
     for (i, (h, u)) in list.iter().enumerate() {
         o += &format!(
-            "<div class=row data-h=\"{h}\" data-u=\"{u}\" data-q=\"{q}\" style=\"--i:{};grid-template-columns:56px 1.2fr 1fr 290px\"><span class=n>{:02}</span><span class=t>{h}</span><span class=u id=u{i}>{u}</span><span class=d style=\"display:flex;gap:6px;justify-content:flex-end\">\
-<button class=ghost data-a=cu data-i={i} style=\"min-height:28px;padding:0 10px;font-size:10px\">Copy user</button>\
-<button class=ghost data-a=show data-i={i} style=\"min-height:28px;padding:0 10px;font-size:10px\">Show</button>\
-<button class=ghost data-a=del data-i={i} style=\"min-height:28px;padding:0 10px;font-size:10px\">Delete</button></span></div>",
+            "<div class=\"row pw\" data-h=\"{h}\" data-u=\"{u}\" data-q=\"{q}\" style=\"--i:{}\"><span class=n>{:02}</span><span class=t>{h}</span><span class=u id=u{i}>{u}</span><span class=d>\
+<button class=\"ghost sm\" data-a=cu data-i={i} aria-label=\"Copy username for {h}\">Copy user</button>\
+<button class=\"ghost sm\" data-a=show data-i={i} aria-label=\"Show password for {h}\">Show</button>\
+<button class=\"ghost sm\" data-a=del data-i={i} aria-label=\"Delete password for {h}\">Delete</button></span></div>",
             i.min(14), i + 1, h = esc(h), u = esc(u), q = esc(&format!("{h} {u}").to_lowercase())
         );
     }
     if o.is_empty() {
-        o = "<div class=empty id=none>No saved passwords yet. Owl offers to save one when you sign in to a site, or add one above.</div>".into();
+        o = empty("No saved passwords yet. Owl offers to save one when you sign in to a site, or add one above.", None);
     }
-    let extra = "<p style=\"color:var(--mute);margin-bottom:22px;max-width:62ch\">Passwords are encrypted with Windows (DPAPI) plus a secret derived from your key or passphrase. Showing or replacing one asks for it again. Saved logins fill in when you click a sign-in field.</p>\
-<form class=af id=af><input id=ah placeholder=\"Website, e.g. example.com\" required autocomplete=off><input id=au placeholder=\"Username or email\" autocomplete=off><input id=ap type=password placeholder=Password required autocomplete=off>\
+    let extra = "<p style=\"color:var(--mute);margin-bottom:22px;max-width:62ch\">Passwords are encrypted with Windows (DPAPI) plus a secret derived from your startup key or passphrase. Showing or replacing one asks for it again. Saved logins fill in when you click a sign-in field.</p>\
+<form class=af id=af><input id=ah aria-label=\"Website\" placeholder=\"Website, e.g. example.com\" required autocomplete=off><input id=au aria-label=\"Username or email\" placeholder=\"Username or email\" autocomplete=off><input id=ap aria-label=\"Password\" type=password placeholder=Password required autocomplete=off>\
 <button type=button class=ghost id=gen>Generate</button><button type=button class=ghost id=vw>Show</button><button type=submit>Save</button></form>\
-<input class=pf id=q placeholder=\"Search saved passwords\" style=\"width:100%;margin-bottom:14px\">";
-    let css = "<style>.af{display:grid;grid-template-columns:1.2fr 1fr 1fr auto auto auto;gap:8px;margin-bottom:22px}.af input{width:100%!important;min-width:0}@media(max-width:900px){.af{grid-template-columns:1fr 1fr}}</style>";
+<input class=pf id=q aria-label=\"Search saved passwords\" placeholder=\"Search saved passwords\" style=\"width:100%;margin-bottom:14px\">";
+    let css = "<style>.af{display:grid;grid-template-columns:1.2fr 1fr 1fr auto auto auto;gap:8px;margin-bottom:22px}.af input{width:100%!important;min-width:0}\
+.row.pw{grid-template-columns:56px 1.2fr 1fr auto}.row.pw .d{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;overflow:visible}\
+@media(max-width:900px){.af{grid-template-columns:1fr 1fr}.row.pw{grid-template-columns:40px 1fr}.row.pw .u{display:block}.row.pw .d{grid-column:2;justify-content:flex-start}}</style>";
     let js = r#"<script>
 const send=o=>ipc.postMessage(JSON.stringify(o));
 const rows=[...document.querySelectorAll('.row[data-h]')];
@@ -422,11 +467,11 @@ q.oninput=()=>{const v=q.value.toLowerCase();rows.forEach(r=>r.style.display=r.d
 gen.onclick=()=>{const c='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*-_=+';const a=new Uint32Array(20);crypto.getRandomValues(a);ap.type='text';ap.value=[...a].map(x=>c[x%c.length]).join('')};
 vw.onclick=()=>{ap.type=ap.type==='password'?'text':'password'};
 af.onsubmit=e=>{e.preventDefault();const h=norm(ah.value.trim()),u=au.value.trim();let pin='';
- if(rows.some(r=>r.dataset.h===h&&r.dataset.u===u)){pin=prompt('This replaces a saved password. Enter your 4-digit key')||'';if(!pin)return}
+ if(rows.some(r=>r.dataset.h===h&&r.dataset.u===u)){pin=prompt('This replaces a saved password. Enter your startup key or passphrase')||'';if(!pin)return}
  send({cmd:'pw_add',host:h,user:u,pass:ap.value,pin});setTimeout(()=>location.reload(),350)};
 rows.forEach((r,i)=>{r.querySelectorAll('button').forEach(b=>b.onclick=()=>{const a=b.dataset.a;
  if(a==='cu'){navigator.clipboard.writeText(r.dataset.u).then(()=>{b.textContent='Copied';setTimeout(()=>b.textContent='Copy user',1200)})}
- else if(a==='show'){const p=prompt('Enter your 4-digit key');if(p)send({cmd:'pw_reveal',i,pin:p})}
+ else if(a==='show'){const p=prompt('Enter your startup key or passphrase');if(p)send({cmd:'pw_reveal',i,pin:p})}
  else if(a==='del'&&confirm('Delete this password?')){send({cmd:'pw_delete',i});setTimeout(()=>location.reload(),250)}})});
 window.revealed=(i,pw)=>{const e=document.getElementById('u'+i);const u=rows[i].dataset.u;e.textContent=u+'  \u00b7  '+pw;setTimeout(()=>e.textContent=u,10000)};
 </script>"#;
@@ -440,79 +485,109 @@ const THEME_CARDS: &[(&str, &str, &str, &str, &str)] = &[
     ("black", "Black", "#000", "#fff", "#ff2b1f"),
     ("navy", "Navy", "#0b1a3a", "#eef3ff", "#ff5a36"),
     ("invert", "Invert", "#e30613", "#fff", "#111"),
-    ("sand", "Sand", "#efe9dc", "#171717", "#d6341a"),
+    ("sand", "Sand", "#efe9dc", "#171717", "#b8290f"),
     ("random", "Random", "conic-gradient(#e30613,#0b1a3a,#efe9dc,#000,#e30613)", "#fff", "#111"),
 ];
 
 pub fn settings(c: &Config, exts: &[String], dir: &str, prof: (&str, &str), theme: &str) -> String {
+    // a switch: the state is exposed to assistive technology and shown as On / Off
     let tog = |i: usize, key: &str, on: bool, title: &str, desc: &str| {
         format!(
-            "<div class=set style=\"--i:{i}\"><div><b>{title}</b><p>{desc}</p></div><button class=\"tg {}\" data-act=tog data-key=\"{key}\">{}</button></div>",
-            if on { "on" } else { "" }, if on { "On" } else { "Off" }
+            "<div class=set style=\"--i:{i}\"><div><b id=l-{key}>{title}</b><p>{desc}</p></div><button class=\"tg ghost{}\" role=switch aria-checked={on} aria-labelledby=l-{key} data-act=tog data-key=\"{key}\">{}</button></div>",
+            if on { " on" } else { "" }, if on { "On" } else { "Off" }
         )
     };
     let opts: String = [(0u32, "Never"), (5, "5 minutes"), (15, "15 minutes"), (30, "30 minutes"), (60, "1 hour")]
         .iter()
         .map(|(v, l)| format!("<option value={v}{}>{l}</option>", if c.autolock == *v { " selected" } else { "" }))
         .collect();
-    let extra = format!(
-        "<div class=set><div><b>Your profile</b><p>Set at first run. Stored in the encrypted store on this PC and used only for the home-page greeting.</p></div>\
-<div style=\"display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end\"><input class=pk id=pn maxlength=60 placeholder=Name value=\"{}\"><input class=pk id=pe maxlength=120 placeholder=Email value=\"{}\"><button class=ghost data-act=setprofile>Save</button></div></div>\
-<div class=set><div><b>Auto-lock</b><p>After this long without use, Owl locks, closes every page and encrypts your cookies, logins and history on disk. Playing media and downloads count as use. Unlocking reopens your tabs.</p></div><select class=pk data-sel=autolock>{opts}</select></div>\
-{}\
-<div class=set><div><b>Proxy or VPN</b><p>Hide your IP address by sending all page traffic through a proxy, for example <code>socks5://127.0.0.1:9050</code> (Tor) or your VPN's proxy. WebRTC is forced through it too. Restart Owl to apply. Empty = direct.</p></div>\
-<div style=\"display:flex;gap:8px;align-items:center\"><input class=pk id=px maxlength=100 placeholder=\"socks5://127.0.0.1:9050\" value=\"{}\"><button class=ghost data-act=setproxy>Save</button></div></div>",
-        esc(prof.0), esc(prof.1),
-        tog(15, "lock_win", c.lock_on_winlock, "Lock when Windows locks or sleeps", "Locks Owl, closes your pages and encrypts your data the moment you lock the PC (Win+L), sleep, or shut down. Typed text and scroll position are saved and restored when you unlock.") + &tog(14, "fp_strict", c.fp_strict, "Strict fingerprint protection", "Also reports the same screen size, language and plugin list to every site. Stronger, but sites may show English or odd layouts. Applies to new pages."),
-        esc(&c.proxy)
-    );
     let mut cards = String::new();
     for (i, (id, label, bg, ink, acc)) in THEME_CARDS.iter().enumerate() {
+        let on = c.theme == *id;
         cards += &format!(
-            "<button class=\"th{}\" data-t=\"{id}\" style=\"--i:{i};--b:{bg};--i2:{ink};--a:{acc}\"><span class=pv style=\"--i:{ink}\"><u></u></span><span class=l>{label}</span></button>",
-            if c.theme == *id { " on" } else { "" }
+            "<button class=\"th{}\" data-t=\"{id}\" aria-pressed={on} aria-label=\"{label} theme\" style=\"--i:{i};--b:{bg};--i2:{ink};--a:{acc}\"><span class=pv style=\"--i:{ink}\"><u></u></span><span class=l>{label}</span></button>",
+            if on { " on" } else { "" }
         );
     }
     let ex = if exts.is_empty() { "none".to_string() } else { exts.join(", ") };
     let theme_js = r#"<script>
 document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,live=!['system','random'].includes(t);
- document.querySelectorAll('.th').forEach(x=>x.classList.toggle('on',x===b));
+ document.querySelectorAll('.th').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});
  if(live)document.documentElement.dataset.theme=t;
  ipc.postMessage(JSON.stringify({cmd:'set',key:'theme',val:t}));
  if(!live)setTimeout(()=>location.reload(),300)});
 </script>"#;
-    let body = format!(
-        "<h2>Theme <span>Swiss palettes. Applies instantly.</span></h2><div class=themes>{cards}</div>\
-<div class=set><div><b>Startup key</b><p>Asked each time Owl opens. Default is the 4-digit key 1966. <b>Set a passphrase of 10 or more characters</b> for real protection: your saved passwords, history, bookmarks, cookies and site logins are encrypted at rest with keys derived from it (Argon2id), and wrong guesses lock you out for longer each time. A 4-digit key can still be guessed offline by someone who copies your files. Data is sealed when Owl closes cleanly; if Owl is killed it stays readable until the next clean exit.</p></div>\
-<div style=\"display:flex;gap:8px;align-items:center\"><input class=pk type=password id=op maxlength=128 autocomplete=off placeholder=\"current key\"><input class=pk type=password id=np maxlength=128 autocomplete=off placeholder=\"new key or passphrase\"><button data-act=setpin>Change</button></div></div>\
-{}{}{}{}{}\
-{extra}\
-<div class=set><div><b>Time tracking</b><p>Minutes per site are kept on this PC for the home page. Clear them any time.</p></div><button class=ghost data-act=clearusage>Clear</button></div>\
-<div class=set><div><b>Sync folder</b><p>Store bookmarks, history and open tabs in a folder synced by OneDrive, Dropbox or Syncthing. Restart Owl after changing.</p>\
-<p><input id=sy value=\"{}\" placeholder=\"C:\\Users\\you\\OneDrive\\Owl\"></p></div><button data-act=setsync>Save</button></div>\
-<div class=set><div><b>Sync passphrase</b><p>Encrypts the sync file (ChaCha20-Poly1305). {} Enter the same passphrase on each PC. Leave empty to turn encryption off. Restart Owl to apply.</p>\
-<p><input id=sp type=password autocomplete=off placeholder=\"Passphrase\"></p></div><button data-act=setsyncpass>Save</button></div>\
-<div class=set><div><b>Extensions (user scripts)</b><p>Put .js files in <code>{}\\extensions</code>. They run on every page. Loaded: {}</p></div><span class=pill>Folder</span></div>\
-<div class=set><div><b>Credits</b><p>Icons are from Lucide (ISC licence), drawn inline. Page engine: Microsoft Edge WebView2.</p></div><span class=pill>Open source</span></div>{theme_js}",
-        tog(8, "bar", c.bookmark_bar, "Bookmark bar", "Show bookmarks above the tabs. Ctrl+B."),
-        tog(9, "block", c.block, "Block trackers and ads", "Blocks requests to known ad, analytics and tracking hosts."),
-        tog(10, "https_only", c.https_only, "HTTPS-only mode", "Upgrades http:// pages to https:// and refuses plain connections."),
-        tog(11, "organize", c.organize, "Sort downloads into folders", "Documents, Images, Video, Music, Archives and Programs inside your Downloads folder."),
-        tog(12, "pw_save", c.pw_save, "Offer to save passwords", "Ask to save a password after you sign in to a site.") + &tog(13, "fp", c.fp, "Fingerprint protection", "Adds invisible noise to canvas and audio reads, hides the exact GPU model and rounds hardware hints, so trackers cannot recognise you as easily. Applies to new pages. Turn off if a site misbehaves."),
-        esc(&c.sync_dir),
-        if c.sync_key.is_empty() { "Not set: the sync file is currently plain text." } else { "A passphrase is set." },
-        esc(dir), esc(&ex)
+    let appearance = format!("<h2 class=gh>Appearance <span>Swiss palettes. Applies instantly.</span></h2><div class=themes role=group aria-label=\"Theme\">{cards}</div>");
+    let security = format!(
+        "<h2 class=gh>Security</h2>\
+<div class=set><div><b>Startup key</b><p><b>Use a passphrase of 10 or more characters.</b> It protects your saved passwords, history, bookmarks and cookies. A 4-digit key can be guessed offline.</p>\
+<details><summary>How it works</summary><p>The key is stretched with Argon2id and wrong guesses lock you out for longer each time. Data is sealed when Owl locks or closes cleanly; if Owl is killed it stays readable until the next lock or start. The default key before setup is 1966.</p></details></div>\
+<div class=ctl><input class=pk type=password id=op maxlength=128 autocomplete=off aria-label=\"Current key\" placeholder=\"Current key\"><input class=pk type=password id=np maxlength=128 autocomplete=off aria-label=\"New key or passphrase\" placeholder=\"New key or passphrase\"><button data-act=setpin>Change</button></div></div>\
+<div class=set><div><b>Auto-lock</b><p>After this long without use, Owl locks, closes every page and encrypts your data on disk. Playing media and downloads count as use. Unlocking reopens your tabs.</p></div><select class=pk data-sel=autolock aria-label=\"Auto-lock after\">{opts}</select></div>{}{}",
+        tog(15, "lock_win", c.lock_on_winlock, "Lock when Windows locks or sleeps", "Locks Owl and encrypts your data when you lock the PC (Win+L), sleep or shut down. Typed text and scroll position are restored on unlock."),
+        tog(12, "pw_save", c.pw_save, "Offer to save passwords", "Ask to save a password after you sign in to a site.")
     );
-    list_page("Settings", &body, "", "", theme)
+    let privacy = format!(
+        "<h2 class=gh>Privacy</h2>{}{}{}{}\
+<div class=set><div><b>Proxy or VPN</b><p>Send all page traffic through a proxy to hide your IP address, for example <code>socks5://127.0.0.1:9050</code> (Tor). WebRTC is forced through it too. Empty means direct.</p></div>\
+<div class=ctl><input class=pk id=px maxlength=100 aria-label=\"Proxy address\" placeholder=\"socks5://127.0.0.1:9050\" value=\"{}\"><button class=ghost data-act=setproxy>Save</button></div></div>",
+        tog(9, "block", c.block, "Block trackers and ads", "Blocks requests to known ad, analytics and tracking hosts."),
+        tog(10, "https_only", c.https_only, "HTTPS-only mode", "Upgrades http:// pages to https:// and warns before using plain http."),
+        tog(13, "fp", c.fp, "Fingerprint protection", "Adds invisible noise to canvas and audio reads, hides the exact GPU model and rounds hardware hints. Applies to new pages."),
+        tog(14, "fp_strict", c.fp_strict, "Strict fingerprint protection", "Also reports the same screen size, language and plugin list to every site. Sites may show English or odd layouts."),
+        esc(&c.proxy)
+    );
+    let data = format!(
+        "<h2 class=gh>Downloads and data</h2>{}{}\
+<div class=set><div><b>Time tracking</b><p>Minutes per site are kept on this PC for the home page. Clear them any time.</p></div><button class=ghost data-act=clearusage>Clear</button></div>",
+        tog(11, "organize", c.organize, "Sort downloads into folders", "Documents, Images, Video, Music, Archives and Programs inside your Downloads folder."),
+        tog(8, "bar", c.bookmark_bar, "Bookmark bar", "Show bookmarks above the tabs (Ctrl+B).")
+    );
+    let sync = format!(
+        "<h2 class=gh>Sync</h2>\
+<div class=set><div><b>Sync folder</b><p>Keep bookmarks, history and open tabs in a folder synced by OneDrive, Dropbox or Syncthing. Set the passphrase below first. Restart Owl after changing.</p></div>\
+<div class=ctl><input class=pk id=sy aria-label=\"Sync folder\" value=\"{}\" placeholder=\"C:\\Users\\you\\OneDrive\\Owl\"><button data-act=setsync>Save</button></div></div>\
+<div class=set><div><b>Sync passphrase</b><p>Encrypts the sync file (ChaCha20-Poly1305). {} Use the same passphrase on each PC. Restart Owl to apply.</p></div>\
+<div class=ctl><input class=pk id=sp type=password autocomplete=off aria-label=\"Sync passphrase\" placeholder=\"Passphrase\"><button data-act=setsyncpass>Save</button></div></div>",
+        esc(&c.sync_dir),
+        if c.sync_key.is_empty() { "Not set yet." } else { "A passphrase is set." }
+    );
+    let advanced = format!(
+        "<h2 class=gh>Profile and advanced</h2>\
+<div class=set><div><b>Your profile</b><p>Set at first run. Kept in the encrypted store on this PC and used only for the home-page greeting.</p></div>\
+<div class=ctl><input class=pk id=pn maxlength=60 aria-label=\"Name\" placeholder=Name value=\"{}\"><input class=pk id=pe maxlength=120 aria-label=\"Email\" placeholder=Email value=\"{}\"><button class=ghost data-act=setprofile>Save</button></div></div>\
+<div class=set><div><b>Extensions (user scripts)</b><p>Put .js files in <code>{}\\extensions</code>. They run on every web page. Loaded: {}</p></div><button class=ghost data-act=opendata>Open Owl folder</button></div>\
+<div class=set><div><b>Restart Owl</b><p>Some settings (proxy, sync) apply after a restart.</p></div><button class=ghost data-act=restart>Restart now</button></div>\
+<div class=set><div><b>About and credits</b><p>Icons are from Lucide (ISC licence). The page engine is Microsoft Edge WebView2.</p></div><a class=btn href=\"owl://about\">About Owl</a></div>",
+        esc(prof.0), esc(prof.1), esc(dir), esc(&ex)
+    );
+    list_page("Settings", &format!("{appearance}{security}{privacy}{data}{sync}{advanced}{theme_js}"), "", "", theme)
 }
 
 pub fn httpsfail(url: &str, theme: &str) -> String {
     let safe = if url.starts_with("http://") { url } else { "http://invalid" };
     let body = format!(
-        "{}<div class=grid><div class=sec><h1>Not secure<em>.</em></h1>\
-<p style=\"max-width:60ch;margin-bottom:24px\">HTTPS-only mode is on, but <b>{}</b> did not load over https. The site may not support it, or someone may be blocking the secure connection.</p>\
-<p style=\"display:flex;gap:10px\"><button class=ghost data-act=back>Go back</button><button data-act=http_allow data-url=\"{}\">Continue over http (not secure)</button></p></div></div>",
+        "{}<main class=grid><div class=sec><h1>Not secure<em>.</em></h1>\
+<p style=\"max-width:60ch;margin-bottom:24px\"><b class=warn>Warning.</b> HTTPS-only mode is on, but <b>{}</b> did not load over https. The site may not support it, or someone may be blocking the secure connection.</p>\
+<p style=\"display:flex;gap:18px;align-items:center;flex-wrap:wrap\"><button data-act=back>Go back</button><a class=lnk href=\"#\" data-act=http_allow data-url=\"{}\" role=button>Continue over http anyway (not secure)</a></p></div></main>",
         hdr("HTTPS"), esc(safe), esc(safe)
     );
-    page("Not secure", &body, "", theme, "")
+    page("Not secure", &body, "<style>.warn{color:var(--red)}.lnk{font-size:13px;color:var(--mute);text-decoration:underline}.lnk:hover{color:var(--red)}</style>", theme, "")
+}
+
+pub fn about(theme: &str) -> String {
+    let body = format!(
+        "<div class=land>{}\
+<section class=\"rv\"><div class=huge>Keyboard first<em>.</em></div><div class=keys>\
+<div class=key><kbd>Ctrl T</kbd><span>New tab</span></div><div class=key><kbd>Ctrl L</kbd><span>Address bar</span></div>\
+<div class=key><kbd>Ctrl D</kbd><span>Bookmark</span></div><div class=key><kbd>Ctrl F</kbd><span>Find in page</span></div>\
+<div class=key><kbd>Ctrl Tab</kbd><span>Next tab (Ctrl 1-9 jump)</span></div><div class=key><kbd>Ctrl H</kbd><span>History</span></div>\
+<div class=key><kbd>Alt \u{2190} \u{2192}</kbd><span>Back and forward</span></div><div class=key><kbd>Ctrl Shift L</kbd><span>Lock Owl</span></div></div></section>\
+<section class=\"fin rv\"><div class=word>Owl.</div><div class=facts>\
+<div><b>About 1 MB</b><span>the whole browser</span></div><div><b>Rust</b><span>built with tao and wry</span></div>\
+<div><b>No account</b><span>nothing to sign in to</span></div><div><b>Encrypted</b><span>your data is sealed when Owl locks</span></div></div>\
+<div class=foot><span>Owl</span><span>Ultra-light browser</span></div></section></div>",
+        hdr("About")
+    );
+    page("About", &body, "", theme, "landing")
 }

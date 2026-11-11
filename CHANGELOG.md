@@ -6,6 +6,21 @@ All notable changes to Owl are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Installed app did not open when its folder was read-only (for example Program Files): the engine folder now lives under `%LOCALAPPDATA%\Owl`, and start-up errors show a message box.
+- Private windows opened with no tab.
+- A settings file saved with a byte-order mark was treated as damaged.
+- Window controls hidden while a dialog was open; focus now returns to the page after a dialog.
+- Contrast problems: new `--onred` and `--mute-on` theme tokens fix white-on-accent text, muted text on hovered or selected rows, and darker Sand and lighter Invert palettes.
+- Narrow windows: row actions on History, Bookmarks and Passwords stay visible, Settings reflows, the tab strip scrolls, the toolbar hides low-value buttons, and the menu scrolls.
+
+### Added
+- Command-line start URL (`Owl.exe https://example.com`).
+- Keyboard access: tabs (arrow keys, Delete, Menu key), bookmark bar, combobox suggestions, `Ctrl+Tab` and `Ctrl+1-9`, dialog focus trap.
+- Address-bar security indicator, find-in-page previous/next/close buttons, bookmark undo notice, recovery screen with Open folder and Quit.
+- History: times, day headings, search, per-item remove and a confirmed Clear; bookmarks Move and Remove with confirmation.
+- Settings grouped under Appearance, Security, Privacy, Downloads and data, Sync and Profile; Restart now button; About page.
+
 ## [0.1.0] - 2026-11-11
 
 First public release.

@@ -51,6 +51,7 @@ addEventListener('keydown',e=>{const c=e.ctrlKey||e.metaKey;let k=null;
  else if(c&&e.shiftKey&&e.key.toLowerCase()==='l')k='lock';
  else if(e.altKey&&e.key==='ArrowLeft')k='back';else if(e.altKey&&e.key==='ArrowRight')k='forward';
  else if(c&&(e.key==='='||e.key==='+'))k='zin';else if(c&&e.key==='-')k='zout';else if(c&&e.key==='0')k='z0';
+ else if(c&&e.key==='Tab')k=e.shiftKey?'prevtab':'nexttab';else if(c&&/^[1-9]$/.test(e.key))k='tab'+e.key;
  if(k){e.preventDefault();window.ipc.postMessage(JSON.stringify({cmd:'key',k}))}},true);
 document.addEventListener('fullscreenchange',()=>window.ipc.postMessage(JSON.stringify({cmd:'fs',on:!!document.fullscreenElement})));
 addEventListener('load',()=>{if(!location.protocol.startsWith('http')||top!==window)return;
@@ -535,7 +536,10 @@ fn write_atomic(path: &std::path::Path, data: &[u8]) {
 /// Load JSON, falling back to the .bak. Returns (value, damaged) where damaged means a file
 /// exists but neither it nor its backup could be read.
 fn load_json<T: serde::de::DeserializeOwned>(path: &std::path::Path) -> (Option<T>, bool) {
-    let try_one = |p: &std::path::Path| fs::read_to_string(p).ok().and_then(|s| serde_json::from_str::<T>(&s).ok());
+    // editors such as Notepad add a byte-order mark; it is not part of the JSON
+    let try_one = |p: &std::path::Path| {
+        fs::read_to_string(p).ok().and_then(|s| serde_json::from_str::<T>(s.trim_start_matches('\u{feff}')).ok())
+    };
     if let Some(v) = try_one(path) {
         return (Some(v), false);
     }
@@ -929,7 +933,8 @@ fn serve(path: &str, query: &str, ctx: &Ctx) -> (u16, &'static str, String) {
             let names: Vec<String> = ctx.extensions().into_iter().map(|e| e.0).collect();
             (200, html, pages::settings(&ctx.cfg.lock().unwrap(), &names, &ctx.dir.to_string_lossy(), (&s.name, &s.email), &th))
         }
-        _ => (404, html, pages::notfound(&th)),
+        "/about" => (200, html, pages::about(&th)),
+        _ => (404, html, pages::notfound(path, &th)),
     }
 }
 
@@ -1031,6 +1036,8 @@ impl App {
             let _ = t.wv.set_visible(t.id == self.active);
         }
         self.layout_media(s.width, page_h);
+        // the overlay may never be taller than the window: it scrolls instead
+        let _ = self.ui.evaluate_script(&format!("owl.maxo({})", (s.height - base - 16.0).max(120.0) as i64));
         if self.extra > 0.0 {
             raise(&self.ui);
         }
@@ -1112,8 +1119,10 @@ impl App {
         self.modal = true;
         self.layout();
         let title = if uri.contains(HOST) { "Owl".to_string() } else { host_of(&uri) };
+        // Owl's own pages ask for the startup key through a prompt: hide what is typed
+        let secret = kind == 2 && uri.contains(HOST) && msg.to_lowercase().contains("key");
         let o = json!({
-            "id": did, "kind": match kind { 0 => "alert", 2 => "prompt", _ => "confirm" },
+            "id": did, "secret": secret, "kind": match kind { 0 => "alert", 2 => "prompt", _ => "confirm" },
             "title": title, "text": if kind == 3 { "This page asks if you want to leave it. Changes you made may not be saved.".to_string() } else { msg },
             "def": def, "block": !uri.contains(HOST)
         });
@@ -1643,6 +1652,7 @@ impl App {
         let safe_key = matches!(
             kk,
             "addr" | "find" | "reload" | "back" | "forward" | "zin" | "zout" | "z0" | "new" | "close" | "bookmark" | "history" | "bar" | "fs"
+                | "nexttab" | "prevtab" | "tab1" | "tab2" | "tab3" | "tab4" | "tab5" | "tab6" | "tab7" | "tab8" | "tab9"
         );
         if !trusted && !(matches!(cmd, "icon" | "pw_query" | "pw_capture" | "media") || (cmd == "key" && safe_key)) {
             return;
@@ -1679,7 +1689,7 @@ impl App {
                 _ => {}
             }
         }
-        if self.locked && !matches!(cmd, "ready" | "unlock" | "setup" | "win_min" | "win_close" | "drag" | "resize" | "ui_extra") {
+        if self.locked && !matches!(cmd, "ready" | "unlock" | "setup" | "win_min" | "win_max" | "win_close" | "drag" | "resize" | "ui_extra" | "open_data") {
             return;
         }
         let s = |k: &str| v[k].as_str().unwrap_or("").to_string();
@@ -2360,6 +2370,11 @@ impl App {
                     self.push();
                 }
             }
+            "hist_remove" => {
+                let (t, u) = (v["t"].as_u64().unwrap_or(0), s("url"));
+                self.ctx.store.lock().unwrap().history.retain(|e| !(e.t == t && e.url == u));
+                self.ctx.save();
+            }
             "clear_history" => {
                 self.ctx.store.lock().unwrap().history.clear();
                 self.ctx.save();
@@ -2407,6 +2422,16 @@ impl App {
                 }
                 self.layout();
                 self.push();
+            }
+            // recovery screen: open the Owl data folder in Explorer (the folder is Owl's own, fixed path)
+            "open_data" => {
+                use windows::core::{w, HSTRING, PCWSTR};
+                use windows::Win32::UI::Shell::ShellExecuteW;
+                use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+                let p = HSTRING::from(self.ctx.dir.to_string_lossy().as_ref());
+                unsafe {
+                    let _ = ShellExecuteW(None, w!("open"), &p, PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL);
+                }
             }
             "dlg_answer" => {
                 let ok = v["ok"].as_bool().unwrap_or(false);
@@ -2506,6 +2531,25 @@ impl App {
                 "fs" => {
                     let f = !self.fs;
                     self.set_fs(f)
+                }
+                "nexttab" | "prevtab" => {
+                    if let Some(i) = self.tabs.iter().position(|t| t.id == self.active) {
+                        let n = self.tabs.len();
+                        let j = if s("k") == "nexttab" { (i + 1) % n } else { (i + n - 1) % n };
+                        self.active = self.tabs[j].id;
+                        self.layout();
+                        self.push();
+                    }
+                }
+                k if k.starts_with("tab") && k.len() == 4 => {
+                    // Ctrl+1..8 pick that tab, Ctrl+9 the last one (the usual browser convention)
+                    let d = k[3..].parse::<usize>().unwrap_or(1);
+                    let idx = if d == 9 { self.tabs.len().saturating_sub(1) } else { d - 1 };
+                    if let Some(t) = self.tabs.get(idx) {
+                        self.active = t.id;
+                        self.layout();
+                        self.push();
+                    }
                 }
                 "zin" => self.zoom(0.1),
                 "zout" => self.zoom(-0.1),
