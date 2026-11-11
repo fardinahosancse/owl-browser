@@ -40,7 +40,7 @@
 |---|---|
 | **Tiny** | The whole browser is a single executable of about 1 MB. The page engine is the Edge WebView2 runtime already on your PC, so YouTube, Facebook, logins, caching and 1080p60 video work as in Edge. |
 | **Swiss design** | A footer toolbar (tabs, address bar, window controls), generous type, a red accent, and light, dark, black, navy, invert, sand and random themes. Motion respects the system "reduce motion" setting. |
-| **Private by default** | Built-in tracker and ad blocking, HTTPS-only mode, Global Privacy Control, fingerprint noise, an optional proxy or Tor, and private windows that never save anything. |
+| **Private by default** | Built-in tracker and ad blocking, HTTPS-only mode, Global Privacy Control, fingerprint noise, a permission policy, an optional proxy or Tor, and private windows that never save anything. See [Privacy and security](#privacy-and-security). |
 | **Encrypted at rest** | Cookies, saved logins, history and site storage are sealed on lock, on exit, after a crash and at Windows shutdown. Saved passwords are bound to your passphrase. |
 | **Start-up passphrase** | A first-run profile replaces the default key with your own passphrase. Wrong guesses are rate-limited and locked out with growing delays. |
 | **Real browser features** | Tabs with drag reorder, pin, mute and duplicate; bookmarks with groups; history; a download manager with pause, resume, speed and folders; find in page; zoom; a password manager; session restore; a now-playing widget for music and video. |
@@ -153,25 +153,50 @@ Everything is local, under `%LOCALAPPDATA%\Owl`:
 
 ## Privacy and security
 
-Owl is built around a few simple rules:
+Owl is built around a few simple rules: no account, no telemetry, and nothing leaves your PC
+unless a page you open asks for it. The one optional exception is the update check below.
 
-- **No account, no telemetry, no analytics.** The only network traffic is what pages you open make.
-- **Strict internal pages.** `owl://` pages use a per-load nonce Content-Security-Policy, no inline
-  handlers, and cannot be framed. Web pages can reach only a short allow-list of commands.
-- **Downloads are held for approval** when they are risky types, start from a background tab or
-  arrive in a burst. Files open without a shell and only from the Downloads folder.
-- **Passphrase, not a PIN.** Keys are derived with Argon2id (64 MiB) and a persisted, escalating
-  lock-out. All sub-keys (vault, store, sealing) come from one derivation.
-- **Sealed to a public key.** Profile data is encrypted to an X25519 public key, so Owl can lock it
-  at any moment (including after a crash or at Windows shutdown) without asking for your password.
-  Only your passphrase unwraps the private key.
-- **Safe failure.** Settings and vault writes are atomic with backups; a damaged settings file puts
-  Owl into a recovery state instead of starting over; a failed restore never deletes the sealed file.
+### Security features
 
-Honest limits:
+| Area | What Owl does |
+|---|---|
+| **Encryption at rest** | History, bookmarks, session and statistics are encrypted (ChaCha20-Poly1305). Cookies, logins and site storage are sealed to an X25519 public key on lock, exit, crash recovery and Windows shutdown, so Owl can lock at any moment without asking for your password. |
+| **Passphrase, not a PIN** | Keys come from one Argon2id derivation (64 MiB). Wrong guesses are rate-limited with a persisted, escalating lock-out. A first-run profile replaces the default key. |
+| **Password vault** | Saved passwords are encrypted with Windows DPAPI plus a secret derived from your passphrase, so another Windows program or user cannot read them. The engine's own password and autofill storage is turned off. |
+| **Keys wiped from memory** | Derived keys are overwritten when Owl locks, the key changes or Owl exits. |
+| **Auto-lock** | Locks after idle time, and when Windows locks, sleeps or shuts down. Locking closes every page and seals the profile. Typed text and scroll position are restored on unlock. |
+| **Safe failure** | Settings and vault writes are atomic with backups. A damaged settings file puts Owl in a recovery state instead of starting over, and a failed restore never deletes the sealed file. |
+| **Strict internal pages** | `owl://` pages use a per-load nonce Content-Security-Policy, no inline handlers, and cannot be framed. Web pages can reach only a short allow-list of commands. Fullscreen, popup and dialog events come from the engine, not from page scripts. |
+| **Tracker and ad blocking** | Built-in host blocklist, with counters on the home page. Optional **strict tracking prevention** also blocks third-party trackers and their stored cookies. |
+| **HTTPS-only mode** | Upgrades `http://` to `https://` and shows a warning page, with "Go back" as the default, before any plain-http page is used. The address bar shows a lock or "Not secure". |
+| **Permission policy** | Sensors, local fonts, MIDI system access and window management are always refused. An optional setting refuses camera, microphone, location and notifications without asking. |
+| **Fingerprint protection** | Noise on canvas and audio reads, hidden GPU model and rounded hardware hints. A strict mode also normalises screen size, language and plugins. |
+| **Privacy signals and proxy** | Global Privacy Control is sent. An optional SOCKS or HTTP proxy (for example Tor) also carries WebRTC traffic. |
+| **Downloads** | Risky file types, downloads from background tabs and bursts are held for your approval. Files open without a shell and only from the Downloads folder. Windows reputation (SmartScreen) checks are required. |
+| **Dialogs** | JavaScript alerts, confirms and prompts appear in Owl's own centered dialog (with masked input for key prompts) instead of system boxes a page could use to trap you. |
+| **Private windows** | Use a temporary data folder that is deleted afterwards. Nothing is saved or counted. |
+| **Update check (opt-in)** | Settings > Privacy. Once a day, or on demand, Owl asks GitHub for the newest release tag. Nothing is downloaded or installed, no identifier is sent, and it is skipped when a proxy is set. |
+
+### Supply chain
+
+- Every release is built by GitHub Actions from a version tag, with `cargo build --release --locked`.
+- Release files carry **GitHub build attestations**. Verify a download came from this repository:
+
+  ```powershell
+  gh attestation verify .\Owl-Setup-<version>.exe --repo fardinahosancse/owl-browser
+  ```
+
+- Each release publishes `SHA256SUMS.txt` and a **build log** (commit, toolchain, sizes and hashes).
+- CI runs a secret scan, a dependency advisory audit and a licence and sources check (`cargo-deny`).
+  GitHub Actions are pinned to commit SHAs and kept current by Dependabot.
+- The files are not yet Authenticode-signed, so Windows SmartScreen may warn on first run.
+
+### Honest limits
 
 - Owl is a hobby-grade project and has **not** had a professional audit. See [SECURITY.md](SECURITY.md).
 - While Owl is open and unlocked, other programs running as you can read its files and memory.
+- Page rendering uses the system Edge WebView2 engine, so engine security fixes arrive through
+  Windows and Edge updates, not through Owl.
 - Fingerprint protection reduces common signals; it does not make you anonymous.
 - A weak passphrase weakens everything derived from it. Use a long one.
 
@@ -193,7 +218,8 @@ owl.exe  (Rust, ~1 MB)
     ├── vault.rs     password vault (DPAPI + passphrase-bound entropy)
     ├── profile.rs   seal and restore of cookies, logins and site data
     ├── dl.rs        download manager hooks
-    ├── native.rs    non-forgeable WebView2 events (fullscreen, popups, dialogs, updates)
+    ├── native.rs    non-forgeable WebView2 events, permission policy, tracking level
+    ├── update.rs    opt-in, notify-only release check
     └── media.rs     now-playing widget and per-tab audio
 ```
 
@@ -205,8 +231,8 @@ webviews are untrusted and get an explicit allow-list of commands.
 - **CI** (`.github/workflows/ci.yml`) builds on every push and pull request, runs a secret scan and
   a dependency audit, and uploads the executable as a workflow artifact.
 - **Release** (`.github/workflows/release.yml`) runs when a version tag is pushed. It builds the
-  optimised executable, compiles the **installer** with Inno Setup, creates a portable zip and
-  checksums, takes the release notes from [CHANGELOG.md](CHANGELOG.md), and publishes a GitHub
+  optimised executable, compiles the **installer** with Inno Setup, creates a portable zip,
+  checksums, a build log and build attestations, takes the release notes from [CHANGELOG.md](CHANGELOG.md), and publishes a GitHub
   Release.
 
 To cut a release:

@@ -40,6 +40,8 @@ Owl is a small hobby-grade project and has not been professionally audited. Be a
 - The WebView2 cache and some Chromium metadata files are not part of the sealed set.
 - Fingerprint protection is best-effort and can be detected.
 
+See the README's [Security features](README.md#security-features) table for what Owl protects and how.
+
 ## Secrets in this repository
 
 The repository contains no credentials. A secret scan runs on every push. If you find a secret,

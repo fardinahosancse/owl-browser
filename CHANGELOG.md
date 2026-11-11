@@ -6,13 +6,19 @@ All notable changes to Owl are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-11
+
 ### Security
-- Key material is wiped from memory when keys are dropped (lock, key change, exit).
-- Permission policy: sensors, local fonts, MIDI and window management are always refused; optional block of camera, microphone, location and notifications.
-- Optional strict tracking prevention; reputation checks required; the engine's own password and autofill storage is off.
-- Opt-in, notify-only update check (Settings > Privacy) with a manual Check now button.
-- Release files now carry GitHub build attestations (verify with ).
-- GitHub Actions are pinned to commit SHAs; added a cargo-deny licence and sources check.
+- Key material (startup key, vault, store and sealing keys) is overwritten in memory when it is dropped: on lock, key change and exit.
+- Permission policy: sensors, local fonts, MIDI system access and window management are always refused. A new setting also refuses camera, microphone, location and notification requests without asking.
+- Optional strict tracking prevention for third-party trackers and their stored cookies.
+- Reputation (SmartScreen) checks are required explicitly; the engine's own password and autofill storage is switched off so secrets live only in Owl's vault.
+- Opt-in, notify-only update check (Settings > Privacy) and a Check now button. It never downloads or installs anything and is skipped when a proxy is set.
+- Release files carry GitHub build attestations: verify with `gh attestation verify <file> --repo fardinahosancse/owl-browser`.
+- GitHub Actions are pinned to commit SHAs and a cargo-deny licence and sources check runs in CI.
+
+### Changed
+- Release notes now include a build log: commit, toolchain, file sizes, SHA-256 checksums and a link to the build run.
 
 ## [0.1.1] - 2026-11-11
 
@@ -64,6 +70,7 @@ First public release.
 - Command allow-list for web pages; native (non-forgeable) fullscreen, popup and dialog events.
 - Atomic settings and vault writes with backups and a recovery state.
 
-[Unreleased]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/fardinahosancse/owl-browser/releases/tag/v0.1.0

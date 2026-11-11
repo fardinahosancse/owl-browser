@@ -93,6 +93,34 @@ jobs:
           } | Set-Content out\SHA256SUMS.txt -Encoding ascii
           Get-Content out\SHA256SUMS.txt
 
+      - name: Build log
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.v.outputs.version }}"
+          $rustc = (rustc -Vv) -join "`n"
+          $cargo = cargo -V
+          $exe = Get-Item dist\Owl.exe
+          $lines = @()
+          $lines += "Owl $ver build log"
+          $lines += "Built (UTC):  $((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss'))"
+          $lines += "Commit:       ${{ github.sha }}"
+          $lines += "Tag:          ${{ steps.v.outputs.tag }}"
+          $lines += "Runner:       ${{ runner.os }} ${{ runner.arch }} ($env:ImageOS $env:ImageVersion)"
+          $lines += "Build run:    ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          $lines += "Cargo:        $cargo"
+          $lines += "Command:      cargo build --release --locked"
+          $lines += "Lockfile:     Cargo.lock sha256 $((Get-FileHash Cargo.lock -Algorithm SHA256).Hash.ToLower())"
+          $lines += "Owl.exe size: $([math]::Round($exe.Length / 1KB)) KB"
+          $lines += ""
+          $lines += "Rust toolchain:"
+          $lines += $rustc
+          $lines += ""
+          $lines += "SHA-256:"
+          $lines += (Get-Content out\SHA256SUMS.txt)
+          $lines += "Owl.exe (inside the installer and zip): $((Get-FileHash dist\Owl.exe -Algorithm SHA256).Hash.ToLower())"
+          $lines | Set-Content out\BUILD-LOG.txt -Encoding utf8
+          Get-Content out\BUILD-LOG.txt
+
       - name: Attest build provenance
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
@@ -125,11 +153,14 @@ jobs:
           | ``Owl-Setup-$ver.exe`` | Installer (per-user, no administrator rights needed) |
           | ``Owl-$ver-portable.zip`` | Portable: extract and run ``Owl.exe`` |
           | ``SHA256SUMS.txt`` | Checksums for the files above |
+          | ``BUILD-LOG.txt`` | Commit, toolchain, sizes and hashes of this build |
 
           Verify origin: ``gh attestation verify Owl-Setup-$ver.exe --repo ${{ github.repository }}``
 
           Requires Windows 10 (1809+) or 11 with the Edge WebView2 Runtime. Full changelog: [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ steps.v.outputs.tag }}/CHANGELOG.md)
           "@
+          $log = (Get-Content out\BUILD-LOG.txt -Raw)
+          $body = "$body`n`n<details><summary>Build log</summary>`n`n``````text`n$log`n``````n`n</details>"
           Set-Content release-body.md ($body -replace '(?m)^ {10}', '') -Encoding UTF8
 
       - name: Publish GitHub Release
@@ -143,3 +174,4 @@ jobs:
             out/Owl-Setup-${{ steps.v.outputs.version }}.exe
             out/Owl-${{ steps.v.outputs.version }}-portable.zip
             out/SHA256SUMS.txt
+            out/BUILD-LOG.txt
