@@ -104,6 +104,15 @@ pub fn install(wv: &WebView, proxy: EventLoopProxy<Ev>, id: u32) {
         // trap the user) and show Owl's own centered modal instead
         if let Ok(st) = core.Settings() {
             let _ = st.SetAreDefaultScriptDialogsEnabled(false);
+            // reputation checks (SmartScreen) for sites and downloads must stay on
+            if let Ok(s8) = st.cast::<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings8>() {
+                let _ = s8.SetIsReputationCheckingRequired(true);
+            }
+            // Owl has its own password manager; the engine must not keep a second copy
+            if let Ok(s4) = st.cast::<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings4>() {
+                let _ = s4.SetIsPasswordAutosaveEnabled(false);
+                let _ = s4.SetIsGeneralAutofillEnabled(false);
+            }
         }
         let p = proxy.clone();
         let _ = core.add_ScriptDialogOpening(
