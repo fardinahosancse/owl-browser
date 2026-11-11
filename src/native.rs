@@ -7,10 +7,19 @@ use webview2_com::{
     take_pwstr,
     Microsoft::Web::WebView2::Win32::{ICoreWebView2Deferral, ICoreWebView2Environment5, ICoreWebView2ScriptDialogOpeningEventArgs},
     ContainsFullScreenElementChangedEventHandler, NavigationCompletedEventHandler, NewBrowserVersionAvailableEventHandler,
-    NewWindowRequestedEventHandler, ScriptDialogOpeningEventHandler,
+    NewWindowRequestedEventHandler, PermissionRequestedEventHandler, ScriptDialogOpeningEventHandler,
+};
+use webview2_com::Microsoft::Web::WebView2::Win32::{
+    COREWEBVIEW2_PERMISSION_KIND_CAMERA, COREWEBVIEW2_PERMISSION_KIND_GEOLOCATION, COREWEBVIEW2_PERMISSION_KIND_LOCAL_FONTS,
+    COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_KIND_MIDI_SYSTEM_EXCLUSIVE_MESSAGES,
+    COREWEBVIEW2_PERMISSION_KIND_NOTIFICATIONS, COREWEBVIEW2_PERMISSION_KIND_OTHER_SENSORS,
+    COREWEBVIEW2_PERMISSION_KIND_WINDOW_MANAGEMENT, COREWEBVIEW2_PERMISSION_STATE_DENY,
 };
 use windows::core::{Interface, BOOL};
 use wry::{WebView, WebViewExtWindows};
+
+/// When true, camera, microphone, location and notification requests are refused without a prompt.
+pub static PERM_BLOCK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// One entry per popup request, pushed in the same order Owl's own popup handler queues them.
 pub static POPUPS: Mutex<VecDeque<bool>> = Mutex::new(VecDeque::new());
@@ -89,6 +98,29 @@ pub fn install(wv: &WebView, proxy: EventLoopProxy<Ev>, id: u32) {
                 let did = NEXT_DLG.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 DIALOGS.with(|d| d.borrow_mut().insert(did, (args.clone(), deferral)));
                 let _ = p.send_event(Ev::Dialog(did, id, kind.0, uri, msg.chars().take(2000).collect(), def.chars().take(500).collect()));
+                Ok(())
+            })),
+            &mut t,
+        );
+        // permission policy: fingerprinting-prone or rarely needed capabilities are always refused;
+        // the sensitive ones are refused too when the user chose to block them. Everything else
+        // keeps the engine's own prompt.
+        let _ = core.add_PermissionRequested(
+            &PermissionRequestedEventHandler::create(Box::new(move |_, args| {
+                let Some(args) = args else { return Ok(()) };
+                let mut kind = Default::default();
+                args.PermissionKind(&mut kind)?;
+                let always = kind == COREWEBVIEW2_PERMISSION_KIND_OTHER_SENSORS
+                    || kind == COREWEBVIEW2_PERMISSION_KIND_LOCAL_FONTS
+                    || kind == COREWEBVIEW2_PERMISSION_KIND_MIDI_SYSTEM_EXCLUSIVE_MESSAGES
+                    || kind == COREWEBVIEW2_PERMISSION_KIND_WINDOW_MANAGEMENT;
+                let sensitive = kind == COREWEBVIEW2_PERMISSION_KIND_CAMERA
+                    || kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE
+                    || kind == COREWEBVIEW2_PERMISSION_KIND_GEOLOCATION
+                    || kind == COREWEBVIEW2_PERMISSION_KIND_NOTIFICATIONS;
+                if always || (sensitive && PERM_BLOCK.load(std::sync::atomic::Ordering::Relaxed)) {
+                    args.SetState(COREWEBVIEW2_PERMISSION_STATE_DENY)?;
+                }
                 Ok(())
             })),
             &mut t,

@@ -367,6 +367,9 @@ pub struct Config {
     /// strict mode also normalises screen size, languages and plugins (may change site language)
     #[serde(default)]
     pub fp_strict: bool,
+    /// refuse camera, microphone, location and notification requests without asking
+    #[serde(default)]
+    pub perm_block: bool,
     /// lock (and seal all data) after this many idle minutes; 0 = never
     #[serde(default = "autolock_default")]
     pub autolock: u32,
@@ -400,7 +403,7 @@ impl Default for Config {
             block: true, https_only: false, sync_dir: String::new(), theme: sys(), bookmark_bar: false,
             pin_hash: String::new(), pin_salt: String::new(), organize: true, pw_save: true, pw_never: vec![],
             strikes: 0, fails: 0, locked_until: 0, sync_key: String::new(), pin_mode: pin_mode(), kdf: 0, fp: true,
-            fp_strict: false, autolock: autolock_default(), proxy: String::new(),
+            fp_strict: false, perm_block: false, autolock: autolock_default(), proxy: String::new(),
             seal_pub: String::new(), seal_priv: String::new(), lock_on_winlock: true,
         }
     }
@@ -2409,6 +2412,10 @@ impl App {
                         "organize" => c.organize = on,
                         "fp" => c.fp = on,
                         "fp_strict" => c.fp_strict = on,
+                        "perm_block" => {
+                            c.perm_block = on;
+                            native::PERM_BLOCK.store(on, Relaxed)
+                        }
                         "lock_win" => c.lock_on_winlock = on,
                         "pw_save" => c.pw_save = on,
                         "theme" if !matches!(s("val").as_str(), "system" | "light" | "dark" | "black" | "navy" | "invert" | "sand" | "random") => {}
@@ -2687,6 +2694,7 @@ fn main() {
         && ((cfg_bad || vault_bad)
             || (cfg.seal_pub.is_empty() && cfg.pin_hash.is_empty() && profile::has_sealed(&dir) && !cfg_exists_ok(&dir)));
     BLOCK.store(cfg.block, Relaxed);
+    native::PERM_BLOCK.store(cfg.perm_block, Relaxed);
     HTTPS.store(cfg.https_only, Relaxed);
     *THEME.lock().unwrap() = cfg.theme.clone();
     pick_random();
