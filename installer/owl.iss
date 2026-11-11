@@ -8,6 +8,13 @@
 #if AppVersion == ""
   #define AppVersion "0.0.0"
 #endif
+; the Windows file-version field must be numeric (a.b.c.d): drop any "-beta" style suffix
+#define DashPos Pos("-", AppVersion)
+#if DashPos > 0
+  #define NumVersion Copy(AppVersion, 1, DashPos - 1)
+#else
+  #define NumVersion AppVersion
+#endif
 
 [Setup]
 ; A fixed AppId lets new versions upgrade in place and uninstall cleanly.
@@ -19,7 +26,7 @@ AppPublisher={#AppPublisher}
 AppPublisherURL={#AppURL}
 AppSupportURL={#AppURL}/issues
 AppUpdatesURL={#AppURL}/releases
-VersionInfoVersion={#AppVersion}
+VersionInfoVersion={#NumVersion}.0
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
