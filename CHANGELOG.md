@@ -7,6 +7,10 @@ All notable changes to Owl are documented here. The format follows
 ## [Unreleased]
 
 ### Security
+- Key material is wiped from memory when keys are dropped (lock, key change, exit).
+- Permission policy: sensors, local fonts, MIDI and window management are always refused; optional block of camera, microphone, location and notifications.
+- Optional strict tracking prevention; reputation checks required; the engine's own password and autofill storage is off.
+- Opt-in, notify-only update check (Settings > Privacy) with a manual Check now button.
 - Release files now carry GitHub build attestations (verify with ).
 - GitHub Actions are pinned to commit SHAs; added a cargo-deny licence and sources check.
 

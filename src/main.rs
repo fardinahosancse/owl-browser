@@ -3,6 +3,7 @@
 mod crypt;
 mod dl;
 mod media;
+mod update;
 mod native;
 mod pages;
 mod profile;
@@ -373,6 +374,11 @@ pub struct Config {
     /// strict tracking prevention (third-party trackers and storage)
     #[serde(default)]
     pub track_strict: bool,
+    /// check GitHub for a newer Owl release once a day (notify only)
+    #[serde(default)]
+    pub update_check: bool,
+    #[serde(default)]
+    pub update_last: u64,
     /// lock (and seal all data) after this many idle minutes; 0 = never
     #[serde(default = "autolock_default")]
     pub autolock: u32,
@@ -406,7 +412,7 @@ impl Default for Config {
             block: true, https_only: false, sync_dir: String::new(), theme: sys(), bookmark_bar: false,
             pin_hash: String::new(), pin_salt: String::new(), organize: true, pw_save: true, pw_never: vec![],
             strikes: 0, fails: 0, locked_until: 0, sync_key: String::new(), pin_mode: pin_mode(), kdf: 0, fp: true,
-            fp_strict: false, perm_block: false, track_strict: false, autolock: autolock_default(), proxy: String::new(),
+            fp_strict: false, perm_block: false, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
             seal_pub: String::new(), seal_priv: String::new(), lock_on_winlock: true,
         }
     }
@@ -830,6 +836,8 @@ pub enum Ev {
     NavFail(u32, i32),
     NavOk(u32),
     EngineUpdate,
+    /// (latest version if newer else empty, user asked, check reached GitHub)
+    Update(String, bool, bool),
     Audible(u32, bool),
     Snap(u32, String),
     /// (dialog id, tab id, kind 0 alert / 1 confirm / 2 prompt / 3 leave-page, page address, message, default text)
@@ -1241,6 +1249,21 @@ impl App {
     /// Once a second: decay stale download speeds, count time on the active site, save now and then.
     fn tick(&mut self) {
         self.ticks += 1;
+        // daily notify-only update check (opt-in; skipped with a proxy, in private windows and while locked)
+        if self.ticks == 20 && !self.ctx.private && !self.locked {
+            let due = {
+                let mut c = self.ctx.cfg.lock().unwrap();
+                let due = c.update_check && c.proxy.is_empty() && now().saturating_sub(c.update_last) > 86_400;
+                if due {
+                    c.update_last = now();
+                }
+                due
+            };
+            if due {
+                self.ctx.save_cfg();
+                update::check(self.proxy.clone(), false);
+            }
+        }
         if self.snap_wait.map_or(false, |(t, _)| t.elapsed() > Duration::from_millis(1500)) {
             self.finish_lock();
         }
@@ -2043,6 +2066,14 @@ impl App {
                     }
                 }
             }
+            "update_check" => {
+                if self.ctx.cfg.lock().unwrap().proxy.is_empty() {
+                    update::check(self.proxy.clone(), true);
+                } else {
+                    let n = json!({"id":"owlupd","label":"Update","text":"Update checks are off while a proxy is set, so your address is not revealed.","actions":[{"t":"OK","pri":true}]});
+                    let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+                }
+            }
             "restart" => {
                 if let Ok(exe) = std::env::current_exe() {
                     let mut c = std::process::Command::new(exe);
@@ -2416,6 +2447,7 @@ impl App {
                         "organize" => c.organize = on,
                         "fp" => c.fp = on,
                         "fp_strict" => c.fp_strict = on,
+                        "update_check" => c.update_check = on,
                         "track_strict" => {
                             c.track_strict = on;
                             native::TRACK_STRICT.store(on, Relaxed)
@@ -2895,6 +2927,22 @@ fn main() {
                         "actions": [{"t":"Later"},{"t":"Restart now","cmd":"restart","pri":true}]
                     });
                     let _ = app.ui.evaluate_script(&format!("owl.notice({n})"));
+                }
+                Ev::Update(latest, manual, reached) => {
+                    let (text, acts) = if !latest.is_empty() {
+                        (format!("Owl {} is available. Download it from the releases page; you can verify it with its build attestation.", latest.trim_start_matches('v')),
+                         json!([{"t":"Later"},{"t":"Open releases page","cmd":"new_tab","args":{"url":"https://github.com/fardinahosancse/owl-browser/releases/latest"},"pri":true}]))
+                    } else if manual && reached {
+                        ("You are on the latest version of Owl.".to_string(), json!([{"t":"OK","pri":true}]))
+                    } else if manual {
+                        ("Could not reach GitHub to check for updates.".to_string(), json!([{"t":"OK","pri":true}]))
+                    } else {
+                        (String::new(), json!([]))
+                    };
+                    if !text.is_empty() {
+                        let n = json!({"id":"owlupd","label":"Update","text":text,"actions":acts});
+                        let _ = app.ui.evaluate_script(&format!("owl.notice({n})"));
+                    }
                 }
                 Ev::Nav(id, u) => {
                     if let Some(t) = app.tabs.iter_mut().find(|t| t.id == id) {
