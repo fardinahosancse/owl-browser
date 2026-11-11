@@ -44,3 +44,14 @@ Owl is a small hobby-grade project and has not been professionally audited. Be a
 
 The repository contains no credentials. A secret scan runs on every push. If you find a secret,
 report it as above.
+
+## Verifying a download
+
+Release files carry a GitHub build attestation that proves they were built from this repository by
+the release workflow. Check one with the GitHub CLI:
+
+```powershell
+gh attestation verify .\Owl-Setup-<version>.exe --repo fardinahosancse/owl-browser
+```
+
+The files are not yet Authenticode-signed, so Windows SmartScreen may warn on first run.

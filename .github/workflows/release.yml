@@ -15,6 +15,8 @@ on:
 permissions:
   contents: write
   issues: read
+  id-token: write
+  attestations: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -24,7 +26,7 @@ jobs:
     name: Build and publish
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
@@ -52,9 +54,9 @@ jobs:
         shell: pwsh
         run: ./scripts/extract-changelog.ps1 -Version "${{ steps.v.outputs.version }}" -OutFile release-notes.md
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Build release
         run: cargo build --release --locked
@@ -91,6 +93,13 @@ jobs:
           } | Set-Content out\SHA256SUMS.txt -Encoding ascii
           Get-Content out\SHA256SUMS.txt
 
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: |
+            out/Owl-Setup-${{ steps.v.outputs.version }}.exe
+            out/Owl-${{ steps.v.outputs.version }}-portable.zip
+
       - name: Compose release body
         shell: pwsh
         env:
@@ -117,12 +126,14 @@ jobs:
           | ``Owl-$ver-portable.zip`` | Portable: extract and run ``Owl.exe`` |
           | ``SHA256SUMS.txt`` | Checksums for the files above |
 
+          Verify origin: ``gh attestation verify Owl-Setup-$ver.exe --repo ${{ github.repository }}``
+
           Requires Windows 10 (1809+) or 11 with the Edge WebView2 Runtime. Full changelog: [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ steps.v.outputs.tag }}/CHANGELOG.md)
           "@
           Set-Content release-body.md ($body -replace '(?m)^ {10}', '') -Encoding UTF8
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.v.outputs.tag }}
           name: Owl ${{ steps.v.outputs.version }}

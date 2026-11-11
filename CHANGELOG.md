@@ -6,6 +6,10 @@ All notable changes to Owl are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+- Release files now carry GitHub build attestations (verify with ).
+- GitHub Actions are pinned to commit SHAs; added a cargo-deny licence and sources check.
+
 ## [0.1.1] - 2026-11-11
 
 ### Fixed
