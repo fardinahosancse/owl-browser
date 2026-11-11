@@ -2517,6 +2517,16 @@ impl App {
     }
 }
 
+/// Show a real error box and stop. Without this a start-up failure just ends the process silently.
+fn fatal(msg: &str) -> ! {
+    use windows::core::{w, HSTRING};
+    use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
+    unsafe {
+        MessageBoxW(None, &HSTRING::from(msg), w!("Owl cannot start"), MB_OK | MB_ICONERROR);
+    }
+    std::process::exit(1)
+}
+
 static EVP: Mutex<Option<EventLoopProxy<Ev>>> = Mutex::new(None);
 fn post(ev: Ev) {
     if let Some(p) = EVP.lock().unwrap().as_ref() {
@@ -2651,7 +2661,10 @@ fn main() {
     if let Ok(icon) = Icon::from_resource(1, None) {
         wb = wb.with_window_icon(Some(icon));
     }
-    let window = wb.build(&event_loop).unwrap();
+    let window = match wb.build(&event_loop) {
+        Ok(w) => w,
+        Err(e) => fatal(&format!("Owl could not create its window.\n\n{e}")),
+    };
 
     let up = proxy.clone();
     let tp = proxy.clone();
@@ -2661,18 +2674,7 @@ fn main() {
             break;
         }
     });
-    let ui = WebViewBuilder::new()
-        .with_bounds(Rect { position: LogicalPosition::new(0.0, 0.0).into(), size: LogicalSize::new(1280.0, 800.0).into() })
-        .with_devtools(false) // no inspector on the chrome or the lock screen
-        .with_html(secure_html(&UI_HTML.replace("/*THEMES*/", themes::THEMES), "img-src http: https: data:"))
-        .with_ipc_handler(move |req| {
-            let _ = up.send_event(Ev::Ui(req.body().clone()));
-        })
-        .build_as_child(&window)
-        .unwrap();
-
-    // Private tabs need their own data folder: sharing the chrome's default folder with different
-    // engine arguments makes WebView2 refuse to create a tab. Old private folders are removed.
+    // Private windows keep every engine folder in a temporary directory; old ones are removed.
     let private_dir = std::env::temp_dir().join(format!("owl-private-{}", std::process::id()));
     if private {
         if let Ok(rd) = fs::read_dir(std::env::temp_dir()) {
@@ -2685,7 +2687,23 @@ fn main() {
             }
         }
     }
-    let wctx = WebContext::new(Some(if private { private_dir } else { dir.join("profile") }));
+    // The chrome gets an explicit engine folder under the user's data directory. The default is
+    // next to Owl.exe, which fails (and used to abort silently) when Owl is installed where the
+    // user cannot write, such as Program Files.
+    let mut ui_ctx = WebContext::new(Some(if private { private_dir.join("chrome") } else { dir.join("chrome") }));
+    let ui = match WebViewBuilder::new_with_web_context(&mut ui_ctx)
+        .with_bounds(Rect { position: LogicalPosition::new(0.0, 0.0).into(), size: LogicalSize::new(1280.0, 800.0).into() })
+        .with_devtools(false) // no inspector on the chrome or the lock screen
+        .with_html(secure_html(&UI_HTML.replace("/*THEMES*/", themes::THEMES), "img-src http: https: data:"))
+        .with_ipc_handler(move |req| {
+            let _ = up.send_event(Ev::Ui(req.body().clone()));
+        })
+        .build_as_child(&window)
+    {
+        Ok(v) => v,
+        Err(e) => fatal(&format!("Owl could not start its browser engine (Microsoft Edge WebView2).\n\n{e}\n\nInstall or repair the WebView2 Runtime from:\nhttps://developer.microsoft.com/microsoft-edge/webview2/")),
+    };
+    let wctx = WebContext::new(Some(if private { private_dir.join("tabs") } else { dir.join("profile") }));
     let mut app = App {
         window, ui, wctx, tabs: vec![], active: 0, next: 1, fs: false, extra: 0.0,
         locked: !private, fails: 0, lock_until: None, pending: None, speeds: HashMap::new(),
