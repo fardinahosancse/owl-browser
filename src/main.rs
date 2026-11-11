@@ -370,6 +370,9 @@ pub struct Config {
     /// refuse camera, microphone, location and notification requests without asking
     #[serde(default)]
     pub perm_block: bool,
+    /// strict tracking prevention (third-party trackers and storage)
+    #[serde(default)]
+    pub track_strict: bool,
     /// lock (and seal all data) after this many idle minutes; 0 = never
     #[serde(default = "autolock_default")]
     pub autolock: u32,
@@ -403,7 +406,7 @@ impl Default for Config {
             block: true, https_only: false, sync_dir: String::new(), theme: sys(), bookmark_bar: false,
             pin_hash: String::new(), pin_salt: String::new(), organize: true, pw_save: true, pw_never: vec![],
             strikes: 0, fails: 0, locked_until: 0, sync_key: String::new(), pin_mode: pin_mode(), kdf: 0, fp: true,
-            fp_strict: false, perm_block: false, autolock: autolock_default(), proxy: String::new(),
+            fp_strict: false, perm_block: false, track_strict: false, autolock: autolock_default(), proxy: String::new(),
             seal_pub: String::new(), seal_priv: String::new(), lock_on_winlock: true,
         }
     }
@@ -1538,6 +1541,7 @@ impl App {
                 dl::install(&wv, p6, id, move || cfgc.lock().unwrap().organize);
                 media::install_audio(&wv, p7, id);
                 native::install(&wv, p8, id);
+                native::apply_tracking(&wv);
                 if !self.engine_watch {
                     self.engine_watch = true;
                     native::watch_engine(&wv, self.proxy.clone());
@@ -2412,6 +2416,10 @@ impl App {
                         "organize" => c.organize = on,
                         "fp" => c.fp = on,
                         "fp_strict" => c.fp_strict = on,
+                        "track_strict" => {
+                            c.track_strict = on;
+                            native::TRACK_STRICT.store(on, Relaxed)
+                        }
                         "perm_block" => {
                             c.perm_block = on;
                             native::PERM_BLOCK.store(on, Relaxed)
@@ -2695,6 +2703,7 @@ fn main() {
             || (cfg.seal_pub.is_empty() && cfg.pin_hash.is_empty() && profile::has_sealed(&dir) && !cfg_exists_ok(&dir)));
     BLOCK.store(cfg.block, Relaxed);
     native::PERM_BLOCK.store(cfg.perm_block, Relaxed);
+    native::TRACK_STRICT.store(cfg.track_strict, Relaxed);
     HTTPS.store(cfg.https_only, Relaxed);
     *THEME.lock().unwrap() = cfg.theme.clone();
     pick_random();

@@ -21,6 +21,32 @@ use wry::{WebView, WebViewExtWindows};
 /// When true, camera, microphone, location and notification requests are refused without a prompt.
 pub static PERM_BLOCK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// Strict tracking prevention (blocks third-party trackers and their storage; some embedded
+/// logins and videos may break). Off means the engine's balanced level.
+pub static TRACK_STRICT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Apply the tracking-prevention level to this webview's profile.
+pub fn apply_tracking(wv: &WebView) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2Profile3, ICoreWebView2_13, COREWEBVIEW2_TRACKING_PREVENTION_LEVEL_BALANCED,
+        COREWEBVIEW2_TRACKING_PREVENTION_LEVEL_STRICT,
+    };
+    unsafe {
+        let level = if TRACK_STRICT.load(std::sync::atomic::Ordering::Relaxed) {
+            COREWEBVIEW2_TRACKING_PREVENTION_LEVEL_STRICT
+        } else {
+            COREWEBVIEW2_TRACKING_PREVENTION_LEVEL_BALANCED
+        };
+        if let Ok(w13) = wv.webview().cast::<ICoreWebView2_13>() {
+            if let Ok(p) = w13.Profile() {
+                if let Ok(p3) = p.cast::<ICoreWebView2Profile3>() {
+                    let _ = p3.SetPreferredTrackingPreventionLevel(level);
+                }
+            }
+        }
+    }
+}
+
 /// One entry per popup request, pushed in the same order Owl's own popup handler queues them.
 pub static POPUPS: Mutex<VecDeque<bool>> = Mutex::new(VecDeque::new());
 
