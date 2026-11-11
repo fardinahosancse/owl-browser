@@ -1,0 +1,1 @@
+Owl is MIT licensed. [Source](https://github.com/fardinahosancse/owl-browser) · [Releases](https://github.com/fardinahosancse/owl-browser/releases) · [Issues](https://github.com/fardinahosancse/owl-browser/issues)
