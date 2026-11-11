@@ -35,7 +35,7 @@ svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke
 .tab:hover .x,.tab.on .x{opacity:1}
 .tab .x:hover{background:var(--red);color:var(--onred)}
 .tab:hover{background:var(--soft)}
-.tab.on{background:var(--ink);color:var(--on);box-shadow:inset 0 -3px 0 var(--red)}.tab.on .n{color:inherit;opacity:.7}.tab.on .x{color:var(--mute-on)}.tab.on .x:hover{color:var(--onred)}
+.tab.on{background:var(--ink);color:var(--on);--red:var(--rink);box-shadow:inset 0 -3px 0 var(--red)}.tab.on .n{color:inherit;opacity:.7}.tab.on .x{color:var(--mute-on)}.tab.on .x:hover{color:var(--onred)}
 .tab.over{box-shadow:inset 3px 0 0 var(--red)}
 .tab.pin{flex:none;width:38px;min-width:38px;padding:0;justify-content:center}
 .tab.pin .n,.tab.pin .t,.tab.pin .x{display:none}
@@ -184,7 +184,7 @@ body.modal #mdl{display:flex;animation:fadein .15s ease-out}
 .mc .mb button{height:40px;padding:0 20px;font:700 11px "Helvetica Neue",Arial,sans-serif;letter-spacing:.12em;text-transform:uppercase;background:var(--soft);transition:background .12s,color .12s,transform .1s}
 .mc .mb button:hover{background:var(--ink);color:var(--on)}.mc .mb button:active{transform:scale(.96)}
 .mc .mb button.pri{background:var(--red);color:var(--onred)}.mc .mb button.pri:hover{background:var(--ink);color:var(--on)}
-.mc .mb button.lnk{background:none;padding:0;color:var(--mute);letter-spacing:.06em;text-transform:none;font-weight:500;font-size:12px;text-decoration:underline}
+.mc .mb button.lnk{background:none;padding:4px 2px;min-height:24px;color:var(--mute);letter-spacing:.06em;text-transform:none;font-weight:500;font-size:12px;text-decoration:underline}
 .mc .mb button.lnk:hover{background:none;color:var(--red)}
 #lwin{position:fixed;top:0;right:0;z-index:101;display:none}body.locked #lwin{display:flex}
 #ldrag{position:fixed;top:0;left:0;right:0;height:36px;z-index:100;display:none}body.locked #ldrag{display:block}
@@ -192,7 +192,7 @@ body.modal #mdl{display:flex;animation:fadein .15s ease-out}
 body.modal #lwin{display:flex;z-index:210}body.modal #ldrag{display:block;z-index:205}
 #find input{flex:1;min-width:0;width:auto}
 .zr button.zv{width:auto;min-width:56px;background:none;font-size:14px}.zr button.zv:hover{background:var(--ink);color:var(--on)}
-button.chip{background:none;border:0;font-family:inherit}#shield{cursor:default}
+button.chip{background:none;border:0;font-family:inherit;min-height:24px;padding:0 4px}#shield{cursor:default}
 #sec{display:none;align-items:center;gap:5px;flex:none;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
 #sec.show{display:flex}#sec svg{width:14px;height:14px}#sec.bad{color:var(--red)}
 button.m{border:0;background:none;color:inherit;font:inherit;font-size:12px}
@@ -273,7 +273,7 @@ function ico(i,u,cls){const m=document.createElement('img');if(cls)m.className=c
 const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
 const spd=b=>b>=1e6?(b/1e6).toFixed(1)+' MB/s':b>=1e3?Math.round(b/1e3)+' KB/s':Math.round(b)+' B/s';
 const dur=s=>{const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?h+'h '+String(m).padStart(2,'0')+'m':m?m+'m':s>0?'<1m':'0m'};
-const TH=[['system','System','linear-gradient(90deg,#fff 50%,#101010 50%)','#777','#e30613'],['light','Light','#fff','#111','#e30613'],['dark','Dark','#101010','#f4f4f4','#ff3b30'],['black','Black','#000','#fff','#ff2b1f'],['navy','Navy','#0b1a3a','#eef3ff','#ff5a36'],['invert','Invert','#e30613','#fff','#111'],['sand','Sand','#efe9dc','#171717','#d6341a'],['random','Random','conic-gradient(#e30613,#0b1a3a,#efe9dc,#000,#e30613)','#fff','#111']];
+const TH=[['system','System','linear-gradient(90deg,#fff 50%,#101010 50%)','#777','#e30613'],['light','Light','#fff','#111','#e30613'],['dark','Dark','#101010','#f4f4f4','#ff3b30'],['black','Black','#000','#fff','#ff2b1f'],['navy','Navy','#0b1a3a','#eef3ff','#ff5a36'],['invert','Invert','#e30613','#fff','#111'],['sand','Sand','#efe9dc','#171717','#b8290f'],['random','Random','conic-gradient(#e30613,#0b1a3a,#efe9dc,#000,#e30613)','#fff','#111']];
 let keep=false,skipSel=false,lastH=-1,ctimer=0,lastAct=null;
 const lsGet=(k,d)=>{try{return localStorage.getItem(k)||d}catch(e){return d}},lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
 function setSec(u){const s=$('sec');
@@ -288,7 +288,7 @@ function finish(){clearTimeout(ctimer);ovl.classList.remove('out','anim');ovl.in
 /* generic notices (download questions, engine update): shown one at a time in the same bar */
 let nq=[];
 function drawNote(){if(!nq.length){if(mode==='note'){mode=null;finish()}return}
-  openOvl(mode!=='note');mode='note';ovl.innerHTML='';const n=nq[0],r=el('div');r.id='sv';
+  openOvl(mode!=='note');mode='note';ovl.innerHTML='';const n=nq[0],r=el('div');r.id='sv';r.setAttribute('role','status');clearTimeout(window._nt);window._nt=setTimeout(()=>{if(mode==='note'&&nq[0]===n){nq.shift();mode=null;finish();if(nq.length)drawNote()}},8000);
   const b=el('b');b.appendChild(el('i','',n.label||'Notice'));b.appendChild(document.createTextNode(n.text||''));r.appendChild(b);
   (n.actions||[]).forEach(a=>{const x=el('button',a.pri?'pri':'',a.t);x.onclick=()=>{if(a.cmd&&a.cmd.startsWith("ui:"))UIC[a.cmd](a.args||{});else if(a.cmd)send(Object.assign({cmd:a.cmd},a.args||{}));nq.shift();mode=null;finish();if(nq.length||pend)setTimeout(()=>pend?drawSave():drawNote(),30)};r.appendChild(x)});
   ovl.appendChild(r);overlay()}
@@ -371,9 +371,9 @@ window.owl={
   [...s.bookmarks].sort((a,b)=>(a.group||'').localeCompare(b.group||'')).forEach(b=>{
    if(b.group!==cur){cur=b.group;bm.appendChild(el('div','g',cur||'General'))}
    const m=el('button','m');m.type='button';m.title=b.url;m.setAttribute('aria-label',(b.title||host(b.url))+' ('+(b.group||'General')+')');m.appendChild(ico(b.icon,b.url));m.appendChild(el('span','',b.title||host(b.url)));
-   m.onclick=()=>send({cmd:'navigate',url:b.url});m.onauxclick=()=>send({cmd:'new_tab',url:b.url});
-   m.oncontextmenu=e=>{e.preventDefault();askLocal('prompt','Bookmark','Move "'+(b.title||b.url)+'" to group (leave empty to remove it):',b.group||'General').then(g=>{
-    if(g===null)return;g.trim()?send({cmd:'bm_group',url:b.url,group:g.trim()}):send({cmd:'bm_remove',url:b.url})})};
+   m.onclick=()=>send({cmd:'navigate',url:b.url});m.onauxclick=e=>{if(e.button===1)send({cmd:'new_tab',url:b.url})};
+   m.oncontextmenu=e=>{e.preventDefault();askLocal('prompt','Bookmark','Move "'+(b.title||b.url)+'" to which group? Remove it from the Bookmarks page.',b.group||'General').then(g=>{
+    if(g===null||!g.trim())return;send({cmd:'bm_group',url:b.url,group:g.trim()})})};
    bm.appendChild(m)});
   if(mode==='menu')drawMenu(false);if(mode==='ctx')drawCtx(false)},
  focusAddr(){mode==='menu'&&closeOvl();url.focus();url.select()},
@@ -517,6 +517,8 @@ document.addEventListener('keydown',e=>{if(document.body.classList.contains('loc
  if(c&&e.key==='t')k='new';else if(c&&e.key==='w')k='close';else if(c&&e.key==='l')k='addr';else if(c&&e.key==='r'||e.key==='F5')k='reload';
  else if(c&&e.key==='f')k='find';else if(c&&e.key==='d')k='bookmark';else if(c&&e.key==='h')k='history';else if(c&&e.key==='b')k='bar';else if(e.key==='F12')k='dev';
  else if(c&&e.key==='Tab')k=e.shiftKey?'prevtab':'nexttab';else if(c&&/^[1-9]$/.test(e.key))k='tab'+e.key;
+ if(k&&dlg){e.preventDefault();return}
+ if(k==='bookmark'){e.preventDefault();$('star').click();return}
  if(k){e.preventDefault();send({cmd:'key',k})}});
 send({cmd:'ready'});
 </script></body></html>

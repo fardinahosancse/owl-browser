@@ -14,6 +14,10 @@ All notable changes to Owl are documented here. The format follows
 - Contrast problems: new `--onred` and `--mute-on` theme tokens fix white-on-accent text, muted text on hovered or selected rows, and darker Sand and lighter Invert palettes.
 - Narrow windows: row actions on History, Bookmarks and Passwords stay visible, Settings reflows, the tab strip scrolls, the toolbar hides low-value buttons, and the menu scrolls.
 
+- Invert theme contrast, red-on-ink pairings (new `--rink` token), right-click on bookmark-bar items opening a tab, wrong history clear count, About header alignment, selected theme marker, sand swatch colour, undersized link targets.
+- Bookmark notices are announced, time out, and Ctrl+D shows them with Undo; shortcuts are ignored while a dialog is open; reduced motion is honoured by smooth scroll and count-up.
+- Bookmark-bar edit no longer deletes on an empty answer; Bookmark bar setting moved to Appearance.
+
 ### Added
 - Command-line start URL (`Owl.exe https://example.com`).
 - Keyboard access: tabs (arrow keys, Delete, Menu key), bookmark bar, combobox suggestions, `Ctrl+Tab` and `Ctrl+1-9`, dialog focus trap.

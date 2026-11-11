@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 const CSS: &str = r#"*{box-sizing:border-box;margin:0;padding:0}
 /*THEMES*/
-html{scroll-behavior:smooth}
+html{scroll-behavior:smooth}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 body{font:16px/1.45 "Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);padding:0 40px 40px;min-height:100vh;-webkit-font-smoothing:antialiased;transition:background .35s,color .35s}
 a{color:inherit;text-decoration:none}
 @keyframes rise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
@@ -52,10 +52,11 @@ code{font-size:13px;background:var(--soft);padding:2px 6px}
 .th .pv::after{content:"";position:absolute;right:12px;bottom:12px;width:26px;height:26px;background:var(--a)}
 .th .pv u{position:absolute;left:12px;top:32px;width:30%;height:4px;background:var(--i);opacity:.5}
 .th .l{display:flex;justify-content:space-between;padding:9px 10px;font:700 11px "Helvetica Neue",Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase}
-.th.on .l::after{content:"\25CF";color:var(--red)}
+.th.on .l::after{content:"\25CF";color:var(--onred)}
 .tg{min-width:64px;justify-content:center}.tg.on{background:var(--red);color:var(--onred)}.tg.on:hover{background:var(--ink);color:var(--on)}
 /* ===== landing home ===== */
 body.landing{padding:0}
+.land>header{padding:18px 40px 0}.tiles .empty{border-top:0;padding:16px}
 .land section{padding:clamp(64px,11vh,120px) 40px}
 .hero{min-height:56vh;display:grid;grid-template-rows:auto 1fr auto;padding-top:0!important;padding-bottom:36px!important}
 .hero header{margin-bottom:0}
@@ -90,13 +91,13 @@ form.s kbd{align-self:center;font:700 12px "Helvetica Neue",Arial;color:var(--mu
 .grp a{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:15px;transition:color .15s,padding .15s}
 .grp a:hover{color:var(--red);padding-left:6px}.grp img{width:16px;height:16px}
 .inv{background:var(--ink);color:var(--on)}
-.inv .huge em{color:var(--red)}
+.inv .huge em{color:var(--rink)}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
 .stat{border-top:2px solid var(--on);padding-top:14px;display:block}
 .stat b{display:block;font-size:clamp(48px,7vw,110px);line-height:.9;letter-spacing:-.05em;font-weight:700;font-variant-numeric:tabular-nums;transition:color .2s;white-space:nowrap}
-.stat b.r{color:var(--red)}
+.stat b.r{color:var(--rink)}
 .stat span{display:block;margin-top:12px;font-size:14px;opacity:.75;max-width:24ch}
-.stat:hover b{color:var(--red)}
+.stat:hover b{color:var(--rink)}
 .time{display:grid;grid-template-columns:1fr 2fr;gap:64px;align-items:start}
 .tbig b{display:block;font:italic 400 clamp(56px,8vw,120px)/.9 Georgia,serif;letter-spacing:-.04em;font-variant-numeric:oldstyle-nums;white-space:nowrap}
 .tbig>span{display:block;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin:10px 0 34px}
@@ -133,7 +134,7 @@ const SHARED_JS: &str = r#"<script>
 (function(){
  const send=o=>ipc.postMessage(JSON.stringify(o)),$=i=>document.getElementById(i);
  document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;
-  if(a==='clear_history'){if(!confirm('Delete all '+(b.dataset.n||'')+' history entries? This cannot be undone.'))return;send({cmd:'clear_history'});location.reload()}
+  if(a==='clear_history'){if(!confirm('Delete all '+(b.dataset.n||'')+' history entries, including any not shown here? This cannot be undone.'))return;send({cmd:'clear_history'});location.reload()}
   else if(a==='hrm'){send({cmd:'hist_remove',t:+b.dataset.t,url:b.dataset.u});const r=b.closest('.row');if(r)r.remove()}
   else if(a==='bmrm'){if(!confirm('Remove this bookmark?'))return;send({cmd:'bm_remove',url:b.dataset.url});setTimeout(()=>location.reload(),150)}
   else if(a==='restart'){send({cmd:'restart'})}
@@ -150,7 +151,7 @@ const SHARED_JS: &str = r#"<script>
   else if(a==='back'){history.length>1?history.back():location.href='owl://newtab'}});
  document.addEventListener('change',e=>{const t=e.target;if(t&&t.dataset&&t.dataset.sel)send({cmd:'set_num',key:t.dataset.sel,val:+t.value})});
  document.addEventListener('error',e=>{const t=e.target;if(t&&t.tagName==='IMG'){if(t.dataset.hide!==undefined)t.style.visibility='hidden';else if(t.dataset.fb){const d=document.createElement('div');d.className='l';d.textContent=t.dataset.fb;t.replaceWith(d)}}},true);
- function cu(e){const n=+e.dataset.n;if(!n)return;const t0=performance.now();(function f(t){const k=Math.min(1,(t-t0)/1000);e.textContent=Math.round(n*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(f)})(t0)}
+ function cu(e){const n=+e.dataset.n;if(!n)return;if(matchMedia('(prefers-reduced-motion:reduce)').matches)return;const t0=performance.now();(function f(t){const k=Math.min(1,(t-t0)/1000);e.textContent=Math.round(n*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(f)})(t0)}
  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');e.target.querySelectorAll('[data-n]').forEach(cu);io.unobserve(e.target)}}),{threshold:.14});
  addEventListener('DOMContentLoaded',()=>document.querySelectorAll('.rv').forEach(e=>io.observe(e)));
 })();
@@ -343,7 +344,7 @@ pub fn notfound(path: &str, theme: &str) -> String {
 
 pub fn history(s: &Store, theme: &str) -> String {
     let mut o = String::new();
-    let total = s.history.len().min(500);
+    let total = s.history.len();
     for (i, e) in s.history.iter().rev().take(500).enumerate() {
         let t = if e.title.is_empty() { &e.url } else { &e.title };
         o += &format!(
@@ -517,7 +518,7 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
  ipc.postMessage(JSON.stringify({cmd:'set',key:'theme',val:t}));
  if(!live)setTimeout(()=>location.reload(),300)});
 </script>"#;
-    let appearance = format!("<h2 class=gh>Appearance <span>Swiss palettes. Applies instantly.</span></h2><div class=themes role=group aria-label=\"Theme\">{cards}</div>");
+    let appearance = format!("<h2 class=gh>Appearance <span>Swiss palettes. Applies instantly.</span></h2><div class=themes role=group aria-label=\"Theme\">{cards}</div>{}", tog(8, "bar", c.bookmark_bar, "Bookmark bar", "Show bookmarks above the tabs (Ctrl+B)."));
     let security = format!(
         "<h2 class=gh>Security</h2>\
 <div class=set><div><b>Startup key</b><p><b>Use a passphrase of 10 or more characters.</b> It protects your saved passwords, history, bookmarks and cookies. A 4-digit key can be guessed offline.</p>\
@@ -538,10 +539,9 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
         esc(&c.proxy)
     );
     let data = format!(
-        "<h2 class=gh>Downloads and data</h2>{}{}\
+        "<h2 class=gh>Downloads and data</h2>{}\
 <div class=set><div><b>Time tracking</b><p>Minutes per site are kept on this PC for the home page. Clear them any time.</p></div><button class=ghost data-act=clearusage>Clear</button></div>",
-        tog(11, "organize", c.organize, "Sort downloads into folders", "Documents, Images, Video, Music, Archives and Programs inside your Downloads folder."),
-        tog(8, "bar", c.bookmark_bar, "Bookmark bar", "Show bookmarks above the tabs (Ctrl+B).")
+        tog(11, "organize", c.organize, "Sort downloads into folders", "Documents, Images, Video, Music, Archives and Programs inside your Downloads folder.")
     );
     let sync = format!(
         "<h2 class=gh>Sync</h2>\
@@ -572,7 +572,7 @@ pub fn httpsfail(url: &str, theme: &str) -> String {
 <p style=\"display:flex;gap:18px;align-items:center;flex-wrap:wrap\"><button data-act=back>Go back</button><a class=lnk href=\"#\" data-act=http_allow data-url=\"{}\" role=button>Continue over http anyway (not secure)</a></p></div></main>",
         hdr("HTTPS"), esc(safe), esc(safe)
     );
-    page("Not secure", &body, "<style>.warn{color:var(--red)}.lnk{font-size:13px;color:var(--mute);text-decoration:underline}.lnk:hover{color:var(--red)}</style>", theme, "")
+    page("Not secure", &body, "<style>.warn{color:var(--red)}.lnk{font-size:13px;color:var(--mute);text-decoration:underline;display:inline-block;padding:6px 2px;min-height:24px}.lnk:hover{color:var(--red)}</style>", theme, "")
 }
 
 pub fn about(theme: &str) -> String {
