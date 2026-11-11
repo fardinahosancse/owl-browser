@@ -6,6 +6,8 @@ All notable changes to Owl are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-11
+
 ### Fixed
 - Installed app did not open when its folder was read-only (for example Program Files): the engine folder now lives under `%LOCALAPPDATA%\Owl`, and start-up errors show a message box.
 - Private windows opened with no tab.
@@ -54,5 +56,6 @@ First public release.
 - Command allow-list for web pages; native (non-forgeable) fullscreen, popup and dialog events.
 - Atomic settings and vault writes with backups and a recovery state.
 
-[Unreleased]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/fardinahosancse/owl-browser/releases/tag/v0.1.0

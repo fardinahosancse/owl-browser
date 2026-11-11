@@ -1,6 +1,6 @@
 ﻿[package]
 name = "owl"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "An ultra-light, private desktop browser for Windows built on Rust and Edge WebView2"
 license = "MIT"
