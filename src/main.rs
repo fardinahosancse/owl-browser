@@ -983,6 +983,8 @@ struct App {
     modal: bool,
     /// tabs whose further dialogs are refused because the user chose to block them
     no_dialog: std::collections::HashSet<u32>,
+    /// address given on the command line (http, https or owl scheme only), opened once at start
+    start_url: Option<String>,
 }
 
 impl App {
@@ -1526,7 +1528,11 @@ impl App {
                 self.layout();
                 self.push();
             }
-            Err(e) => eprintln!("tab error: {e}"),
+            Err(e) => {
+                // never fail silently: tell the user instead of showing an empty window
+                let n = json!({"id":"tabfail","label":"Error","text":format!("Could not open a tab: {e}"),"actions":[{"t":"OK"}]});
+                let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+            }
         }
     }
 
@@ -1536,7 +1542,10 @@ impl App {
         }
         let restore: Vec<String> = if self.ctx.private { vec![] } else { self.ctx.store.lock().unwrap().session.clone() };
         if restore.is_empty() {
-            self.new_tab("owl://newtab");
+            // with a start address, that page is the first tab instead of the home page
+            if self.start_url.is_none() {
+                self.new_tab("owl://newtab");
+            }
         } else {
             let mut pins = self.ctx.store.lock().unwrap().pins.clone();
             for u in restore {
@@ -1550,6 +1559,10 @@ impl App {
             }
             self.tabs.sort_by_key(|t| !t.pinned);
             self.active = self.tabs[0].id;
+        }
+        // an address passed on the command line opens in its own tab, once
+        if let Some(u) = self.start_url.take() {
+            self.new_tab(&u);
         }
         self.layout();
         self.push();
@@ -2408,6 +2421,10 @@ impl App {
                             self.modal = false;
                             self.layout();
                             self.push();
+                            // hand the keyboard back to the page that asked, not the toolbar
+                            if let Some(t) = self.tabs.iter().find(|t| t.id == tab) {
+                                let _ = t.wv.focus();
+                            }
                         } else {
                             self.next_dialog();
                         }
@@ -2654,7 +2671,21 @@ fn main() {
         .build_as_child(&window)
         .unwrap();
 
-    let wctx = WebContext::new(if private { None } else { Some(dir.join("profile")) });
+    // Private tabs need their own data folder: sharing the chrome's default folder with different
+    // engine arguments makes WebView2 refuse to create a tab. Old private folders are removed.
+    let private_dir = std::env::temp_dir().join(format!("owl-private-{}", std::process::id()));
+    if private {
+        if let Ok(rd) = fs::read_dir(std::env::temp_dir()) {
+            for e in rd.flatten() {
+                let stale = e.file_name().to_string_lossy().starts_with("owl-private-")
+                    && e.metadata().and_then(|m| m.modified()).map_or(false, |t| t.elapsed().map_or(false, |d| d > Duration::from_secs(3600)));
+                if stale {
+                    let _ = fs::remove_dir_all(e.path());
+                }
+            }
+        }
+    }
+    let wctx = WebContext::new(Some(if private { private_dir } else { dir.join("profile") }));
     let mut app = App {
         window, ui, wctx, tabs: vec![], active: 0, next: 1, fs: false, extra: 0.0,
         locked: !private, fails: 0, lock_until: None, pending: None, speeds: HashMap::new(),
@@ -2664,6 +2695,10 @@ fn main() {
         sealer: None, sealed_at_lock: false, last_active: Instant::now(),
         snap_wait: None, unclean, block_reason: false, restore2: vec![],
         dlg_queue: Default::default(), dlg_active: None, modal: false, no_dialog: Default::default(),
+        start_url: std::env::args()
+            .skip(1)
+            .find(|a| !a.starts_with("--"))
+            .filter(|u| u.len() < 2048 && (u.starts_with("http://") || u.starts_with("https://") || u.starts_with("owl://"))),
         last_pin: Instant::now().checked_sub(Duration::from_secs(10)).unwrap_or_else(Instant::now),
     };
     app.apply_theme();

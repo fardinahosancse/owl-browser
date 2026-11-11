@@ -188,12 +188,14 @@ body.modal #mdl{display:flex;animation:fadein .15s ease-out}
 .mc .mb button.lnk:hover{background:none;color:var(--red)}
 #lwin{position:fixed;top:0;right:0;z-index:101;display:none}body.locked #lwin{display:flex}
 #ldrag{position:fixed;top:0;left:0;right:0;height:36px;z-index:100;display:none}body.locked #ldrag{display:block}
+/* the window can still be moved, minimised and closed while a dialog is open */
+body.modal #lwin{display:flex;z-index:210}body.modal #ldrag{display:block;z-index:205}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @media(max-width:900px){#menu{grid-template-columns:repeat(2,1fr)}#lock{grid-template-columns:1fr}#lock .l{display:none}#lock .r{margin:auto}#ctx .ch{display:none}}
 </style></head><body>
 <div id="mdl"><div class="mc" role="dialog" aria-modal="true" aria-labelledby="mh"><button class="mx" id="mx" aria-label="Close" title="Close (Esc)" data-i="x"></button><div class="mh" id="mh"></div><div class="mt" id="mt"></div><input id="mi" autocomplete="off" spellcheck="false" aria-label="Answer"><div class="mb"><button class="lnk" id="mblk">Stop this page showing dialogs</button><span class="sp"></span><button id="mcn">Cancel</button><button class="pri" id="mok">OK</button></div></div></div>
 <div id="ldrag"></div>
-<div id="lwin"><button class="wb" data-w="min" data-i="min"></button><button class="wb cl" data-w="close" data-i="x"></button></div>
+<div id="lwin"><button class="wb" data-w="min" data-i="min" title="Minimize" aria-label="Minimize"></button><button class="wb" data-w="max" data-i="max" title="Maximize" aria-label="Maximize"></button><button class="wb cl" data-w="close" data-i="x" title="Close" aria-label="Close"></button></div>
 <div id="lock">
  <div class="l"><div class="hint">Owl<span>Ultra-light browser</span></div><div class="w">Owl.</div><div class="hint"><i id="lh" style="font-style:normal">Locked</i><span id="ls">Enter your key to open the browser.</span></div></div>
  <div class="r"><div id="dots"><i></i><i></i><i></i><i></i></div><form id="sf" autocomplete="off"><h3>Welcome to Owl</h3><p>Set up your browser. Your name and email stay on this PC, inside the encrypted store, and are never sent anywhere. The password replaces the default key and protects your saved passwords, history and cookies.</p>
@@ -429,6 +431,8 @@ function showDialog(o){dlg=o;dlgBlock=false;$('mh').textContent=o.title||'Owl';$
   document.body.classList.add('modal');setTimeout(()=>(pr?$('mi'):$('mok')).focus(),40)}
 function endDialog(ok){if(!dlg)return;const o=dlg;dlg=null;document.body.classList.remove('modal');
   const val=$('mi').value;
+  // drop focus so the key that closed the dialog cannot activate a toolbar control afterwards
+  if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
   if(o.local){o.resolve(o.kind==='prompt'?(ok?val:null):ok);send({cmd:'modal',on:false})}
   else send({cmd:'dlg_answer',id:o.id,ok,text:val,block:dlgBlock})}
 /* a chrome-side dialog (for example the bookmark group): returns a promise */
