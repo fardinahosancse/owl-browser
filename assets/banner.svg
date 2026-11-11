@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" role="img" aria-label="Owl. Ultra-light private browser">
+  <title>Owl. Ultra-light private browser</title>
+  <rect width="1280" height="360" fill="#101010"/>
+  <rect width="1280" height="8" fill="#E30613"/>
+  <text x="64" y="268" font-family="Georgia, 'Palatino Linotype', 'Book Antiqua', serif" font-style="italic" font-size="260" letter-spacing="-10" fill="#E30613">Owl.</text>
+  <g font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" fill="#F4F4F4">
+    <text x="760" y="140" font-size="14" font-weight="700" letter-spacing="3" fill="#8F8F8F">ULTRA-LIGHT PRIVATE BROWSER</text>
+    <text x="760" y="196" font-size="34" font-weight="700" letter-spacing="-1">Rust. WebView2. Swiss design.</text>
+    <text x="760" y="244" font-size="20" fill="#B9B9B9">Under 2 MB. Encrypted at rest.</text>
+    <text x="760" y="276" font-size="20" fill="#B9B9B9">No account, no telemetry.</text>
+  </g>
+</svg>

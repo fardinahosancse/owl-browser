@@ -1,0 +1,33 @@
+# build output
+/target
+/dist
+/installer/Output
+*.exe
+*.dll
+*.pdb
+
+# local data and secrets: never commit these
+*.bak
+*.log
+*.tmp
+*.orphan
+*.corrupt
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+config.json
+vault.json
+store.json
+sealed.owl
+running.flag
+/profile/
+Owl.exe.WebView2/
+
+# editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.claude/

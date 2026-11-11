@@ -1,0 +1,33 @@
+﻿[package]
+name = "owl"
+version = "0.1.0"
+edition = "2021"
+description = "An ultra-light, private desktop browser for Windows built on Rust and Edge WebView2"
+license = "MIT"
+repository = "https://github.com/fardinahosancse/owl-browser"
+readme = "README.md"
+keywords = ["browser", "webview2", "privacy", "windows"]
+categories = ["gui"]
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.11.1"
+chacha20poly1305 = "0.10"
+argon2 = "0.5"
+x25519-dalek = "2"
+tao = "0.37"
+webview2-com = "0.39"
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Security_Cryptography", "Win32_Security", "Win32_System_SystemInformation", "Win32_UI_Shell", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_Shutdown", "Win32_System_RemoteDesktop", "Win32_System_Recovery", "Win32_System_Threading"] }
+wry = { version = "0.57", features = ["devtools"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[build-dependencies]
+embed-resource = "3.0.12"

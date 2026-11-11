@@ -1,0 +1,125 @@
+name: Release
+
+# Push a tag like v0.2.0 (or run this workflow by hand with a version) to publish a release:
+# optimised build, installer, portable zip, checksums and notes taken from CHANGELOG.md.
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the v (must match Cargo.toml and CHANGELOG.md)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: v
+        shell: pwsh
+        env:
+          # passed through the environment, never interpolated into the script text
+          EVENT: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if ($env:EVENT -eq "workflow_dispatch") {
+            $ver = $env:INPUT_VERSION.TrimStart("v")
+          } else {
+            $ver = $env:REF_NAME.TrimStart("v")
+          }
+          if ($ver -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { Write-Error "Bad version: $ver"; exit 1 }
+          $cargo = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          if ($cargo -ne $ver) { Write-Error "Cargo.toml version ($cargo) does not match release version ($ver)"; exit 1 }
+          "version=$ver" >> $env:GITHUB_OUTPUT
+          "tag=v$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Release notes from CHANGELOG.md
+        shell: pwsh
+        run: ./scripts/extract-changelog.ps1 -Version "${{ steps.v.outputs.version }}" -OutFile release-notes.md
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release
+        run: cargo build --release --locked
+
+      - name: Stage files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist -Force | Out-Null
+          # the MSVC build links the WebView2 loader statically, so one executable is all we ship
+          Copy-Item target\release\owl.exe dist\Owl.exe
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $env:OWL_VERSION = "${{ steps.v.outputs.version }}"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\owl.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package and checksum
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.v.outputs.version }}"
+          New-Item -ItemType Directory out -Force | Out-Null
+          Copy-Item "installer\Output\Owl-Setup-$ver.exe" out\
+          $zip = "out\Owl-$ver-portable.zip"
+          Compress-Archive -Path dist\Owl.exe, LICENSE, README.md -DestinationPath $zip
+          Get-ChildItem out -File | ForEach-Object {
+            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$h  $($_.Name)"
+          } | Set-Content out\SHA256SUMS.txt -Encoding ascii
+          Get-Content out\SHA256SUMS.txt
+
+      - name: Compose release body
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.v.outputs.version }}"
+          $notes = Get-Content release-notes.md -Raw
+          $body = @"
+          $notes
+
+          ---
+
+          ### Download
+
+          | File | What it is |
+          |---|---|
+          | ``Owl-Setup-$ver.exe`` | Installer (per-user, no administrator rights needed) |
+          | ``Owl-$ver-portable.zip`` | Portable: extract and run ``Owl.exe`` |
+          | ``SHA256SUMS.txt`` | Checksums for the files above |
+
+          Requires Windows 10 (1809+) or 11 with the Edge WebView2 Runtime. Full changelog: [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ steps.v.outputs.tag }}/CHANGELOG.md)
+          "@
+          Set-Content release-body.md ($body -replace '(?m)^ {10}', '') -Encoding UTF8
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.v.outputs.tag }}
+          name: Owl ${{ steps.v.outputs.version }}
+          body_path: release-body.md
+          prerelease: ${{ contains(steps.v.outputs.version, '-') }}
+          files: |
+            out/Owl-Setup-${{ steps.v.outputs.version }}.exe
+            out/Owl-${{ steps.v.outputs.version }}-portable.zip
+            out/SHA256SUMS.txt

@@ -1,0 +1,6 @@
+# normalise line endings so diffs and checksums are stable across machines
+* text=auto eol=lf
+*.ico binary
+*.png binary
+*.exe binary
+*.dll binary
