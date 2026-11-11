@@ -210,6 +210,10 @@ git push origin main --tags
 
 The workflow refuses to publish if the tag and `Cargo.toml` version disagree.
 
+Known problems are tracked in [Issues](https://github.com/fardinahosancse/owl-browser/issues),
+each with a priority label (`P0-critical` to `P3-low`). Issues closed as completed are listed
+under **Resolved issues** in the next release's notes automatically.
+
 ## Contributing
 
 Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.

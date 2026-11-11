@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Owl to do?
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: How important is it to you?
+      description: Maintainers set the final priority label.
+      options:
+        - Nice to have
+        - Would use often
+        - Blocks me

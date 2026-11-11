@@ -1,8 +1,12 @@
 ## What and why
 
-<!-- One or two sentences. Link an issue if there is one. -->
+<!-- One or two sentences. -->
+
+Fixes #<!-- issue number: every change starts from an issue, so it closes when this merges -->
 
 ## Checklist
+
+- [ ] The issue exists, has a priority label, and is linked above
 
 - [ ] `cargo build --release --locked` succeeds
 - [ ] Tested with a throwaway profile (not my real data)

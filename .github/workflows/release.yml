@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  issues: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -92,9 +93,17 @@ jobs:
 
       - name: Compose release body
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.v.outputs.tag }}
         run: |
           $ver = "${{ steps.v.outputs.version }}"
           $notes = Get-Content release-notes.md -Raw
+          # issues closed as completed since the previous release, grouped by priority
+          $prev = git tag --sort=-creatordate | Where-Object { $_ -ne $env:TAG } | Select-Object -First 1
+          $since = if ($prev) { git log -1 --format=%cI $prev } else { "" }
+          $resolved = (& ./scripts/resolved-issues.ps1 -Repo "${{ github.repository }}" -Since $since) -join "`n"
+          if ($resolved) { $notes = "$notes`n`n$resolved" }
           $body = @"
           $notes
 
