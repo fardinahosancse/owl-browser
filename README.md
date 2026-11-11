@@ -45,6 +45,17 @@
 | **Start-up passphrase** | A first-run profile replaces the default key with your own passphrase. Wrong guesses are rate-limited and locked out with growing delays. |
 | **Real browser features** | Tabs with drag reorder, pin, mute and duplicate; bookmarks with groups; history; a download manager with pause, resume, speed and folders; find in page; zoom; a password manager; session restore; a now-playing widget for music and video. |
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Home page in the Navy theme: clock, search, quick access](assets/screenshots/home-navy.png) | ![Settings in the Light theme, grouped by Appearance and Security](assets/screenshots/settings-light.png) |
+| **Home**: clock, search and quick access (Navy theme). | **Settings**: grouped, with eight Swiss themes (Light shown). |
+| ![Centered in-app dialog that replaces system alert and prompt boxes](assets/screenshots/dialog.png) | ![First-run welcome screen: name, email and a new passphrase](assets/screenshots/welcome.png) |
+| **In-app dialogs** replace system alert and prompt boxes. | **First run**: create your profile and passphrase. |
+
+All screenshots are captured from a fresh, throwaway profile.
+
 ## Install
 
 ### Installer (recommended)
