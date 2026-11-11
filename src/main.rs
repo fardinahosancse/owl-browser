@@ -474,7 +474,7 @@ fn master_key(salt: &str, secret: &str) -> [u8; 32] {
     crypt::argon(secret, &format!("master|{salt}"), 64 * 1024)
 }
 fn hash_pin(salt: &str, secret: &str) -> String {
-    format!("v3${}", crypt::hex(&crypt::sub(&master_key(salt, secret), "verify")))
+    { let m = zeroize::Zeroizing::new(master_key(salt, secret)); format!("v3${}", crypt::hex(&crypt::sub(&m, "verify"))) }
 }
 
 /// Keys that exist only in memory while Owl runs, all derived from the startup key.
@@ -486,6 +486,18 @@ struct Keys {
     profile: [u8; 32],
     /// private half of the sealing key pair; opens sealed profile data
     privk: Option<[u8; 32]>,
+}
+/// Key material is overwritten when the keys are dropped (lock, change of key, exit).
+impl Drop for Keys {
+    fn drop(&mut self) {
+        use zeroize::Zeroize;
+        self.vault.zeroize();
+        self.store.zeroize();
+        self.profile.zeroize();
+        if let Some(p) = self.privk.as_mut() {
+            p.zeroize();
+        }
+    }
 }
 fn keys_from(m: &[u8; 32], privk: Option<[u8; 32]>) -> Keys {
     Keys { vault: crypt::sub(m, "vault").to_vec(), store: crypt::sub(m, "store"), profile: crypt::sub(m, "profile"), privk }
@@ -1737,7 +1749,7 @@ impl App {
                 }
                 if self.ctx.verify_pin(&pin) {
                     let salt = self.ctx.salt();
-                    let m = master_key(&salt, &pin);
+                    let m = zeroize::Zeroizing::new(master_key(&salt, &pin));
                     let privk = self.ctx.ensure_seal_keys(&m);
                     let k = keys_from(&m, privk);
                     let migrate = {
@@ -1830,7 +1842,7 @@ impl App {
                     "Use a passphrase of at least 10 characters."
                 } else {
                     let salt = crypt::hex(&crypt::random(16));
-                    let m = master_key(&salt, &new);
+                    let m = zeroize::Zeroizing::new(master_key(&salt, &new));
                     let old_priv = self.ctx.keys.lock().unwrap().as_ref().and_then(|k| k.privk);
                     let nk = keys_from(&m, old_priv);
                     // re-encrypt saved passwords for the new key before the old one is forgotten

@@ -1,5 +1,6 @@
 //! Crypto helpers: secure randomness, Argon2id key derivation, sub-key derivation, and an
 //! authenticated envelope (ChaCha20-Poly1305) used for the store, the sync file and the profile.
+use zeroize::Zeroize;
 use argon2::{Algorithm, Argon2, Params, Version};
 use chacha20poly1305::{aead::{Aead, KeyInit}, ChaCha20Poly1305, Key, Nonce};
 use sha2::{Digest, Sha256};
@@ -45,12 +46,13 @@ pub fn kdf(salt: &str, secret: &str, rounds: u32) -> [u8; 32] {
 /// Argon2id: memory-hard, so guessing needs 32 MiB of RAM per try and cannot be sped up much
 /// with GPUs. `mem_kib` is 32768 for the startup key and 65536 for the sync passphrase.
 pub fn argon(secret: &str, salt: &str, mem_kib: u32) -> [u8; 32] {
-    let salt_bytes: [u8; 32] = Sha256::digest(format!("owl-argon|{salt}")).into();
+    let mut salt_bytes: [u8; 32] = Sha256::digest(format!("owl-argon|{salt}")).into();
     let mut out = [0u8; 32];
     let params = Params::new(mem_kib, 3, 1, Some(32)).expect("argon2 params");
     Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
         .hash_password_into(secret.as_bytes(), &salt_bytes[..16], &mut out)
         .expect("argon2");
+    salt_bytes.zeroize();
     out
 }
 
@@ -90,11 +92,17 @@ fn box_wrap_key(shared: &[u8; 32], eph_pub: &[u8; 32], recipient: &[u8; 32]) -> 
 pub fn seal_to(recipient: &[u8; 32], plain: &[u8]) -> Vec<u8> {
     let (eph, eph_pub) = new_keypair();
     let shared = x25519_dalek::x25519(eph, *recipient);
-    let wrap = box_wrap_key(&shared, &eph_pub, recipient);
-    let k: [u8; 32] = random(32).try_into().unwrap();
+    let mut shared = shared;
+    let mut wrap = box_wrap_key(&shared, &eph_pub, recipient);
+    shared.zeroize();
+    let mut eph = eph;
+    let mut k: [u8; 32] = random(32).try_into().unwrap();
     let (n1, n2) = (random(12), random(12));
     let wk = ChaCha20Poly1305::new(Key::from_slice(&wrap)).encrypt(Nonce::from_slice(&n1), k.as_slice()).expect("encrypt");
     let ct = ChaCha20Poly1305::new(Key::from_slice(&k)).encrypt(Nonce::from_slice(&n2), plain).expect("encrypt");
+    wrap.zeroize();
+    k.zeroize();
+    eph.zeroize();
     let mut out = MAGIC_PROFILE2.to_vec();
     out.extend_from_slice(&eph_pub);
     out.extend_from_slice(&n1);
@@ -110,11 +118,15 @@ pub fn open_from(privk: &[u8; 32], data: &[u8]) -> Option<Vec<u8>> {
     }
     let eph_pub: [u8; 32] = data[8..40].try_into().ok()?;
     let recipient = x_public(privk);
-    let shared = x25519_dalek::x25519(*privk, eph_pub);
-    let wrap = box_wrap_key(&shared, &eph_pub, &recipient);
-    let k = ChaCha20Poly1305::new(Key::from_slice(&wrap)).decrypt(Nonce::from_slice(&data[40..52]), &data[52..100]).ok()?;
-    let k: [u8; 32] = k.try_into().ok()?;
-    ChaCha20Poly1305::new(Key::from_slice(&k)).decrypt(Nonce::from_slice(&data[100..112]), &data[112..]).ok()
+    let mut shared = x25519_dalek::x25519(*privk, eph_pub);
+    let mut wrap = box_wrap_key(&shared, &eph_pub, &recipient);
+    shared.zeroize();
+    let kv = ChaCha20Poly1305::new(Key::from_slice(&wrap)).decrypt(Nonce::from_slice(&data[40..52]), &data[52..100]);
+    wrap.zeroize();
+    let mut k: [u8; 32] = kv.ok()?.try_into().ok()?;
+    let out = ChaCha20Poly1305::new(Key::from_slice(&k)).decrypt(Nonce::from_slice(&data[100..112]), &data[112..]).ok();
+    k.zeroize();
+    out
 }
 
 /// Round-trip self-test, run once at start: if public-key sealing were ever broken, Owl would

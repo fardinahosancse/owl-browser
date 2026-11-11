@@ -1583,6 +1583,7 @@ dependencies = [
  "windows",
  "wry",
  "x25519-dalek",
+ "zeroize",
 ]
 
 [[package]]
