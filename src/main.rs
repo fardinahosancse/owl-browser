@@ -2,6 +2,7 @@
 
 mod crypt;
 mod dl;
+mod engine;
 mod media;
 mod owlkick;
 mod update;
@@ -863,6 +864,7 @@ pub enum Ev {
     DlAsk(u32, u32, String, String),
     DlProg(u32, i64, i64),
     DlState(u32, i32),
+    DlProbe(u32, Option<engine::Probe>),
     Fullscreen(u32, bool),
     NavFail(u32, i32),
     NavOk(u32),
@@ -2779,6 +2781,7 @@ fn main() {
             || (cfg.seal_pub.is_empty() && cfg.pin_hash.is_empty() && profile::has_sealed(&dir) && !cfg_exists_ok(&dir)));
     BLOCK.store(cfg.block, Relaxed);
     native::PERM_BLOCK.store(cfg.perm_block, Relaxed);
+    engine::DIRECT_OK.store(cfg.proxy.is_empty(), Relaxed);
     native::TRACK_STRICT.store(cfg.track_strict, Relaxed);
     HTTPS.store(cfg.https_only, Relaxed);
     *THEME.lock().unwrap() = cfg.theme.clone();
@@ -3132,6 +3135,7 @@ fn main() {
                     }
                 }
                 Ev::DlAsk(id, tab, url, path) => app.dl_incoming(id, tab, url, path),
+                Ev::DlProbe(id, p) => dl::probe_done(id, p, app.proxy.clone()),
                 Ev::DlProg(id, r, t) => {
                     let mut sp = 0.0;
                     if let Some((at, last, ema)) = app.speeds.get_mut(&id) {

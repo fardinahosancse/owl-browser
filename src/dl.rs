@@ -11,9 +11,10 @@ use tao::event_loop::EventLoopProxy;
 use webview2_com::{
     take_pwstr,
     Microsoft::Web::WebView2::Win32::{
-        ICoreWebView2Deferral, ICoreWebView2DownloadOperation, ICoreWebView2DownloadStartingEventArgs, ICoreWebView2_4,
+        ICoreWebView2Deferral, ICoreWebView2DownloadOperation, ICoreWebView2DownloadStartingEventArgs, ICoreWebView2Settings2,
+        ICoreWebView2_2, ICoreWebView2_4,
     },
-    BytesReceivedChangedEventHandler, DownloadStartingEventHandler, StateChangedEventHandler,
+    BytesReceivedChangedEventHandler, DownloadStartingEventHandler, GetCookiesCompletedHandler, StateChangedEventHandler,
 };
 use windows::core::{Interface, HSTRING, PWSTR};
 use wry::{WebView, WebViewExtWindows};
@@ -23,6 +24,9 @@ static NEXT: AtomicU32 = AtomicU32::new(1);
 thread_local! {
     static OPS: RefCell<HashMap<u32, ICoreWebView2DownloadOperation>> = RefCell::new(HashMap::new());
     /// Downloads held open until Owl decides whether to allow them.
+    /// What the segmented engine needs for each download: address, cookies, user agent, referrer.
+    static CTX: RefCell<HashMap<u32, crate::engine::Ctx>> = RefCell::new(HashMap::new());
+    static PROXY: RefCell<Option<EventLoopProxy<Ev>>> = RefCell::new(None);
     static HELD: RefCell<HashMap<u32, (ICoreWebView2DownloadStartingEventArgs, ICoreWebView2Deferral)>> = RefCell::new(HashMap::new());
 }
 
@@ -57,7 +61,34 @@ pub fn inside_root(p: &str) -> bool {
 }
 
 /// Allow or refuse a download that is being held. Does nothing if it is not held.
+pub fn dbg(m: &str) {
+    use std::io::Write;
+    if std::env::var_os("OWL_DEBUG").is_none() {
+        return;
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(crate::data_dir().join("dl.log")) {
+        let _ = writeln!(f, "{m}");
+    }
+}
+
 pub fn decide(id: u32, allow: bool) {
+    dbg(&format!("decide {id} {allow} direct={} ctx={}", crate::engine::DIRECT_OK.load(Relaxed), CTX.with(|c| c.borrow().contains_key(&id))));
+    // allowed downloads of http(s) files are first probed for range support; the browser's own
+    // download stays held until `probe_done` says whether the segmented engine takes over
+    if allow && crate::engine::DIRECT_OK.load(Relaxed) {
+        let ctx = CTX.with(|c| c.borrow().get(&id).cloned());
+        if let Some(ctx) = ctx.filter(|c| c.url.starts_with("http://") || c.url.starts_with("https://")) {
+            if HELD.with(|h| h.borrow().contains_key(&id)) {
+                if let Some(p) = PROXY.with(|p| p.borrow().clone()) {
+                    crate::engine::probe(id, ctx, p);
+                    return;
+                }
+            }
+        }
+    }
+    CTX.with(|c| {
+        c.borrow_mut().remove(&id);
+    });
     if let Some((args, def)) = HELD.with(|h| h.borrow_mut().remove(&id)) {
         unsafe {
             if !allow {
@@ -70,6 +101,35 @@ pub fn decide(id: u32, allow: bool) {
         OPS.with(|o| {
             o.borrow_mut().remove(&id);
         });
+    }
+}
+
+/// The probe finished. If the file can be segmented, cancel the browser's download and hand it to
+/// the engine; otherwise let the browser download it as usual.
+pub fn probe_done(id: u32, probe: Option<crate::engine::Probe>, proxy: EventLoopProxy<Ev>) {
+    let Some((args, def)) = HELD.with(|h| h.borrow_mut().remove(&id)) else {
+        CTX.with(|c| c.borrow_mut().remove(&id));
+        return; // cancelled while probing
+    };
+    let ctx = CTX.with(|c| c.borrow_mut().remove(&id));
+    let take = match (&probe, &ctx) {
+        (Some(p), Some(c)) if p.total >= crate::engine::MIN_SIZE => !std::path::Path::new(&c.path).exists(),
+        _ => false,
+    };
+    unsafe {
+        if take {
+            let _ = args.SetCancel(true);
+        }
+        let _ = def.Complete();
+    }
+    if take {
+        OPS.with(|o| {
+            o.borrow_mut().remove(&id);
+        });
+        if !crate::engine::start(id, ctx.unwrap(), probe.unwrap(), proxy.clone()) {
+            // could not prepare the file: report it so the user can retry
+            let _ = proxy.send_event(Ev::DlState(id, 1));
+        }
     }
 }
 
@@ -119,7 +179,9 @@ pub fn target(orig: &str, organize: bool) -> String {
 
 pub fn install(wv: &WebView, proxy: EventLoopProxy<Ev>, tab: u32, organize: impl Fn() -> bool + 'static) {
     unsafe {
-        let Ok(core4) = wv.webview().cast::<ICoreWebView2_4>() else { return };
+        PROXY.with(|p| *p.borrow_mut() = Some(proxy.clone()));
+        let core = wv.webview();
+        let Ok(core4) = core.cast::<ICoreWebView2_4>() else { return };
         let mut token = Default::default();
         let _ = core4.add_DownloadStarting(
             &DownloadStartingEventHandler::create(Box::new(move |_s, args| {
@@ -139,7 +201,59 @@ pub fn install(wv: &WebView, proxy: EventLoopProxy<Ev>, tab: u32, organize: impl
                 // hold the download until the main loop decides; it may ask the user first
                 let def = args.GetDeferral()?;
                 HELD.with(|h| h.borrow_mut().insert(id, (args.clone(), def)));
-                let _ = proxy.send_event(Ev::DlAsk(id, tab, url, path));
+                // gather what the segmented engine needs, then announce the download
+                let ua = core
+                    .Settings()
+                    .ok()
+                    .and_then(|s| s.cast::<ICoreWebView2Settings2>().ok())
+                    .map(|s| {
+                        let mut p = PWSTR::null();
+                        if s.UserAgent(&mut p).is_ok() { take_pwstr(p) } else { String::new() }
+                    })
+                    .unwrap_or_default();
+                let referer = {
+                    let mut p = PWSTR::null();
+                    if core.Source(&mut p).is_ok() { take_pwstr(p) } else { String::new() }
+                };
+                let announce = {
+                    let (proxy, url, path) = (proxy.clone(), url.clone(), path.clone());
+                    move || {
+                        let _ = proxy.send_event(Ev::DlAsk(id, tab, url, path));
+                    }
+                };
+                let mut ctx = crate::engine::Ctx { url: url.clone(), cookie: String::new(), ua, referer, path: path.clone() };
+                let cm = core.cast::<ICoreWebView2_2>().ok().and_then(|c| c.CookieManager().ok());
+                match cm {
+                    Some(cm) if url.starts_with("http") => {
+                        let announce2 = announce.clone();
+                        let h = GetCookiesCompletedHandler::create(Box::new(move |_, list| {
+                            dbg("cookies cb");
+                            if let Some(list) = list {
+                                let mut n = 0u32;
+                                list.Count(&mut n)?;
+                                let mut parts = Vec::new();
+                                for i in 0..n.min(200) {
+                                    let c = list.GetValueAtIndex(i)?;
+                                    let (mut a, mut b) = (PWSTR::null(), PWSTR::null());
+                                    c.Name(&mut a)?;
+                                    c.Value(&mut b)?;
+                                    parts.push(format!("{}={}", take_pwstr(a), take_pwstr(b)));
+                                }
+                                ctx.cookie = parts.join("; ");
+                            }
+                            CTX.with(|m| m.borrow_mut().insert(id, ctx.clone()));
+                            announce2();
+                            Ok(())
+                        }));
+                        if cm.GetCookies(&HSTRING::from(url.as_str()), &h).is_err() {
+                            announce();
+                        }
+                    }
+                    _ => {
+                        CTX.with(|m| m.borrow_mut().insert(id, ctx));
+                        announce();
+                    }
+                }
 
                 let (p1, p2) = (proxy.clone(), proxy.clone());
                 let mut t1 = Default::default();
@@ -181,6 +295,9 @@ pub fn install(wv: &WebView, proxy: EventLoopProxy<Ev>, tab: u32, organize: impl
 }
 
 pub fn pause(id: u32) {
+    if crate::engine::pause(id) {
+        return;
+    }
     OPS.with(|o| {
         if let Some(op) = o.borrow().get(&id) {
             unsafe {
@@ -190,11 +307,19 @@ pub fn pause(id: u32) {
     });
 }
 pub fn resume(id: u32) -> bool {
+    if let Some(p) = PROXY.with(|p| p.borrow().clone()) {
+        if crate::engine::resume(id, p) {
+            return true;
+        }
+    }
     OPS.with(|o| {
         o.borrow().get(&id).map_or(false, |op| unsafe { op.Resume().is_ok() })
     })
 }
 pub fn cancel(id: u32) {
+    if crate::engine::cancel(id) {
+        return;
+    }
     OPS.with(|o| {
         if let Some(op) = o.borrow_mut().remove(&id) {
             unsafe {
@@ -204,6 +329,9 @@ pub fn cancel(id: u32) {
     });
 }
 pub fn forget(id: u32) {
+    CTX.with(|c| {
+        c.borrow_mut().remove(&id);
+    });
     OPS.with(|o| {
         o.borrow_mut().remove(&id);
     });
