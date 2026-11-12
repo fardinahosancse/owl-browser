@@ -200,6 +200,9 @@ pub fn data_dir() -> PathBuf {
 
 /// OwlKick Engine check: the page's address and the kind of request decide, as in Brave's engine.
 fn owlkick_blocks(url: &str, source: &str, ctx: i32) -> bool {
+    if owlkick::is_off(if source.is_empty() { url } else { source }) {
+        return false;
+    }
     let host = host_of(url);
     if host == HOST || host.is_empty() || url.starts_with("data:") || url.starts_with("blob:") {
         return false;
@@ -472,6 +475,9 @@ pub struct Config {
     /// refuse camera, microphone, location and notification requests without asking
     #[serde(default)]
     pub perm_block: bool,
+    /// sites where OwlKick blocking is switched off
+    #[serde(default)]
+    pub kick_off: Vec<String>,
     /// image compression strength 1-99, 0 = off
     #[serde(default)]
     pub compress: u32,
@@ -535,7 +541,7 @@ impl Default for Config {
             block: true, https_only: false, sync_dir: String::new(), theme: sys(), bookmark_bar: false,
             pin_hash: String::new(), pin_salt: String::new(), organize: true, pw_save: true, pw_never: vec![],
             strikes: 0, fails: 0, locked_until: 0, sync_key: String::new(), pin_mode: pin_mode(), kdf: 0, fp: true,
-            fp_strict: false, perm_block: false, compress: 0, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
+            fp_strict: false, perm_block: false, kick_off: vec![], compress: 0, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
             seal_pub: String::new(), seal_priv: String::new(), lock_on_winlock: true,
         }
     }
@@ -958,6 +964,8 @@ pub enum Ev {
     DlProbe(u32, Option<engine::Probe>),
     /// a magnet link was opened
     Magnet(String),
+    /// an address passed by a second launch of Owl
+    OpenUrl(String),
     /// a video or audio file was requested by a page: (tab, address)
     MediaSeen(u32, String),
     /// compressed image ready for a held request: (request id, bytes and type)
@@ -1392,6 +1400,13 @@ impl App {
     fn tick(&mut self) {
         self.ticks += 1;
         // daily notify-only update check (opt-in; skipped with a proxy, in private windows and while locked)
+        // refresh downloaded filter lists once a week (only if the user downloaded them before)
+        if self.ticks == 25 && !self.ctx.private && !self.locked && self.ctx.cfg.lock().unwrap().proxy.is_empty() && !doh::active() && owlkick::lists_age_days().map_or(false, |d| d >= 7) {
+            let p = self.proxy.clone();
+            owlkick::update_lists(move |n| {
+                let _ = p.send_event(Ev::Filters(n));
+            });
+        }
         if self.ticks == 20 && !self.ctx.private && !self.locked {
             let due = {
                 let mut c = self.ctx.cfg.lock().unwrap();
@@ -2280,6 +2295,17 @@ impl App {
                     }
                 }
             }
+            "set_kick_off" => {
+                let list: Vec<String> = s("sites")
+                    .split([',', ' ', '\n'])
+                    .map(|x| x.trim().trim_start_matches("www.").to_lowercase())
+                    .filter(|x| !x.is_empty() && x.len() < 100 && x.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.'))
+                    .take(50)
+                    .collect();
+                *owlkick::OFF_SITES.lock().unwrap() = list.clone();
+                self.ctx.cfg.lock().unwrap().kick_off = list;
+                self.ctx.save_cfg();
+            }
             "filters_update" => {
                 if self.ctx.cfg.lock().unwrap().proxy.is_empty() {
                     let p = self.proxy.clone();
@@ -2577,6 +2603,10 @@ impl App {
             }
             // ----- browsing -----
             "navigate" => {
+                if torrent::is_magnet(s("url").trim()) {
+                    self.start_torrent(torrent::Source::Magnet(s("url").trim().to_string()), "Torrent (fetching details)".into());
+                    return;
+                }
                 let u = internal(&normalize(&s("url")));
                 if let Some(t) = self.cur() {
                     let _ = t.wv.load_url(&u);
@@ -2929,6 +2959,18 @@ unsafe extern "system" fn win_proc(
             let _ = ShutdownBlockReasonCreate(hwnd, windows::core::w!("Securing your browser data"));
             post(Ev::EndSession);
         }
+        0x004A => {
+            // WM_COPYDATA: a second launch passing an address to open
+            let cd = &*(lp.0 as *const windows::Win32::System::DataExchange::COPYDATASTRUCT);
+            if cd.dwData == 0x4F57_4C31 && cd.cbData > 0 && cd.cbData < 2100 && !cd.lpData.is_null() {
+                let b = std::slice::from_raw_parts(cd.lpData as *const u8, cd.cbData as usize);
+                if let Ok(u) = std::str::from_utf8(b) {
+                    if u.starts_with("http://") || u.starts_with("https://") || u.starts_with("magnet:?") {
+                        post(Ev::OpenUrl(u.to_string()));
+                    }
+                }
+            }
+        }
         0x02B1 if wp.0 == 7 => post(Ev::SessionLock), // WM_WTSSESSION_CHANGE, WTS_SESSION_LOCK
         0x0218 if wp.0 == 4 => post(Ev::SessionLock), // WM_POWERBROADCAST, PBT_APMSUSPEND
         _ => {}
@@ -2990,6 +3032,18 @@ fn main() {
         unsafe {
             if let Ok(h) = CreateMutexW(None, false, windows::core::w!("Local\\OwlBrowserMain")) {
                 if GetLastError() == ERROR_ALREADY_EXISTS {
+                    // hand over to the running Owl: bring its window forward and pass on a start address
+                    use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, SendMessageW, SetForegroundWindow, ShowWindow, SW_RESTORE, WM_COPYDATA};
+                    use windows::Win32::System::DataExchange::COPYDATASTRUCT;
+                    if let Ok(w) = FindWindowW(windows::core::PCWSTR::null(), windows::core::w!("Owl")) {
+                        let _ = ShowWindow(w, SW_RESTORE);
+                        let _ = SetForegroundWindow(w);
+                        if let Some(u) = std::env::args().skip(1).find(|a| !a.starts_with("--")).filter(|u| u.len() < 2048 && (u.starts_with("http://") || u.starts_with("https://") || u.starts_with("magnet:?"))) {
+                            let b = u.as_bytes();
+                            let cd = COPYDATASTRUCT { dwData: 0x4F57_4C31, cbData: b.len() as u32, lpData: b.as_ptr() as *mut std::ffi::c_void };
+                            let _ = SendMessageW(w, WM_COPYDATA, None, Some(windows::Win32::Foundation::LPARAM(&cd as *const _ as isize)));
+                        }
+                    }
                     return;
                 }
                 std::mem::forget(h); // held until the process exits
@@ -3017,6 +3071,7 @@ fn main() {
     engine::DIRECT_OK.store(cfg.proxy.is_empty() && !secure_dns, Relaxed);
     engine::LIMIT_KB.store(cfg.dl_limit as u64, Relaxed);
     imgcomp::STRENGTH.store(cfg.compress.min(99), Relaxed);
+    *owlkick::OFF_SITES.lock().unwrap() = cfg.kick_off.clone();
     engine::MAX_ACTIVE.store(cfg.dl_active.clamp(1, 8), Relaxed);
     native::TRACK_STRICT.store(cfg.track_strict, Relaxed);
     HTTPS.store(cfg.https_only, Relaxed);
@@ -3189,7 +3244,7 @@ fn main() {
                     // OwlKick cosmetic filtering: hide ad containers named by the loaded lists
                     if BLOCK.load(Relaxed) && owlkick::list_count() > 0 {
                         if let Some(t) = app.tabs.iter().find(|t| t.id == id) {
-                            if t.url.starts_with("http") {
+                            if t.url.starts_with("http") && !owlkick::is_off(&t.url) {
                                 let css = owlkick::cosmetic_css(&t.url, BLOCKED_HOSTS, BLOCKED_PATHS);
                                 if !css.is_empty() {
                                     let js = format!("(function(){{var s=document.createElement('style');s.textContent={};(document.head||document.documentElement).appendChild(s)}})()", serde_json::to_string(&css).unwrap_or_default());
@@ -3246,6 +3301,15 @@ fn main() {
                     }
                 }
                 Ev::MediaSeen(tab, u) => app.note_media(tab, u),
+                Ev::OpenUrl(u) => {
+                    if !app.locked && app.snap_wait.is_none() {
+                        if torrent::is_magnet(&u) {
+                            app.start_torrent(torrent::Source::Magnet(u), "Torrent (fetching details)".into());
+                        } else {
+                            app.new_tab(&u);
+                        }
+                    }
+                }
                 Ev::Nav(id, u) => {
                     if let Some(t) = app.tabs.iter_mut().find(|t| t.id == id) {
                         if display(&u) != t.url {

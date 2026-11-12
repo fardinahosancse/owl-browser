@@ -6,7 +6,7 @@
 //! Rules come from a built-in base set (Owl's tracker host list) plus any filter lists saved in
 //! `%LOCALAPPDATA%\Owl\filters\*.txt`. Downloading lists is opt-in (Settings > Privacy).
 use adblock::{lists::ParseOptions, request::Request, Engine, FilterSet};
-use std::{cell::RefCell, path::PathBuf};
+use std::{cell::RefCell, path::PathBuf, sync::Mutex};
 
 /// Filter lists the optional updater fetches: (file name, host, path).
 pub const LISTS: &[(&str, &str, &str)] = &[
@@ -74,6 +74,21 @@ pub fn reload() {
     ENGINE.with(|e| *e.borrow_mut() = None);
 }
 
+/// Sites where the engine is switched off (the user's choice), kept lower-case without "www.".
+pub static OFF_SITES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+pub fn is_off(page_url: &str) -> bool {
+    let h = page_url.split("://").nth(1).unwrap_or("").split(['/', '?', '#', ':']).next().unwrap_or("").to_lowercase();
+    let h = h.trim_start_matches("www.");
+    !h.is_empty() && OFF_SITES.lock().unwrap().iter().any(|s| h == s || h.ends_with(&format!(".{s}")))
+}
+
+/// Age in days of the newest downloaded list, None if there is none.
+pub fn lists_age_days() -> Option<u64> {
+    let newest = std::fs::read_dir(dir()).ok()?.flatten().filter(|e| e.path().extension().map_or(false, |x| x == "txt")).filter_map(|e| e.metadata().ok()?.modified().ok()).max()?;
+    Some(std::time::SystemTime::now().duration_since(newest).map(|d| d.as_secs() / 86_400).unwrap_or(0))
+}
+
 /// Number of lists currently on disk.
 pub fn list_count() -> usize {
     std::fs::read_dir(dir()).map(|r| r.flatten().filter(|e| e.path().extension().map_or(false, |x| x == "txt")).count()).unwrap_or(0)
@@ -120,5 +135,15 @@ mod tests {
         assert!(should_block("https://site.org/adserver/x.gif", "https://site.org/", "image", &hosts, &paths));
         assert!(!should_block("https://site.org/app.js", "https://site.org/", "script", &hosts, &paths));
         assert!(!should_block("https://nottracker.example/p.js", "https://site.org/", "script", &hosts, &paths));
+    }
+
+    #[test]
+    fn per_site_switch_off() {
+        *OFF_SITES.lock().unwrap() = vec!["bank.example".to_string()];
+        assert!(is_off("https://www.bank.example/login"));
+        assert!(is_off("https://pay.bank.example:8443/x"));
+        assert!(!is_off("https://notbank.example/"));
+        assert!(!is_off("https://other.org/"));
+        OFF_SITES.lock().unwrap().clear();
     }
 }

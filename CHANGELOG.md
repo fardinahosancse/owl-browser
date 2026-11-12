@@ -7,6 +7,8 @@ All notable changes to Owl are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Torrent engine on demand**: the BitTorrent engine starts only when a magnet link or .torrent file arrives and shuts down (DHT, trackers, peers) as soon as the last torrent ends. Nothing keeps seeding.
+- OwlKick: per-site off list (Settings > Privacy), weekly refresh of already downloaded filter lists, magnet links typed in the address bar start a torrent. A second launch of Owl now brings the running window forward and passes on the address.
 - **Segmented download engine**: files of 2 MB or more from servers that support ranges download over up to 8 connections at once, with pause, resume and retry with backoff, using the existing download UI. Page cookies are sent only to the host the download started from. Other downloads, and all downloads while a proxy is set, use the browser's normal path.
 - **Video and audio download button**: when a page plays a plain video or audio file, a button appears in the toolbar; choose a file from the list and it downloads with the fast engine. Streaming playlists (HLS, DASH) and YouTube are not offered, and nothing downloads until you choose.
 - **Lazy image compression**: Settings > Privacy slider (0 = off, 1-99). Images on web pages are shrunk and re-encoded before the page receives them; below-the-fold images load lazily. Small images, animations and images that would not get at least 10% smaller are left alone. Checked on a 9.2 MB 3840x5723 JPEG, which arrived as 537x800 at strength 80. Off while a proxy or secure DNS is on.

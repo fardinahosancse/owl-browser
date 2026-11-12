@@ -134,6 +134,7 @@ const SHARED_JS: &str = r#"<script>
 (function(){
  const send=o=>ipc.postMessage(JSON.stringify(o)),$=i=>document.getElementById(i);
  document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;
+  if(a==='setko'){send({cmd:'set_kick_off',sites:document.getElementById('ko').value});return}
   if(a==='kickupd'){send({cmd:'filters_update'});return}
   if(a==='updcheck'){send({cmd:'update_check'});return}
   if(a==='clear_history'){if(!confirm('Delete all '+(b.dataset.n||'')+' history entries, including any not shown here? This cannot be undone.'))return;send({cmd:'clear_history'});location.reload()}
@@ -577,9 +578,10 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
 <div class=set><div><b>Your profile</b><p>Set at first run. Kept in the encrypted store on this PC and used only for the home-page greeting.</p></div>\
 <div class=ctl><input class=pk id=pn maxlength=60 aria-label=\"Name\" placeholder=Name value=\"{}\"><input class=pk id=pe maxlength=120 aria-label=\"Email\" placeholder=Email value=\"{}\"><button class=ghost data-act=setprofile>Save</button></div></div>\
 <div class=set><div><b>Extensions (user scripts)</b><p>Put .js files in <code>{}\\extensions</code>. They run on every web page. Loaded: {}</p></div><button class=ghost data-act=opendata>Open Owl folder</button></div>\
-<div class=set><div><b>OwlKick Engine filter lists</b><p>Blocking runs on OwlKick, built on the adblock-rust engine used by Brave (MPL-2.0; not made or endorsed by Brave). It always blocks Owl's built-in tracker list. Download EasyList and EasyPrivacy for much wider coverage, then block cosmetic clutter too. Lists on disk: {kl}.</p></div><button class=ghost data-act=kickupd>Update lists</button></div>\n<div class=set><div><b>Check for updates now</b><p>Asks GitHub for the latest release. Owl never updates itself.</p></div><button class=ghost data-act=updcheck>Check now</button></div>\n<div class=set><div><b>Restart Owl</b><p>Some settings (proxy, sync) apply after a restart.</p></div><button class=ghost data-act=restart>Restart now</button></div>\
+<div class=set><div><b>OwlKick Engine filter lists</b><p>Blocking runs on OwlKick, built on the adblock-rust engine used by Brave (MPL-2.0; not made or endorsed by Brave). It always blocks Owl's built-in tracker list. Download EasyList and EasyPrivacy for much wider coverage, then block cosmetic clutter too. Lists on disk: {kl}.</p></div><button class=ghost data-act=kickupd>Update lists</button></div>\n<div class=set><div><b>OwlKick off for these sites</b><p>Comma-separated sites where blocking and clutter hiding are switched off, for example a bank or a site that breaks.</p></div><div class=ctl><input class=pk id=ko maxlength=800 aria-label=\"Sites where OwlKick is off\" placeholder=\"example.com, shop.example.org\" value=\"{ko}\"><button class=ghost data-act=setko>Save</button></div></div>\
+<div class=set><div><b>Check for updates now</b><p>Asks GitHub for the latest release. Owl never updates itself.</p></div><button class=ghost data-act=updcheck>Check now</button></div>\n<div class=set><div><b>Restart Owl</b><p>Some settings (proxy, sync) apply after a restart.</p></div><button class=ghost data-act=restart>Restart now</button></div>\
 <div class=set><div><b>About and credits</b><p>Icons are from Lucide (ISC licence). The page engine is Microsoft Edge WebView2.</p></div><a class=btn href=\"owl://about\">About Owl</a></div>",
-        esc(prof.0), esc(prof.1), esc(dir), esc(&ex), kl = crate::owlkick::list_count()
+        esc(prof.0), esc(prof.1), esc(dir), esc(&ex), kl = crate::owlkick::list_count(), ko = esc(&c.kick_off.join(", "))
     );
     list_page("Settings", &format!("{appearance}{security}{privacy}{data}{sync}{advanced}{theme_js}"), "", "", theme)
 }
