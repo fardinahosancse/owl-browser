@@ -134,6 +134,7 @@ const SHARED_JS: &str = r#"<script>
 (function(){
  const send=o=>ipc.postMessage(JSON.stringify(o)),$=i=>document.getElementById(i);
  document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;
+  if(a==='warp'){send({cmd:'warp',a:b.dataset.w});return}
   if(a==='setko'){send({cmd:'set_kick_off',sites:document.getElementById('ko').value});return}
   if(a==='kickupd'){send({cmd:'filters_update'});return}
   if(a==='updcheck'){send({cmd:'update_check'});return}
@@ -534,7 +535,7 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
         tog(12, "pw_save", c.pw_save, "Offer to save passwords", "Ask to save a password after you sign in to a site.")
     );
     let privacy = format!(
-        "<h2 class=gh>Privacy</h2>{}{}{}{}{}{}{}{}{}\
+        "<h2 class=gh>Privacy</h2>{}{}{}{}{}{}{}{}{}{}\
 <div class=set><div><b>Proxy or VPN</b><p>Send all page traffic through a proxy to hide your IP address, for example <code>socks5://127.0.0.1:9050</code> (Tor). WebRTC is forced through it too. Empty means direct.</p></div>\
 <div class=ctl><input class=pk id=px maxlength=100 aria-label=\"Proxy address\" placeholder=\"socks5://127.0.0.1:9050\" value=\"{}\"><button class=ghost data-act=setproxy>Save</button></div></div>",
         tog(9, "block", c.block, "Block trackers and ads", "Blocks requests to known ad, analytics and tracking hosts."),
@@ -542,6 +543,7 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
         tog(13, "fp", c.fp, "Fingerprint protection", "Adds invisible noise to canvas and audio reads, hides the exact GPU model and rounds hardware hints. Applies to new pages."),
         tog(18, "update_check", c.update_check, "Check for new versions", "Asks GitHub once a day whether a newer Owl exists. Nothing is downloaded or installed, and no identifier is sent. Skipped when a proxy is set."),
         format!("<div class=set><div><b>Lazy image compression</b><p>Shrinks images before a page gets them so it loads faster and uses less data. Higher means smaller images and lower quality; Off at 0. Images that would not get smaller, small images and animations are left alone. Off while a proxy or secure DNS is on. Applies to new pages.</p></div><div class=ctl><input type=range class=pk min=0 max=99 value={v} data-sel=compress data-out=cmpv aria-label=\"Image compression strength\" aria-describedby=cmpv style=\"width:200px\"><output id=cmpv>{vt}</output></div></div>", v = c.compress, vt = if c.compress == 0 { "Off".to_string() } else { c.compress.to_string() }),
+        tog(20, "torrent_seed", c.torrent_seed, "Keep seeding finished torrents", "Off by default: the torrent engine shuts down as soon as a download ends. When on, finished torrents keep uploading to peers Owl is connected to until you remove them from the download list. Owl opens no listening port."),
         tog(19, "doh", c.doh, "Secure DNS (Cloudflare 1.1.1.1)", "Looks up site names over HTTPS at 1.1.1.1 so your network cannot see which sites you open. This is not a VPN: your IP address is unchanged. If 1.1.1.1 is blocked, pages will not load; turn this off. Needs a restart. Not used while a proxy is set."),
         tog(17, "track_strict", c.track_strict, "Strict tracking prevention", "Blocks third-party trackers and their stored cookies more aggressively. Some embedded logins and videos may stop working. Applies to new pages."),
         tog(16, "perm_block", c.perm_block, "Block camera, microphone, location and notifications", "Refuses these requests without asking. Sensors, local fonts and MIDI system access are always refused. Turn this off to be asked per site."),
@@ -575,10 +577,12 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
     );
     let advanced = format!(
         "<h2 class=gh>Profile and advanced</h2>\
+<div class=set><div><b>Site permissions</b><p>Review and reset the camera, microphone, location and other permissions you gave sites.</p></div><a class=btn href=\"owl://permissions\">Review</a></div>\
 <div class=set><div><b>Your profile</b><p>Set at first run. Kept in the encrypted store on this PC and used only for the home-page greeting.</p></div>\
 <div class=ctl><input class=pk id=pn maxlength=60 aria-label=\"Name\" placeholder=Name value=\"{}\"><input class=pk id=pe maxlength=120 aria-label=\"Email\" placeholder=Email value=\"{}\"><button class=ghost data-act=setprofile>Save</button></div></div>\
 <div class=set><div><b>Extensions (user scripts)</b><p>Put .js files in <code>{}\\extensions</code>. They run on every web page. Loaded: {}</p></div><button class=ghost data-act=opendata>Open Owl folder</button></div>\
-<div class=set><div><b>OwlKick Engine filter lists</b><p>Blocking runs on OwlKick, built on the adblock-rust engine used by Brave (MPL-2.0; not made or endorsed by Brave). It always blocks Owl's built-in tracker list. Download EasyList and EasyPrivacy for much wider coverage, then block cosmetic clutter too. Lists on disk: {kl}.</p></div><button class=ghost data-act=kickupd>Update lists</button></div>\n<div class=set><div><b>OwlKick off for these sites</b><p>Comma-separated sites where blocking and clutter hiding are switched off, for example a bank or a site that breaks.</p></div><div class=ctl><input class=pk id=ko maxlength=800 aria-label=\"Sites where OwlKick is off\" placeholder=\"example.com, shop.example.org\" value=\"{ko}\"><button class=ghost data-act=setko>Save</button></div></div>\
+<div class=set><div><b>OwlKick Engine filter lists</b><p>Blocking runs on OwlKick, built on the adblock-rust engine used by Brave (MPL-2.0; not made or endorsed by Brave). It always blocks Owl's built-in tracker list. Download EasyList and EasyPrivacy for much wider coverage, then block cosmetic clutter too. Lists on disk: {kl}.</p></div><button class=ghost data-act=kickupd>Update lists</button></div>\n<div class=set><div><b>Cloudflare WARP (installed client)</b><p>WARP is a real VPN from Cloudflare. Owl cannot include it, but if you installed the free client it can switch it on and off here. While it is on, all your traffic goes through Cloudflare.</p></div><div class=ctl><button class=ghost data-act=warp data-w=connect>Connect</button><button class=ghost data-act=warp data-w=disconnect>Disconnect</button><button class=ghost data-act=warp data-w=status>Status</button></div></div>\
+<div class=set><div><b>OwlKick off for these sites</b><p>Comma-separated sites where blocking and clutter hiding are switched off, for example a bank or a site that breaks.</p></div><div class=ctl><input class=pk id=ko maxlength=800 aria-label=\"Sites where OwlKick is off\" placeholder=\"example.com, shop.example.org\" value=\"{ko}\"><button class=ghost data-act=setko>Save</button></div></div>\
 <div class=set><div><b>Check for updates now</b><p>Asks GitHub for the latest release. Owl never updates itself.</p></div><button class=ghost data-act=updcheck>Check now</button></div>\n<div class=set><div><b>Restart Owl</b><p>Some settings (proxy, sync) apply after a restart.</p></div><button class=ghost data-act=restart>Restart now</button></div>\
 <div class=set><div><b>About and credits</b><p>Icons are from Lucide (ISC licence). The page engine is Microsoft Edge WebView2.</p></div><a class=btn href=\"owl://about\">About Owl</a></div>",
         esc(prof.0), esc(prof.1), esc(dir), esc(&ex), kl = crate::owlkick::list_count(), ko = esc(&c.kick_off.join(", "))
@@ -595,6 +599,27 @@ pub fn httpsfail(url: &str, theme: &str) -> String {
         hdr("HTTPS"), esc(safe), esc(safe)
     );
     page("Not secure", &body, "<style>.warn{color:var(--red)}.lnk{font-size:13px;color:var(--mute);text-decoration:underline;display:inline-block;padding:6px 2px;min-height:24px}.lnk:hover{color:var(--red)}</style>", theme, "")
+}
+
+pub fn permissions(theme: &str) -> String {
+    let js = r#"<script>
+(function(){const send=o=>ipc.postMessage(JSON.stringify(o));
+const K={1:'Microphone',2:'Camera',3:'Location',4:'Notifications',5:'Motion sensors',6:'Clipboard read',7:'Multiple downloads',8:'File access',9:'Autoplay',10:'Local fonts',11:'MIDI',12:'Window management'};
+const S={1:'Allowed',2:'Blocked'};
+function draw(list){const L=document.getElementById('pl');L.textContent='';
+ if(!list.length){const e=document.createElement('div');e.className='empty';e.textContent='No site has been allowed or blocked yet. When a site asks for the camera, location and so on, your choice appears here.';L.appendChild(e);return}
+ list.forEach(p=>{const r=document.createElement('div');r.className='row';
+  const n=document.createElement('span');n.className='n';n.textContent=S[p.s]||'';
+  const t=document.createElement('span');t.className='t';t.textContent=(K[p.k]||'Permission')+' \u00b7 '+p.o;
+  const d=document.createElement('span');d.className='d';
+  const b=document.createElement('button');b.className='ghost sm';b.textContent='Reset';b.setAttribute('aria-label','Reset '+(K[p.k]||'permission')+' for '+p.o);
+  b.onclick=()=>{send({cmd:'perm_reset',kind:p.k,origin:p.o});r.remove()};
+  d.appendChild(b);r.append(n,t,d);L.appendChild(r)})}
+window.__perms=function(j){try{draw(JSON.parse(j))}catch(e){draw([])}};
+send({cmd:'perm_list'});
+})();
+</script>"#;
+    list_page("Permissions", "<div id=pl><div class=empty>Loading...</div></div>", "<p class=lead>Sites you have allowed or blocked. Reset puts a site back to asking.</p>", js, theme)
 }
 
 pub fn about(theme: &str) -> String {

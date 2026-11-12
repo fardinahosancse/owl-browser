@@ -349,12 +349,14 @@ fn state_path(job: &Job) -> PathBuf {
 /// Remember how far each part got, so a download can continue after Owl restarts.
 fn save_state(job: &Job) {
     let segs: Vec<[i64; 3]> = job.segs.iter().map(|s| [s.start, s.end, s.pos.load(Relaxed)]).collect();
-    let v = serde_json::json!({"url": job.probe.url, "total": job.probe.total, "ua": job.ctx.ua, "referer": job.ctx.referer, "path": job.ctx.path, "segs": segs});
+    let v = serde_json::json!({"url": job.probe.url, "total": job.probe.total, "ua": job.ctx.ua, "referer": job.ctx.referer, "path": job.ctx.path, "segs": segs,
+        // cookies are kept encrypted for this Windows account (DPAPI), never as plain text
+        "cookie": crate::vault::encrypt(&job.ctx.cookie, &[]).unwrap_or_default(), "with_cookie": job.probe.with_cookie});
     let _ = std::fs::write(state_path(job), v.to_string());
 }
 
-/// Continue an interrupted download from its saved state. Cookies are not kept, so downloads
-/// that need a signed-in session may fail and must be started again from the page.
+/// Continue an interrupted download from its saved state, including its (encrypted) cookies.
+/// Sessions that expired meanwhile may still fail and must be started again from the page.
 pub fn restore(id: u32, path: &str, proxy: EventLoopProxy<Ev>) -> bool {
     if !DIRECT_OK.load(Relaxed) || has(id) {
         return false;
@@ -381,8 +383,9 @@ pub fn restore(id: u32, path: &str, proxy: EventLoopProxy<Ev>) -> bool {
     if segs.is_empty() {
         return false;
     }
-    let ctx = Ctx { url: url.to_string(), cookie: String::new(), ua: v["ua"].as_str().unwrap_or("").to_string(), referer: v["referer"].as_str().unwrap_or("").to_string(), path: path.to_string() };
-    let probe = Probe { url: url.to_string(), total, with_cookie: false };
+    let cookie = v["cookie"].as_str().and_then(|c| crate::vault::decrypt(c, &[])).unwrap_or_default();
+    let ctx = Ctx { url: url.to_string(), cookie, ua: v["ua"].as_str().unwrap_or("").to_string(), referer: v["referer"].as_str().unwrap_or("").to_string(), path: path.to_string() };
+    let probe = Probe { url: url.to_string(), total, with_cookie: v["with_cookie"].as_bool().unwrap_or(false) };
     let job = Arc::new(Job { ctx, probe, segs, state: AtomicU8::new(PAUSE), failed: AtomicBool::new(false), running: AtomicBool::new(false), file, part });
     launch(id, job, proxy);
     true

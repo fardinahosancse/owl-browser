@@ -194,6 +194,36 @@ fn wait_for_parent() {
     }
 }
 
+/// Cloudflare WARP is a real VPN, but its client cannot be bundled. If the user has installed it,
+/// Owl can switch it on and off through its own command-line tool.
+fn warp_cli() -> Option<PathBuf> {
+    ["ProgramFiles", "ProgramFiles(x86)"]
+        .iter()
+        .filter_map(|v| std::env::var(v).ok())
+        .map(|p| PathBuf::from(p).join("Cloudflare").join("Cloudflare WARP").join("warp-cli.exe"))
+        .find(|p| p.is_file())
+}
+
+fn warp_run(action: &str) -> String {
+    use std::os::windows::process::CommandExt;
+    let Some(exe) = warp_cli() else {
+        return "Cloudflare WARP is not installed. Install the free 1.1.1.1 app from one.one.one.one, then try again.".into();
+    };
+    let args: &[&str] = match action {
+        "connect" => &["connect"],
+        "disconnect" => &["disconnect"],
+        _ => &["status"],
+    };
+    match std::process::Command::new(exe).args(args).creation_flags(0x0800_0000).output() {
+        Ok(o) => {
+            let t = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            let t: String = t.lines().take(3).collect::<Vec<_>>().join(" ");
+            if t.is_empty() { "Done.".into() } else { t.chars().take(200).collect() }
+        }
+        Err(_) => "Could not run the WARP client.".into(),
+    }
+}
+
 pub fn data_dir() -> PathBuf {
     PathBuf::from(std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".into())).join("Owl")
 }
@@ -269,6 +299,9 @@ thread_local! {
         std::cell::RefCell::new(HashMap::new());
 }
 static NEXT_IMG: AtomicU32 = AtomicU32::new(1);
+static NEXT_IMG_REQ: AtomicU32 = AtomicU32::new(1);
+/// Page-fetched images we asked for: token -> target format.
+static IMG_REQ: std::sync::LazyLock<Mutex<HashMap<u32, String>>> = std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Answer a held image request with the compressed bytes, or let the original through.
 fn finish_image(id: u32, r: Option<(Vec<u8>, &'static str)>) {
@@ -475,6 +508,9 @@ pub struct Config {
     /// refuse camera, microphone, location and notification requests without asking
     #[serde(default)]
     pub perm_block: bool,
+    /// keep seeding finished torrents until they are removed from the list
+    #[serde(default)]
+    pub torrent_seed: bool,
     /// sites where OwlKick blocking is switched off
     #[serde(default)]
     pub kick_off: Vec<String>,
@@ -541,7 +577,7 @@ impl Default for Config {
             block: true, https_only: false, sync_dir: String::new(), theme: sys(), bookmark_bar: false,
             pin_hash: String::new(), pin_salt: String::new(), organize: true, pw_save: true, pw_never: vec![],
             strikes: 0, fails: 0, locked_until: 0, sync_key: String::new(), pin_mode: pin_mode(), kdf: 0, fp: true,
-            fp_strict: false, perm_block: false, kick_off: vec![], compress: 0, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
+            fp_strict: false, perm_block: false, torrent_seed: false, kick_off: vec![], compress: 0, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
             seal_pub: String::new(), seal_priv: String::new(), lock_on_winlock: true,
         }
     }
@@ -964,6 +1000,10 @@ pub enum Ev {
     DlProbe(u32, Option<engine::Probe>),
     /// a magnet link was opened
     Magnet(String),
+    /// permission list for the permissions page: (tab, json)
+    PermList(u32, String),
+    /// result text from the WARP command-line tool
+    WarpResult(String),
     /// an address passed by a second launch of Owl
     OpenUrl(String),
     /// a video or audio file was requested by a page: (tab, address)
@@ -973,7 +1013,7 @@ pub enum Ev {
     /// right-click > Save image as: (image address, format)
     SaveImage(String, String),
     /// finished: (saved path or empty on failure, bytes, format)
-    ImageSaved(String, u64, String),
+    ImageSaved(String, u64, String, String),
     /// queued behind other downloads (true) or started from the queue (false)
     DlQueue(u32, bool),
     /// torrent metadata known: (download id, name)
@@ -1108,6 +1148,7 @@ fn serve(path: &str, query: &str, ctx: &Ctx) -> (u16, &'static str, String) {
             (200, html, pages::settings(&ctx.cfg.lock().unwrap(), &names, &ctx.dir.to_string_lossy(), (&s.name, &s.email), &th))
         }
         "/about" => (200, html, pages::about(&th)),
+        "/permissions" => (200, html, pages::permissions(&th)),
         _ => (404, html, pages::notfound(path, &th)),
     }
 }
@@ -1895,6 +1936,20 @@ impl App {
         }
     }
 
+    /// Ask the page to fetch an image with its own cookies (or from a blob: address) and send the
+    /// bytes back as a data address, which is then converted and saved. Works for same-site images.
+    fn save_image_via_page(&mut self, uri: String, ext: String) {
+        let token = NEXT_IMG_REQ.fetch_add(1, Relaxed);
+        IMG_REQ.lock().unwrap().insert(token, ext);
+        let js = format!(
+            "(async function(){{var T={token};function done(d){{ipc.postMessage(JSON.stringify({{cmd:'img_data',token:T,data:d}}))}}try{{var r=await fetch({u},{{credentials:'include'}});var b=await r.blob();if(b.size>20e6||!/^image\\//.test(b.type)){{done('');return}}var f=new FileReader();f.onload=function(){{done(f.result)}};f.onerror=function(){{done('')}};f.readAsDataURL(b)}}catch(e){{done('')}}}})()",
+            u = serde_json::to_string(&uri).unwrap_or_default()
+        );
+        if let Some(t) = self.tabs.iter().find(|t| t.id == self.active) {
+            let _ = t.wv.evaluate_script(&js);
+        }
+    }
+
     fn dl_mut<R>(&self, id: u32, f: impl FnOnce(&mut Dl) -> R) -> Option<R> {
         self.ctx.store.lock().unwrap().downloads.iter_mut().find(|d| d.id == id).map(f)
     }
@@ -1910,7 +1965,7 @@ impl App {
             "addr" | "find" | "reload" | "back" | "forward" | "zin" | "zout" | "z0" | "new" | "close" | "bookmark" | "history" | "bar" | "fs"
                 | "nexttab" | "prevtab" | "tab1" | "tab2" | "tab3" | "tab4" | "tab5" | "tab6" | "tab7" | "tab8" | "tab9"
         );
-        if !trusted && !(matches!(cmd, "icon" | "pw_query" | "pw_capture" | "media" | "media_found") || (cmd == "key" && safe_key)) {
+        if !trusted && !(matches!(cmd, "icon" | "pw_query" | "pw_capture" | "media" | "media_found" | "img_data") || (cmd == "key" && safe_key)) {
             return;
         }
         // a page message must come from a live tab, and shortcuts and password actions only from
@@ -2295,6 +2350,32 @@ impl App {
                     }
                 }
             }
+            "perm_list" => {
+                if let Some(t) = self.tabs.iter().find(|t| t.id == id) {
+                    let p = Mutex::new(self.proxy.clone());
+                    native::list_permissions(&t.wv, move |j| {
+                        let _ = p.lock().unwrap().send_event(Ev::PermList(id, j));
+                    });
+                }
+            }
+            "perm_reset" => {
+                if let (Some(t), Some(k)) = (self.tabs.iter().find(|t| t.id == id), v["kind"].as_i64()) {
+                    let o = s("origin");
+                    if (o.starts_with("http://") || o.starts_with("https://")) && o.len() < 300 {
+                        native::reset_permission(&t.wv, k as i32, &o);
+                    }
+                }
+            }
+            "warp" => {
+                let a = s("a");
+                if matches!(a.as_str(), "connect" | "disconnect" | "status") {
+                    let p = Mutex::new(self.proxy.clone());
+                    std::thread::spawn(move || {
+                        let msg = warp_run(&a);
+                        let _ = p.lock().unwrap().send_event(Ev::WarpResult(msg));
+                    });
+                }
+            }
             "set_kick_off" => {
                 let list: Vec<String> = s("sites")
                     .split([',', ' ', '\n'])
@@ -2315,6 +2396,24 @@ impl App {
                 } else {
                     let n = json!({"id":"owlkick","label":"OwlKick","text":"Filter list updates are off while a proxy is set, so your address is not revealed.","actions":[{"t":"OK","pri":true}]});
                     let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+                }
+            }
+            "img_data" => {
+                // only answers to a request Owl made (the token), only from that tab's page
+                if !trusted {
+                    let ext = IMG_REQ.lock().unwrap().remove(&(v["token"].as_u64().unwrap_or(0) as u32));
+                    let data = s("data");
+                    if let Some(ext) = ext.filter(|_| id == self.active) {
+                        if data.starts_with("data:image/") {
+                            let organize = self.ctx.cfg.lock().unwrap().organize;
+                            let p = Mutex::new(self.proxy.clone());
+                            imgsave::save(data, String::new(), ext, organize, move |e| {
+                                let _ = p.lock().unwrap().send_event(e);
+                            });
+                        } else {
+                            let _ = self.proxy.send_event(Ev::ImageSaved(String::new(), 0, ext, "data:".into()));
+                        }
+                    }
                 }
             }
             "media_found" => {
@@ -2451,6 +2550,8 @@ impl App {
                 }
             }
             "dl_remove" => {
+                // removing a finished torrent that is still seeding ends the seeding (files are kept)
+                torrent::stop(did);
                 self.ctx.store.lock().unwrap().downloads.retain(|d| d.id != did || d.status == "downloading" || d.status == "paused" || d.status == "pending");
                 self.ctx.save();
             }
@@ -2758,6 +2859,10 @@ impl App {
                             native::TRACK_STRICT.store(on, Relaxed)
                         }
                         "doh" => c.doh = on,
+                        "torrent_seed" => {
+                            c.torrent_seed = on;
+                            torrent::SEED.store(on, Relaxed)
+                        }
                         "perm_block" => {
                             c.perm_block = on;
                             native::PERM_BLOCK.store(on, Relaxed)
@@ -3071,6 +3176,7 @@ fn main() {
     engine::DIRECT_OK.store(cfg.proxy.is_empty() && !secure_dns, Relaxed);
     engine::LIMIT_KB.store(cfg.dl_limit as u64, Relaxed);
     imgcomp::STRENGTH.store(cfg.compress.min(99), Relaxed);
+    torrent::SEED.store(cfg.torrent_seed, Relaxed);
     *owlkick::OFF_SITES.lock().unwrap() = cfg.kick_off.clone();
     engine::MAX_ACTIVE.store(cfg.dl_active.clamp(1, 8), Relaxed);
     native::TRACK_STRICT.store(cfg.track_strict, Relaxed);
@@ -3301,6 +3407,15 @@ fn main() {
                     }
                 }
                 Ev::MediaSeen(tab, u) => app.note_media(tab, u),
+                Ev::PermList(tab, j) => {
+                    if let Some(t) = app.tabs.iter().find(|t| t.id == tab) {
+                        let _ = t.wv.evaluate_script(&format!("window.__perms&&window.__perms({})", serde_json::to_string(&j).unwrap_or_default()));
+                    }
+                }
+                Ev::WarpResult(m) => {
+                    let n = json!({"id":"warp","label":"WARP","text":m,"actions":[{"t":"OK","pri":true}]});
+                    let _ = app.ui.evaluate_script(&format!("owl.notice({n})"));
+                }
                 Ev::OpenUrl(u) => {
                     if !app.locked && app.snap_wait.is_none() {
                         if torrent::is_magnet(&u) {
@@ -3444,21 +3559,26 @@ fn main() {
                     app.push();
                 }
                 Ev::SaveImage(uri, ext) => {
-                    let direct = engine::DIRECT_OK.load(Relaxed);
-                    if app.locked || !direct {
-                        let w = if app.locked { "Owl is locked." } else { "Saving in another format is off while a proxy or secure DNS is on, because it connects directly." };
-                        let n = json!({"id":"img","label":"Image","text":w,"actions":[{"t":"OK","pri":true}]});
+                    if app.locked {
+                        let n = json!({"id":"img","label":"Image","text":"Owl is locked.","actions":[{"t":"OK","pri":true}]});
                         let _ = app.ui.evaluate_script(&format!("owl.notice({n})"));
-                    } else {
+                    } else if engine::DIRECT_OK.load(Relaxed) && (uri.starts_with("http://") || uri.starts_with("https://") || uri.starts_with("data:")) {
                         let referer = app.tabs.iter().find(|t| t.id == app.active).map(|t| t.url.clone()).unwrap_or_default();
                         let organize = app.ctx.cfg.lock().unwrap().organize;
                         let p = Mutex::new(app.proxy.clone());
                         imgsave::save(uri, referer, ext, organize, move |e| {
                             let _ = p.lock().unwrap().send_event(e);
                         });
+                    } else {
+                        app.save_image_via_page(uri, ext);
                     }
                 }
-                Ev::ImageSaved(path, size, ext) => {
+                Ev::ImageSaved(path, size, ext, uri) => {
+                    // a direct fetch failed (cookies, hotlink protection): let the page itself fetch it once
+                    if path.is_empty() && (uri.starts_with("http://") || uri.starts_with("https://")) {
+                        app.save_image_via_page(uri, ext);
+                        return;
+                    }
                     let text = if path.is_empty() {
                         format!("Could not save that image as {}. It may be protected, too large or not a normal image.", ext.to_uppercase())
                     } else {

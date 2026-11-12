@@ -236,6 +236,50 @@ pub fn install(wv: &WebView, proxy: EventLoopProxy<Ev>, id: u32) {
     }
 }
 
+/// Permissions the user has changed from the default (allowed or blocked), for the permissions page.
+/// Calls `send(json)` with `[{"k":kind,"o":origin,"s":state}]`.
+pub fn list_permissions(wv: &WebView, send: impl Fn(String) + 'static) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{ICoreWebView2Profile4, ICoreWebView2_13};
+    unsafe {
+        let Ok(w13) = wv.webview().cast::<ICoreWebView2_13>() else { return send("[]".into()) };
+        let Ok(p) = w13.Profile() else { return send("[]".into()) };
+        let Ok(p4) = p.cast::<ICoreWebView2Profile4>() else { return send("[]".into()) };
+        let h = webview2_com::GetNonDefaultPermissionSettingsCompletedHandler::create(Box::new(move |_, list| {
+            let mut out = Vec::new();
+            if let Some(list) = list {
+                let mut n = 0u32;
+                list.Count(&mut n)?;
+                for i in 0..n.min(500) {
+                    let item = list.GetValueAtIndex(i)?;
+                    let (mut k, mut st) = (Default::default(), Default::default());
+                    item.PermissionKind(&mut k)?;
+                    item.PermissionState(&mut st)?;
+                    let mut o = windows::core::PWSTR::null();
+                    item.PermissionOrigin(&mut o)?;
+                    out.push(serde_json::json!({"k": k.0, "o": take_pwstr(o), "s": st.0}));
+                }
+            }
+            send(serde_json::Value::Array(out).to_string());
+            Ok(())
+        }));
+        let _ = p4.GetNonDefaultPermissionSettings(&h);
+    }
+}
+
+/// Put one site permission back to "ask".
+pub fn reset_permission(wv: &WebView, kind: i32, origin: &str) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2Profile4, ICoreWebView2_13, COREWEBVIEW2_PERMISSION_KIND, COREWEBVIEW2_PERMISSION_STATE,
+    };
+    unsafe {
+        let Ok(w13) = wv.webview().cast::<ICoreWebView2_13>() else { return };
+        let Ok(p) = w13.Profile() else { return };
+        let Ok(p4) = p.cast::<ICoreWebView2Profile4>() else { return };
+        let h = webview2_com::SetPermissionStateCompletedHandler::create(Box::new(|_| Ok(())));
+        let _ = p4.SetPermissionState(COREWEBVIEW2_PERMISSION_KIND(kind), &windows::core::HSTRING::from(origin), COREWEBVIEW2_PERMISSION_STATE(0), &h);
+    }
+}
+
 /// Tells Owl when Windows has installed a newer WebView2 engine than the one this run uses.
 pub fn watch_engine(wv: &WebView, proxy: EventLoopProxy<Ev>) {
     unsafe {

@@ -7,6 +7,10 @@ All notable changes to Owl are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Image compression threshold**: only images of 4 MB or more are touched, found with a one-byte size request, so small images pass through untouched.
+- **Permissions page** (Settings > Site permissions): review and reset the camera, microphone, location and other permissions you gave sites.
+- **Cloudflare WARP**: Settings > Privacy can connect and disconnect an installed WARP client (a real VPN). Owl does not bundle it.
+- Optional "Keep seeding finished torrents" setting (off by default). Resumed fast downloads keep their cookies, stored encrypted for your Windows account. Save image as now also works for blob: images and cookie-protected same-site images by asking the page to fetch them.
 - **Torrent engine on demand**: the BitTorrent engine starts only when a magnet link or .torrent file arrives and shuts down (DHT, trackers, peers) as soon as the last torrent ends. Nothing keeps seeding.
 - OwlKick: per-site off list (Settings > Privacy), weekly refresh of already downloaded filter lists, magnet links typed in the address bar start a torrent. A second launch of Owl now brings the running window forward and passes on the address.
 - **Segmented download engine**: files of 2 MB or more from servers that support ranges download over up to 8 connections at once, with pause, resume and retry with backoff, using the existing download UI. Page cookies are sent only to the host the download started from. Other downloads, and all downloads while a proxy is set, use the browser's normal path.

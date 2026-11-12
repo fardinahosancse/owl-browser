@@ -11,6 +11,9 @@ use std::{
 };
 use tokio::runtime::Runtime;
 
+/// Keep seeding after a download completes (off by default).
+pub static SEED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 static RT: OnceLock<Runtime> = OnceLock::new();
 /// The torrent session exists only while a torrent is active: it starts when a magnet link or
 /// .torrent file arrives and is shut down (DHT, trackers, peers) when the last one ends.
@@ -125,6 +128,12 @@ pub fn add(id: u32, src: Source, send: impl Fn(Ev) + Send + Sync + 'static) {
                 stop_if_idle().await;
                 return;
             }
+            if st.finished && !seeded_stop && SEED.load(std::sync::atomic::Ordering::Relaxed) {
+                // the user chose to seed: report it as done but keep the torrent and engine running
+                seeded_stop = true;
+                send(Ev::DlState(id, 2));
+                return;
+            }
             if st.finished && !seeded_stop {
                 seeded_stop = true;
                 let _ = s.pause(&handle).await; // stop seeding when complete
@@ -134,6 +143,17 @@ pub fn add(id: u32, src: Source, send: impl Fn(Ev) + Send + Sync + 'static) {
                 return;
             }
         }
+    });
+}
+
+/// End seeding of a finished torrent without deleting its files.
+pub fn stop(id: u32) {
+    let Some(h) = jobs(|j| j.remove(&id)) else { return };
+    rt().spawn(async move {
+        if let Ok(s) = session().await {
+            let _ = s.pause(&h).await;
+        }
+        stop_if_idle().await;
     });
 }
 

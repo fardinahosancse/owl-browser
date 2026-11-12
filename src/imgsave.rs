@@ -83,7 +83,8 @@ pub fn save(url: String, referer: String, ext: String, organize: bool, send: imp
             Some((path, out.len() as u64))
         }();
         let (p, n) = done.unwrap_or_default();
-        send(Ev::ImageSaved(p, n, ext));
+        let p_is_empty = p.is_empty();
+        send(Ev::ImageSaved(p, n, ext, if p_is_empty { url.chars().take(2000).collect() } else { String::new() }));
     });
 }
 
@@ -120,7 +121,7 @@ mod tests {
             let (tx, rx) = std::sync::mpsc::channel();
             let tx = std::sync::Mutex::new(tx);
             save(url.clone(), String::new(), ext.to_string(), false, move |e| {
-                if let Ev::ImageSaved(p, n, _) = e {
+                if let Ev::ImageSaved(p, n, _, _) = e {
                     let _ = tx.lock().unwrap().send((p, n));
                 }
             });
