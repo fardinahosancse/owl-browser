@@ -151,6 +151,7 @@ const SHARED_JS: &str = r#"<script>
   else if(a==='setprofile'){send({cmd:'set_profile',name:$('pn').value,email:$('pe').value});b.textContent='Saved'}
   else if(a==='setproxy'){send({cmd:'set_proxy',proxy:$('px').value})}
   else if(a==='back'){history.length>1?history.back():location.href='owl://newtab'}});
+ document.addEventListener('input',e=>{const t=e.target;if(t&&t.dataset&&t.dataset.out){const o=document.getElementById(t.dataset.out);if(o)o.textContent=+t.value?t.value:'Off'}});
  document.addEventListener('change',e=>{const t=e.target;if(t&&t.dataset&&t.dataset.sel)send({cmd:'set_num',key:t.dataset.sel,val:+t.value})});
  document.addEventListener('error',e=>{const t=e.target;if(t&&t.tagName==='IMG'){if(t.dataset.hide!==undefined)t.style.visibility='hidden';else if(t.dataset.fb){const d=document.createElement('div');d.className='l';d.textContent=t.dataset.fb;t.replaceWith(d)}}},true);
  function cu(e){const n=+e.dataset.n;if(!n)return;if(matchMedia('(prefers-reduced-motion:reduce)').matches)return;const t0=performance.now();(function f(t){const k=Math.min(1,(t-t0)/1000);e.textContent=Math.round(n*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(f)})(t0)}
@@ -531,13 +532,14 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
         tog(12, "pw_save", c.pw_save, "Offer to save passwords", "Ask to save a password after you sign in to a site.")
     );
     let privacy = format!(
-        "<h2 class=gh>Privacy</h2>{}{}{}{}{}{}{}{}\
+        "<h2 class=gh>Privacy</h2>{}{}{}{}{}{}{}{}{}\
 <div class=set><div><b>Proxy or VPN</b><p>Send all page traffic through a proxy to hide your IP address, for example <code>socks5://127.0.0.1:9050</code> (Tor). WebRTC is forced through it too. Empty means direct.</p></div>\
 <div class=ctl><input class=pk id=px maxlength=100 aria-label=\"Proxy address\" placeholder=\"socks5://127.0.0.1:9050\" value=\"{}\"><button class=ghost data-act=setproxy>Save</button></div></div>",
         tog(9, "block", c.block, "Block trackers and ads", "Blocks requests to known ad, analytics and tracking hosts."),
         tog(10, "https_only", c.https_only, "HTTPS-only mode", "Upgrades http:// pages to https:// and warns before using plain http."),
         tog(13, "fp", c.fp, "Fingerprint protection", "Adds invisible noise to canvas and audio reads, hides the exact GPU model and rounds hardware hints. Applies to new pages."),
         tog(18, "update_check", c.update_check, "Check for new versions", "Asks GitHub once a day whether a newer Owl exists. Nothing is downloaded or installed, and no identifier is sent. Skipped when a proxy is set."),
+        format!("<div class=set><div><b>Lazy image compression</b><p>Shrinks images before a page gets them so it loads faster and uses less data. Higher means smaller images and lower quality; Off at 0. Images that would not get smaller, small images and animations are left alone. Off while a proxy or secure DNS is on. Applies to new pages.</p></div><div class=ctl><input type=range class=pk min=0 max=99 value={v} data-sel=compress data-out=cmpv aria-label=\"Image compression strength\" aria-describedby=cmpv style=\"width:200px\"><output id=cmpv>{vt}</output></div></div>", v = c.compress, vt = if c.compress == 0 { "Off".to_string() } else { c.compress.to_string() }),
         tog(19, "doh", c.doh, "Secure DNS (Cloudflare 1.1.1.1)", "Looks up site names over HTTPS at 1.1.1.1 so your network cannot see which sites you open. This is not a VPN: your IP address is unchanged. If 1.1.1.1 is blocked, pages will not load; turn this off. Needs a restart. Not used while a proxy is set."),
         tog(17, "track_strict", c.track_strict, "Strict tracking prevention", "Blocks third-party trackers and their stored cookies more aggressively. Some embedded logins and videos may stop working. Applies to new pages."),
         tog(16, "perm_block", c.perm_block, "Block camera, microphone, location and notifications", "Refuses these requests without asking. Sensors, local fonts and MIDI system access are always refused. Turn this off to be asked per site."),

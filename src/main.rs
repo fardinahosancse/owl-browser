@@ -4,6 +4,7 @@ mod crypt;
 mod dl;
 mod doh;
 mod engine;
+mod imgcomp;
 mod imgsave;
 mod media;
 mod torrent;
@@ -247,7 +248,32 @@ fn is_local(url: &str) -> bool {
     }
 }
 
-fn install_blocker(wv: &WebView) {
+thread_local! {
+    /// Image requests held while they are compressed on a worker thread.
+    static IMGS: std::cell::RefCell<HashMap<u32, (webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2WebResourceRequestedEventArgs, webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Deferral, webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment)>> =
+        std::cell::RefCell::new(HashMap::new());
+}
+static NEXT_IMG: AtomicU32 = AtomicU32::new(1);
+
+/// Answer a held image request with the compressed bytes, or let the original through.
+fn finish_image(id: u32, r: Option<(Vec<u8>, &'static str)>) {
+    use windows::core::w;
+    if let Some((args, def, env)) = IMGS.with(|m| m.borrow_mut().remove(&id)) {
+        unsafe {
+            if let Some((bytes, mime)) = r {
+                if let Some(stream) = windows::Win32::UI::Shell::SHCreateMemStream(Some(&bytes)) {
+                    let h = windows::core::HSTRING::from(format!("Content-Type: {mime}\r\nCache-Control: private, max-age=600\r\nAccess-Control-Allow-Origin: *"));
+                    if let Ok(resp) = env.CreateWebResourceResponse(&stream, 200, w!("OK"), &h) {
+                        let _ = args.SetResponse(&resp);
+                    }
+                }
+            }
+            let _ = def.Complete();
+        }
+    }
+}
+
+fn install_blocker(wv: &WebView, proxy: EventLoopProxy<Ev>) {
     use webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL;
     use webview2_com::{take_pwstr, WebResourceRequestedEventHandler};
     use windows::core::{w, PWSTR};
@@ -255,11 +281,19 @@ fn install_blocker(wv: &WebView) {
         let core = wv.webview();
         let core2 = core.clone();
         let env = wv.environment();
+        if let Some(ua) = core.Settings().ok().and_then(|s| windows::core::Interface::cast::<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings2>(&s).ok()).and_then(|s| {
+            let mut p = PWSTR::null();
+            if s.UserAgent(&mut p).is_ok() { Some(take_pwstr(p)) } else { None }
+        }) {
+            *engine::PAGE_UA.lock().unwrap() = ua;
+        }
         let _ = core.AddWebResourceRequestedFilter(w!("*"), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
         let mut token = Default::default();
         let _ = core.add_WebResourceRequested(
             &WebResourceRequestedEventHandler::create(Box::new(move |_, args| {
-                if !BLOCK.load(Relaxed) {
+                let blocking = BLOCK.load(Relaxed);
+                let compress = imgcomp::STRENGTH.load(Relaxed) > 0 && engine::DIRECT_OK.load(Relaxed);
+                if !blocking && !compress {
                     return Ok(());
                 }
                 if let Some(args) = args {
@@ -271,11 +305,27 @@ fn install_blocker(wv: &WebView) {
                     let _ = args.ResourceContext(&mut ctx);
                     let mut sp = PWSTR::null();
                     let src = if core2.Source(&mut sp).is_ok() { take_pwstr(sp) } else { String::new() };
-                    if owlkick_blocks(&u, &src, ctx.0) {
+                    if blocking && owlkick_blocks(&u, &src, ctx.0) {
                         let r = env.CreateWebResourceResponse(None, 403, w!("Blocked"), w!(""))?;
                         args.SetResponse(&r)?;
                         BLOCKED.fetch_add(1, Relaxed);
-                    } else if !u.starts_with("http://owl.localhost") {
+                    } else if compress && ctx.0 == 3 && (u.starts_with("http://") || u.starts_with("https://")) && !u.starts_with("http://owl.localhost") && !is_local(&u) {
+                        // image compression: hold the request while a worker shrinks the image
+                        let mut m = PWSTR::null();
+                        let is_get = req.Method(&mut m).is_ok() && take_pwstr(m).eq_ignore_ascii_case("GET");
+                        if is_get {
+                            if let Ok(def) = args.GetDeferral() {
+                                let id = NEXT_IMG.fetch_add(1, Relaxed);
+                                IMGS.with(|mm| mm.borrow_mut().insert(id, (args.clone(), def, env.clone())));
+                                let p = Mutex::new(proxy.clone());
+                                if !imgcomp::start(id, u.clone(), src.clone(), move |e| {
+                                    let _ = p.lock().unwrap().send_event(e);
+                                }) {
+                                    finish_image(id, None);
+                                }
+                            }
+                        }
+                    } else if blocking && !u.starts_with("http://owl.localhost") {
                         // Global Privacy Control: tell sites not to sell or share data
                         if let Ok(h) = req.Headers() {
                             let _ = h.SetHeader(w!("Sec-GPC"), w!("1"));
@@ -406,6 +456,9 @@ pub struct Config {
     /// refuse camera, microphone, location and notification requests without asking
     #[serde(default)]
     pub perm_block: bool,
+    /// image compression strength 1-99, 0 = off
+    #[serde(default)]
+    pub compress: u32,
     /// resolve names through Cloudflare 1.1.1.1 over HTTPS (needs a restart)
     #[serde(default)]
     pub doh: bool,
@@ -459,7 +512,7 @@ impl Default for Config {
             block: true, https_only: false, sync_dir: String::new(), theme: sys(), bookmark_bar: false,
             pin_hash: String::new(), pin_salt: String::new(), organize: true, pw_save: true, pw_never: vec![],
             strikes: 0, fails: 0, locked_until: 0, sync_key: String::new(), pin_mode: pin_mode(), kdf: 0, fp: true,
-            fp_strict: false, perm_block: false, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
+            fp_strict: false, perm_block: false, compress: 0, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
             seal_pub: String::new(), seal_priv: String::new(), lock_on_winlock: true,
         }
     }
@@ -882,6 +935,8 @@ pub enum Ev {
     DlProbe(u32, Option<engine::Probe>),
     /// a magnet link was opened
     Magnet(String),
+    /// compressed image ready for a held request: (request id, bytes and type)
+    ImgReady(u32, Option<(Vec<u8>, &'static str)>),
     /// right-click > Save image as: (image address, format)
     SaveImage(String, String),
     /// finished: (saved path or empty on failure, bytes, format)
@@ -1592,6 +1647,9 @@ impl App {
             // hide the IP behind the proxy and stop WebRTC from bypassing it
             format!(" --proxy-server={proxy} --force-webrtc-ip-handling-policy=disable_non_proxied_udp")
         };
+        if imgcomp::STRENGTH.load(Relaxed) > 0 {
+            scripts.push(imgcomp::LAZY_JS.to_string());
+        }
         scripts.extend([gpc, KEYS_JS.to_string(), PW_JS.to_string(), FORM_JS.to_string(), media::PAGE_JS.to_string()]);
         scripts.extend(ext_scripts);
         let mut b0 = WebViewBuilder::new_with_web_context(&mut self.wctx)
@@ -1654,7 +1712,7 @@ impl App {
             });
         match b.build_as_child(&self.window) {
             Ok(wv) => {
-                install_blocker(&wv);
+                install_blocker(&wv, self.proxy.clone());
                 dl::install(&wv, p6, id, move || cfgc.lock().unwrap().organize);
                 media::install_audio(&wv, p7, id);
                 native::install(&wv, p8, id);
@@ -2044,6 +2102,11 @@ impl App {
                 let n = v["val"].as_u64().unwrap_or(0) as u32;
                 if s("key") == "autolock" && [0, 5, 15, 30, 60].contains(&n) {
                     self.ctx.cfg.lock().unwrap().autolock = n;
+                    self.ctx.save_cfg();
+                }
+                if s("key") == "compress" && n <= 99 {
+                    self.ctx.cfg.lock().unwrap().compress = n;
+                    imgcomp::STRENGTH.store(n, Relaxed);
                     self.ctx.save_cfg();
                 }
                 if s("key") == "dl_limit" && [0, 512, 1024, 2048, 5120, 10240, 20480].contains(&n) {
@@ -2861,6 +2924,7 @@ fn main() {
     let secure_dns = cfg.doh && cfg.proxy.is_empty() && doh::start().is_some();
     engine::DIRECT_OK.store(cfg.proxy.is_empty() && !secure_dns, Relaxed);
     engine::LIMIT_KB.store(cfg.dl_limit as u64, Relaxed);
+    imgcomp::STRENGTH.store(cfg.compress.min(99), Relaxed);
     engine::MAX_ACTIVE.store(cfg.dl_active.clamp(1, 8), Relaxed);
     native::TRACK_STRICT.store(cfg.track_strict, Relaxed);
     HTTPS.store(cfg.https_only, Relaxed);
@@ -3251,6 +3315,7 @@ fn main() {
                     let n = json!({"id":"img","label":"Image","text":text,"actions":[{"t":"OK","pri":true}]});
                     let _ = app.ui.evaluate_script(&format!("owl.notice({n})"));
                 }
+                Ev::ImgReady(id, r) => finish_image(id, r),
                 Ev::Magnet(m) => {
                     if torrent::is_magnet(&m) {
                         app.start_torrent(torrent::Source::Magnet(m), "Torrent (fetching details)".into());

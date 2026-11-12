@@ -531,12 +531,16 @@ pub fn cancel(id: u32) -> bool {
     }
 }
 
+/// The page engine's user agent, so fetches made for it look like its own requests.
+pub static PAGE_UA: Mutex<String> = Mutex::new(String::new());
+
 /// Fetch a small file (an image) over http or https, following up to five redirects. No cookies
 /// are sent. Returns None on any error or if the file is larger than `cap`.
 pub fn fetch_bytes(url: &str, referer: &str, cap: usize) -> Option<Vec<u8>> {
     let mut url = url.to_string();
+    let ua = PAGE_UA.lock().unwrap().clone();
     for _ in 0..5 {
-        let mut hdr = vec![("Accept", "image/*,*/*;q=0.5".to_string())];
+        let mut hdr = vec![("Accept", "image/*,*/*;q=0.5".to_string()), ("User-Agent", ua.clone())];
         if !referer.is_empty() {
             hdr.push(("Referer", referer.to_string()));
         }
