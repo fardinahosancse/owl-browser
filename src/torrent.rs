@@ -12,7 +12,11 @@ use std::{
 use tokio::runtime::Runtime;
 
 static RT: OnceLock<Runtime> = OnceLock::new();
-static SESSION: tokio::sync::OnceCell<Arc<Session>> = tokio::sync::OnceCell::const_new();
+/// The torrent session exists only while a torrent is active: it starts when a magnet link or
+/// .torrent file arrives and is shut down (DHT, trackers, peers) when the last one ends.
+static SESSION: tokio::sync::Mutex<Option<Arc<Session>>> = tokio::sync::Mutex::const_new(None);
+/// Torrents being added right now, so an ending torrent does not stop their session.
+static PENDING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 static JOBS: Mutex<Option<HashMap<u32, Arc<ManagedTorrent>>>> = Mutex::new(None);
 
 fn rt() -> &'static Runtime {
@@ -33,19 +37,36 @@ pub fn is_magnet(u: &str) -> bool {
 }
 
 async fn session() -> anyhow::Result<Arc<Session>> {
-    SESSION
-        .get_or_try_init(|| async {
-            let out: PathBuf = crate::dl::root();
-            let _ = std::fs::create_dir_all(&out);
-            // no persisted DHT state on disk and no listening port: Owl only connects out
-            let opts = SessionOptions {
-                dht: Some(librqbit::DhtSessionConfig { bootstrap_addrs: None, port: None, persistence: None }),
-                ..Default::default()
-            };
-            Session::new_with_opts(out, opts).await
-        })
-        .await
-        .cloned()
+    let mut g = SESSION.lock().await;
+    if let Some(s) = g.as_ref() {
+        return Ok(s.clone());
+    }
+    let out: PathBuf = crate::dl::root();
+    let _ = std::fs::create_dir_all(&out);
+    // no persisted DHT state on disk and no listening port: Owl only connects out
+    let opts = SessionOptions {
+        dht: Some(librqbit::DhtSessionConfig { bootstrap_addrs: None, port: None, persistence: None }),
+        ..Default::default()
+    };
+    let s = Session::new_with_opts(out, opts).await?;
+    *g = Some(s.clone());
+    Ok(s)
+}
+
+/// Shut the session down when no torrent is active or being added.
+async fn stop_if_idle() {
+    if PENDING.load(std::sync::atomic::Ordering::Relaxed) > 0 || jobs(|j| !j.is_empty()) {
+        return;
+    }
+    let s = SESSION.lock().await.take();
+    if let Some(s) = s {
+        s.stop().await;
+    }
+}
+
+/// True while the torrent engine is running.
+pub fn running() -> bool {
+    SESSION.try_lock().map_or(true, |g| g.is_some())
 }
 
 /// What to add: a magnet link or the bytes of a .torrent file.
@@ -57,6 +78,7 @@ pub enum Source {
 /// Add a torrent; progress and the final state arrive as ordinary download events.
 /// `named` receives (name, total bytes) once the torrent's metadata is known.
 pub fn add(id: u32, src: Source, send: impl Fn(Ev) + Send + Sync + 'static) {
+    PENDING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     rt().spawn(async move {
         let fail = || send(Ev::DlState(id, 1));
         let s = match session().await {
@@ -65,6 +87,8 @@ pub fn add(id: u32, src: Source, send: impl Fn(Ev) + Send + Sync + 'static) {
                 crate::dl::dbg(&format!("torrent session: {e:#}"));
                 #[cfg(test)]
                 eprintln!("session error: {e:#}");
+                PENDING.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                stop_if_idle().await;
                 return fail();
             }
         };
@@ -78,27 +102,35 @@ pub fn add(id: u32, src: Source, send: impl Fn(Ev) + Send + Sync + 'static) {
             other => {
                 #[cfg(test)]
                 eprintln!("add error: {:?}", other.err());
+                PENDING.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                stop_if_idle().await;
                 return fail();
             }
         };
         jobs(|j| j.insert(id, handle.clone()));
+        PENDING.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
         send(Ev::TorrentName(id, handle.name().unwrap_or_default()));
         let mut seeded_stop = false;
         loop {
             tokio::time::sleep(Duration::from_millis(700)).await;
             if !has(id) {
+                stop_if_idle().await;
                 return; // cancelled
             }
             let st = handle.stats();
             send(Ev::DlProg(id, st.progress_bytes as i64, st.total_bytes as i64));
             if st.error.is_some() {
-                return fail();
+                jobs(|j| j.remove(&id));
+                fail();
+                stop_if_idle().await;
+                return;
             }
             if st.finished && !seeded_stop {
                 seeded_stop = true;
                 let _ = s.pause(&handle).await; // stop seeding when complete
                 send(Ev::DlState(id, 2));
                 jobs(|j| j.remove(&id));
+                stop_if_idle().await; // nothing keeps seeding
                 return;
             }
         }
@@ -131,6 +163,7 @@ pub fn cancel(id: u32) -> bool {
         if let Ok(s) = session().await {
             let _ = s.delete(TorrentIdOrHash::Id(h.id()), true).await;
         }
+        stop_if_idle().await;
     });
     true
 }
@@ -171,6 +204,12 @@ mod tests {
             }
         }
         assert!(got > 1_000_000, "no data received");
+        assert!(running(), "engine should be on while a torrent is active");
         assert!(cancel(1));
+        let end = std::time::Instant::now() + Duration::from_secs(20);
+        while running() && std::time::Instant::now() < end {
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        assert!(!running(), "engine should shut down when the last torrent ends");
     }
 }

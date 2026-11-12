@@ -13,7 +13,7 @@ use std::{
 pub static STRENGTH: AtomicU32 = AtomicU32::new(0);
 static INFLIGHT: AtomicUsize = AtomicUsize::new(0);
 const MAX_INFLIGHT: usize = 8;
-const MIN_BYTES: usize = 30_000;
+const MIN_BYTES: usize = 100_000;
 
 /// Added to pages while compression is on: images below the fold load only when scrolled near.
 pub const LAZY_JS: &str = "try{var _f=function(){document.querySelectorAll('img:not([loading])').forEach(function(i){if(i.getBoundingClientRect().top>innerHeight*1.5){i.loading='lazy'}i.decoding='async'})};var _o=new MutationObserver(_f);document.addEventListener('DOMContentLoaded',function(){_o.observe(document.documentElement,{childList:true,subtree:true});_f()})}catch(e){}";
