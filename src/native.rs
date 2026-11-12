@@ -86,6 +86,44 @@ pub fn install(wv: &WebView, proxy: EventLoopProxy<Ev>, id: u32) {
             })),
             &mut t,
         );
+        // right-click on an image: add "Save image as <format>" entries to the menu
+        if let (Ok(core11), Ok(env9)) = (core.cast::<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_11>(), wv.environment().cast::<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment9>()) {
+            use webview2_com::Microsoft::Web::WebView2::Win32::{COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND, COREWEBVIEW2_CONTEXT_MENU_TARGET_KIND_IMAGE};
+            let pc = proxy.clone();
+            let _ = core11.add_ContextMenuRequested(
+                &webview2_com::ContextMenuRequestedEventHandler::create(Box::new(move |_, args| {
+                    let Some(args) = args else { return Ok(()) };
+                    let target = args.ContextMenuTarget()?;
+                    let mut kind = Default::default();
+                    target.Kind(&mut kind)?;
+                    if kind != COREWEBVIEW2_CONTEXT_MENU_TARGET_KIND_IMAGE {
+                        return Ok(());
+                    }
+                    let mut s = windows::core::PWSTR::null();
+                    target.SourceUri(&mut s)?;
+                    let uri = take_pwstr(s);
+                    let items = args.MenuItems()?;
+                    let mut at = 0u32;
+                    items.Count(&mut at)?;
+                    for (ext, label) in crate::imgsave::FORMATS {
+                        let item = env9.CreateContextMenuItem(&windows::core::HSTRING::from(format!("Save image as {label}")), None, COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND)?;
+                        let (p, u, e) = (pc.clone(), uri.clone(), ext.to_string());
+                        let mut tk = Default::default();
+                        item.add_CustomItemSelected(
+                            &webview2_com::CustomItemSelectedEventHandler::create(Box::new(move |_, _| {
+                                let _ = p.send_event(Ev::SaveImage(u.clone(), e.clone()));
+                                Ok(())
+                            })),
+                            &mut tk,
+                        )?;
+                        items.InsertValueAtIndex(at, &item)?;
+                        at += 1;
+                    }
+                    Ok(())
+                })),
+                &mut t,
+            );
+        }
         // magnet links open in Owl's torrent client instead of an external program
         let pm = proxy.clone();
         let _ = core.add_NavigationStarting(

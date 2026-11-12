@@ -4,6 +4,7 @@ mod crypt;
 mod dl;
 mod doh;
 mod engine;
+mod imgsave;
 mod media;
 mod torrent;
 mod owlkick;
@@ -881,6 +882,10 @@ pub enum Ev {
     DlProbe(u32, Option<engine::Probe>),
     /// a magnet link was opened
     Magnet(String),
+    /// right-click > Save image as: (image address, format)
+    SaveImage(String, String),
+    /// finished: (saved path or empty on failure, bytes, format)
+    ImageSaved(String, u64, String),
     /// queued behind other downloads (true) or started from the queue (false)
     DlQueue(u32, bool),
     /// torrent metadata known: (download id, name)
@@ -3213,6 +3218,38 @@ fn main() {
                 Ev::DlQueue(id, q) => {
                     app.dl_mut(id, |d| d.status = if q { "pending".into() } else { "downloading".into() });
                     app.push();
+                }
+                Ev::SaveImage(uri, ext) => {
+                    let direct = engine::DIRECT_OK.load(Relaxed);
+                    if app.locked || !direct {
+                        let w = if app.locked { "Owl is locked." } else { "Saving in another format is off while a proxy or secure DNS is on, because it connects directly." };
+                        let n = json!({"id":"img","label":"Image","text":w,"actions":[{"t":"OK","pri":true}]});
+                        let _ = app.ui.evaluate_script(&format!("owl.notice({n})"));
+                    } else {
+                        let referer = app.tabs.iter().find(|t| t.id == app.active).map(|t| t.url.clone()).unwrap_or_default();
+                        let organize = app.ctx.cfg.lock().unwrap().organize;
+                        let p = Mutex::new(app.proxy.clone());
+                        imgsave::save(uri, referer, ext, organize, move |e| {
+                            let _ = p.lock().unwrap().send_event(e);
+                        });
+                    }
+                }
+                Ev::ImageSaved(path, size, ext) => {
+                    let text = if path.is_empty() {
+                        format!("Could not save that image as {}. It may be protected, too large or not a normal image.", ext.to_uppercase())
+                    } else {
+                        let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                        let id = dl::next_id();
+                        app.ctx.store.lock().unwrap().downloads.push(Dl {
+                            id, name: name.clone(), path, url: String::new(), status: "done".into(),
+                            received: size as i64, total: size as i64, speed: 0.0, t: now(),
+                        });
+                        app.ctx.save();
+                        app.push();
+                        format!("Saved {name} to Downloads.")
+                    };
+                    let n = json!({"id":"img","label":"Image","text":text,"actions":[{"t":"OK","pri":true}]});
+                    let _ = app.ui.evaluate_script(&format!("owl.notice({n})"));
                 }
                 Ev::Magnet(m) => {
                     if torrent::is_magnet(&m) {

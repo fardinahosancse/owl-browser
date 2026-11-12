@@ -530,3 +530,38 @@ pub fn cancel(id: u32) -> bool {
         None => false,
     }
 }
+
+/// Fetch a small file (an image) over http or https, following up to five redirects. No cookies
+/// are sent. Returns None on any error or if the file is larger than `cap`.
+pub fn fetch_bytes(url: &str, referer: &str, cap: usize) -> Option<Vec<u8>> {
+    let mut url = url.to_string();
+    for _ in 0..5 {
+        let mut hdr = vec![("Accept", "image/*,*/*;q=0.5".to_string())];
+        if !referer.is_empty() {
+            hdr.push(("Referer", referer.to_string()));
+        }
+        let r = get(&url, &hdr)?;
+        match r.status {
+            301 | 302 | 303 | 307 | 308 => {
+                let loc = header(&r, WINHTTP_QUERY_LOCATION);
+                url = resolve(&url, &loc)?;
+            }
+            200 => {
+                let mut out = Vec::new();
+                let mut buf = vec![0u8; CHUNK];
+                loop {
+                    let n = read(&r, &mut buf).ok()?;
+                    if n == 0 {
+                        return Some(out);
+                    }
+                    out.extend_from_slice(&buf[..n]);
+                    if out.len() > cap {
+                        return None;
+                    }
+                }
+            }
+            _ => return None,
+        }
+    }
+    None
+}
