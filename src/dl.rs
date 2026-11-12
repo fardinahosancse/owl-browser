@@ -126,9 +126,15 @@ pub fn probe_done(id: u32, probe: Option<crate::engine::Probe>, proxy: EventLoop
         OPS.with(|o| {
             o.borrow_mut().remove(&id);
         });
-        if !crate::engine::start(id, ctx.unwrap(), probe.unwrap(), proxy.clone()) {
-            // could not prepare the file: report it so the user can retry
-            let _ = proxy.send_event(Ev::DlState(id, 1));
+        match crate::engine::start(id, ctx.unwrap(), probe.unwrap(), proxy.clone()) {
+            Some(true) => {
+                let _ = proxy.send_event(Ev::DlQueue(id, true));
+            }
+            Some(false) => {}
+            None => {
+                // could not prepare the file: report it so the user can retry
+                let _ = proxy.send_event(Ev::DlState(id, 1));
+            }
         }
     }
 }

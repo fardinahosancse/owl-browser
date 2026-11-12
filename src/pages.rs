@@ -544,8 +544,19 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
         esc(&c.proxy)
     );
     let data = format!(
-        "<h2 class=gh>Downloads and data</h2>{}\
+        "<h2 class=gh>Downloads and data</h2>{}{}\
 <div class=set><div><b>Time tracking</b><p>Minutes per site are kept on this PC for the home page. Clear them any time.</p></div><button class=ghost data-act=clearusage>Clear</button></div>",
+        {
+            let lim = [(0u32, "Unlimited"), (512, "512 KB/s"), (1024, "1 MB/s"), (2048, "2 MB/s"), (5120, "5 MB/s"), (10240, "10 MB/s"), (20480, "20 MB/s")]
+                .iter()
+                .map(|(v, l)| format!("<option value={v}{}>{l}</option>", if c.dl_limit == *v { " selected" } else { "" }))
+                .collect::<String>();
+            let act = [1u32, 2, 3, 5, 8]
+                .iter()
+                .map(|v| format!("<option value={v}{}>{v}</option>", if c.dl_active == *v { " selected" } else { "" }))
+                .collect::<String>();
+            format!("<div class=set><div><b>Download speed limit</b><p>Caps the total speed of Owl's fast download engine. Useful on shared connections.</p></div><select class=pk data-sel=dl_limit aria-label=\"Download speed limit\">{lim}</select></div><div class=set><div><b>Downloads at once</b><p>More fast downloads wait in a queue until one finishes.</p></div><select class=pk data-sel=dl_active aria-label=\"Downloads at once\">{act}</select></div>")
+        },
         tog(11, "organize", c.organize, "Sort downloads into folders", "Documents, Images, Video, Music, Archives and Programs inside your Downloads folder.")
     );
     let sync = format!(

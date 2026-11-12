@@ -13,10 +13,10 @@ use std::{
     os::windows::fs::FileExt,
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, AtomicI64, AtomicU8, Ordering::Relaxed},
+        atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, AtomicU8, Ordering::Relaxed},
         Arc, Mutex,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tao::event_loop::EventLoopProxy;
 use windows::core::{HSTRING, PCWSTR};
@@ -52,6 +52,34 @@ struct Seg {
     pos: AtomicI64,
 }
 
+/// Download speed limit in KB/s shared by every segment (0 = unlimited).
+pub static LIMIT_KB: AtomicU64 = AtomicU64::new(0);
+/// How many segmented downloads run at once; the rest wait in the queue.
+pub static MAX_ACTIVE: AtomicU32 = AtomicU32::new(3);
+static BUCKET: Mutex<Option<(Instant, f64)>> = Mutex::new(None);
+
+/// Token bucket: blocks the calling segment long enough to keep the total under the limit.
+fn throttle(n: usize) {
+    let kb = LIMIT_KB.load(Relaxed);
+    if kb == 0 {
+        return;
+    }
+    let rate = kb as f64 * 1024.0;
+    let wait = {
+        let mut g = BUCKET.lock().unwrap();
+        let (at, tokens) = g.get_or_insert((Instant::now(), rate));
+        let now = Instant::now();
+        *tokens = (*tokens + now.duration_since(*at).as_secs_f64() * rate).min(rate);
+        *at = now;
+        *tokens -= n as f64;
+        if *tokens < 0.0 { -*tokens / rate } else { 0.0 }
+    };
+    if wait > 0.0 {
+        std::thread::sleep(Duration::from_secs_f64(wait.min(2.0)));
+    }
+}
+
+const QUEUE: u8 = 3;
 const RUN: u8 = 0;
 const PAUSE: u8 = 1;
 const CANCEL: u8 = 2;
@@ -263,13 +291,14 @@ fn probe_blocking(ctx: &Ctx) -> Option<Probe> {
 
 // ---------- jobs ----------
 
-/// Begin a segmented download. Returns false if the file could not be prepared.
-pub fn start(id: u32, ctx: Ctx, probe: Probe, proxy: EventLoopProxy<Ev>) -> bool {
+/// Begin a segmented download. `None` if the file could not be prepared, `Some(true)` if it was
+/// queued behind other downloads.
+pub fn start(id: u32, ctx: Ctx, probe: Probe, proxy: EventLoopProxy<Ev>) -> Option<bool> {
     let part = PathBuf::from(format!("{}.owlpart", ctx.path));
-    let Ok(file) = std::fs::OpenOptions::new().write(true).create_new(true).open(&part) else { return false };
+    let Ok(file) = std::fs::OpenOptions::new().write(true).create_new(true).open(&part) else { return None };
     if file.set_len(probe.total as u64).is_err() {
         let _ = std::fs::remove_file(&part);
-        return false;
+        return None;
     }
     let n = (probe.total / MIN_SIZE).clamp(1, MAX_PARTS);
     let size = (probe.total + n - 1) / n;
@@ -281,10 +310,84 @@ pub fn start(id: u32, ctx: Ctx, probe: Probe, proxy: EventLoopProxy<Ev>) -> bool
         .filter(|s| s.start <= s.end)
         .collect();
     let job = Arc::new(Job { ctx, probe, segs, state: AtomicU8::new(RUN), failed: AtomicBool::new(false), running: AtomicBool::new(false), file, part });
+    Some(launch(id, job, proxy))
+}
+
+fn active_count() -> usize {
+    jobs(|j| j.values().filter(|x| x.running.load(Relaxed)).count())
+}
+
+/// Register the job and run it now, or queue it when enough downloads are already running.
+fn launch(id: u32, job: Arc<Job>, proxy: EventLoopProxy<Ev>) -> bool {
+    let queued = active_count() >= MAX_ACTIVE.load(Relaxed).max(1) as usize;
     jobs(|j| j.insert(id, job.clone()));
-    run(id, job, proxy);
+    save_state(&job);
+    if queued {
+        job.state.store(QUEUE, Relaxed);
+    } else {
+        run(id, job, proxy);
+    }
+    queued
+}
+
+/// Start the oldest queued job if there is room.
+fn kick(proxy: &EventLoopProxy<Ev>) {
+    if active_count() >= MAX_ACTIVE.load(Relaxed).max(1) as usize {
+        return;
+    }
+    let next = jobs(|j| j.iter().filter(|(_, x)| x.state.load(Relaxed) == QUEUE && !x.running.load(Relaxed)).map(|(i, x)| (*i, x.clone())).min_by_key(|(i, _)| *i));
+    if let Some((id, job)) = next {
+        let _ = proxy.send_event(Ev::DlQueue(id, false));
+        run(id, job, proxy.clone());
+    }
+}
+
+fn state_path(job: &Job) -> PathBuf {
+    PathBuf::from(format!("{}.json", job.part.to_string_lossy()))
+}
+
+/// Remember how far each part got, so a download can continue after Owl restarts.
+fn save_state(job: &Job) {
+    let segs: Vec<[i64; 3]> = job.segs.iter().map(|s| [s.start, s.end, s.pos.load(Relaxed)]).collect();
+    let v = serde_json::json!({"url": job.probe.url, "total": job.probe.total, "ua": job.ctx.ua, "referer": job.ctx.referer, "path": job.ctx.path, "segs": segs});
+    let _ = std::fs::write(state_path(job), v.to_string());
+}
+
+/// Continue an interrupted download from its saved state. Cookies are not kept, so downloads
+/// that need a signed-in session may fail and must be started again from the page.
+pub fn restore(id: u32, path: &str, proxy: EventLoopProxy<Ev>) -> bool {
+    if !DIRECT_OK.load(Relaxed) || has(id) {
+        return false;
+    }
+    let part = PathBuf::from(format!("{path}.owlpart"));
+    let Ok(txt) = std::fs::read_to_string(format!("{}.json", part.to_string_lossy())) else { return false };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&txt) else { return false };
+    let (Some(url), Some(total)) = (v["url"].as_str(), v["total"].as_i64()) else { return false };
+    if !(url.starts_with("http://") || url.starts_with("https://")) || v["path"].as_str() != Some(path) {
+        return false;
+    }
+    let Ok(file) = std::fs::OpenOptions::new().write(true).open(&part) else { return false };
+    if file.metadata().map_or(true, |m| m.len() != total as u64) {
+        return false;
+    }
+    let mut segs = Vec::new();
+    for s in v["segs"].as_array().into_iter().flatten() {
+        let (Some(a), Some(b), Some(p)) = (s[0].as_i64(), s[1].as_i64(), s[2].as_i64()) else { return false };
+        if a < 0 || b >= total || p < a || p > b + 1 {
+            return false;
+        }
+        segs.push(Seg { start: a, end: b, pos: AtomicI64::new(p) });
+    }
+    if segs.is_empty() {
+        return false;
+    }
+    let ctx = Ctx { url: url.to_string(), cookie: String::new(), ua: v["ua"].as_str().unwrap_or("").to_string(), referer: v["referer"].as_str().unwrap_or("").to_string(), path: path.to_string() };
+    let probe = Probe { url: url.to_string(), total, with_cookie: false };
+    let job = Arc::new(Job { ctx, probe, segs, state: AtomicU8::new(PAUSE), failed: AtomicBool::new(false), running: AtomicBool::new(false), file, part });
+    launch(id, job, proxy);
     true
 }
+
 
 fn received(job: &Job) -> i64 {
     job.segs.iter().map(|s| s.pos.load(Relaxed) - s.start).sum()
@@ -303,8 +406,13 @@ fn run(id: u32, job: Arc<Job>, proxy: EventLoopProxy<Ev>) {
                 std::thread::spawn(move || segment(&j, i))
             })
             .collect();
+        let mut ticks = 0u32;
         while handles.iter().any(|h| !h.is_finished()) {
             std::thread::sleep(Duration::from_millis(250));
+            ticks += 1;
+            if ticks % 8 == 0 {
+                save_state(&job);
+            }
             let _ = proxy.send_event(Ev::DlProg(id, received(&job), job.probe.total));
         }
         for h in handles {
@@ -315,23 +423,27 @@ fn run(id: u32, job: Arc<Job>, proxy: EventLoopProxy<Ev>) {
         match job.state.load(Relaxed) {
             CANCEL => {
                 let _ = std::fs::remove_file(&job.part);
+                let _ = std::fs::remove_file(state_path(&job));
                 jobs(|j| j.remove(&id));
             }
-            PAUSE => {}
+            PAUSE => save_state(&job),
             _ => {
                 let complete = job.segs.iter().all(|s| s.pos.load(Relaxed) > s.end);
                 if complete && !job.failed.load(Relaxed) {
                     let _ = job.file.sync_all();
                     if std::fs::rename(&job.part, &job.ctx.path).is_ok() {
+                        let _ = std::fs::remove_file(state_path(&job));
                         jobs(|j| j.remove(&id));
                         let _ = proxy.send_event(Ev::DlState(id, 2));
                         return;
                     }
                 }
                 // keep the job so Resume can try again
+                save_state(&job);
                 let _ = proxy.send_event(Ev::DlState(id, 1));
             }
         }
+        kick(&proxy);
     });
 }
 
@@ -360,6 +472,7 @@ fn segment(job: &Job, i: usize) {
                 }
                 let p = seg.pos.load(Relaxed);
                 let n = n.min((seg.end - p + 1) as usize);
+                throttle(n);
                 job.file.seek_write(&buf[..n], p as u64).ok()?;
                 seg.pos.store(p + n as i64, Relaxed);
                 if p + n as i64 > seg.end {
@@ -410,6 +523,7 @@ pub fn cancel(id: u32) -> bool {
             job.state.store(CANCEL, Relaxed);
             // a paused or failed job has no supervisor running: clean up here
             let _ = std::fs::remove_file(&job.part);
+            let _ = std::fs::remove_file(state_path(&job));
             jobs(|j| j.remove(&id));
             true
         }

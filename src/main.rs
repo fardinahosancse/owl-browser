@@ -404,6 +404,12 @@ pub struct Config {
     /// refuse camera, microphone, location and notification requests without asking
     #[serde(default)]
     pub perm_block: bool,
+    /// download speed limit in KB/s, 0 = none
+    #[serde(default)]
+    pub dl_limit: u32,
+    /// downloads that run at once
+    #[serde(default = "dl_active_default")]
+    pub dl_active: u32,
     /// strict tracking prevention (third-party trackers and storage)
     #[serde(default)]
     pub track_strict: bool,
@@ -427,6 +433,9 @@ pub struct Config {
     #[serde(default = "yes")]
     pub lock_on_winlock: bool,
 }
+fn dl_active_default() -> u32 {
+    3
+}
 fn autolock_default() -> u32 {
     15
 }
@@ -445,7 +454,7 @@ impl Default for Config {
             block: true, https_only: false, sync_dir: String::new(), theme: sys(), bookmark_bar: false,
             pin_hash: String::new(), pin_salt: String::new(), organize: true, pw_save: true, pw_never: vec![],
             strikes: 0, fails: 0, locked_until: 0, sync_key: String::new(), pin_mode: pin_mode(), kdf: 0, fp: true,
-            fp_strict: false, perm_block: false, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
+            fp_strict: false, perm_block: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
             seal_pub: String::new(), seal_priv: String::new(), lock_on_winlock: true,
         }
     }
@@ -868,6 +877,8 @@ pub enum Ev {
     DlProbe(u32, Option<engine::Probe>),
     /// a magnet link was opened
     Magnet(String),
+    /// queued behind other downloads (true) or started from the queue (false)
+    DlQueue(u32, bool),
     /// torrent metadata known: (download id, name)
     TorrentName(u32, String),
     Fullscreen(u32, bool),
@@ -2023,6 +2034,16 @@ impl App {
                     self.ctx.cfg.lock().unwrap().autolock = n;
                     self.ctx.save_cfg();
                 }
+                if s("key") == "dl_limit" && [0, 512, 1024, 2048, 5120, 10240, 20480].contains(&n) {
+                    self.ctx.cfg.lock().unwrap().dl_limit = n;
+                    engine::LIMIT_KB.store(n as u64, Relaxed);
+                    self.ctx.save_cfg();
+                }
+                if s("key") == "dl_active" && [1, 2, 3, 5, 8].contains(&n) {
+                    self.ctx.cfg.lock().unwrap().dl_active = n;
+                    engine::MAX_ACTIVE.store(n, Relaxed);
+                    self.ctx.save_cfg();
+                }
             }
             "set_proxy" => {
                 let p = s("proxy").trim().to_string();
@@ -2227,7 +2248,13 @@ impl App {
                 }
             }
             "dl_retry" => {
-                if let Some(u) = self.dl_mut(did, |d| d.url.clone()) {
+                // an interrupted segmented download continues where it stopped
+                let (u, p, st) = self.dl_mut(did, |d| (d.url.clone(), d.path.clone(), d.status.clone())).unwrap_or_default();
+                if st == "interrupted" && dl::inside_root(&p) && engine::restore(did, &p, self.proxy.clone()) {
+                    self.dl_mut(did, |d| d.status = "downloading".into());
+                    self.ctx.save();
+                    self.push();
+                } else if !u.is_empty() {
                     self.new_tab(&u);
                 }
             }
@@ -2818,6 +2845,8 @@ fn main() {
     BLOCK.store(cfg.block, Relaxed);
     native::PERM_BLOCK.store(cfg.perm_block, Relaxed);
     engine::DIRECT_OK.store(cfg.proxy.is_empty(), Relaxed);
+    engine::LIMIT_KB.store(cfg.dl_limit as u64, Relaxed);
+    engine::MAX_ACTIVE.store(cfg.dl_active.clamp(1, 8), Relaxed);
     native::TRACK_STRICT.store(cfg.track_strict, Relaxed);
     HTTPS.store(cfg.https_only, Relaxed);
     *THEME.lock().unwrap() = cfg.theme.clone();
@@ -3171,6 +3200,10 @@ fn main() {
                     }
                 }
                 Ev::DlAsk(id, tab, url, path) => app.dl_incoming(id, tab, url, path),
+                Ev::DlQueue(id, q) => {
+                    app.dl_mut(id, |d| d.status = if q { "pending".into() } else { "downloading".into() });
+                    app.push();
+                }
                 Ev::Magnet(m) => {
                     if torrent::is_magnet(&m) {
                         app.start_torrent(torrent::Source::Magnet(m), "Torrent (fetching details)".into());
