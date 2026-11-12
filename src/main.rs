@@ -182,6 +182,18 @@ static BLOCKED_BASE: AtomicU64 = AtomicU64::new(0);
 /// Hosts the user chose to open over plain http this session.
 static ALLOW_HTTP: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
+/// After a restart the new process waits (up to 20 s) for the old one to finish.
+fn wait_for_parent() {
+    use windows::Win32::System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE};
+    let Some(pid) = std::env::args().find_map(|a| a.strip_prefix("--wait-pid=").and_then(|p| p.parse::<u32>().ok())) else { return };
+    unsafe {
+        if let Ok(h) = OpenProcess(PROCESS_SYNCHRONIZE, false, pid) {
+            WaitForSingleObject(h, 20_000);
+            let _ = windows::Win32::Foundation::CloseHandle(h);
+        }
+    }
+}
+
 pub fn data_dir() -> PathBuf {
     PathBuf::from(std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".into())).join("Owl")
 }
@@ -2255,6 +2267,8 @@ impl App {
             "restart" => {
                 if let Ok(exe) = std::env::current_exe() {
                     let mut c = std::process::Command::new(exe);
+                    // the new process waits for this one to exit, so it never meets the old one's locks
+                    c.arg(format!("--wait-pid={}", std::process::id()));
                     if self.ctx.private {
                         c.arg("--private");
                     }
@@ -2888,6 +2902,7 @@ fn secure_html(html: &str, img: &str) -> String {
 }
 
 fn main() {
+    wait_for_parent();
     let private = std::env::args().any(|a| a == "--private");
     let dir = PathBuf::from(std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".into())).join("Owl");
     let _ = fs::create_dir_all(dir.join("extensions"));

@@ -432,7 +432,8 @@ function draw(){const L=document.getElementById('list');const rows=D.filter(d=>F
   '<div class=inf><b>'+d.status+'</b>'+sz(d.received)+(d.total>0?' of '+sz(d.total):'')+(sp?' &middot; '+sp:'')+(e?' &middot; '+e:'')+'</div><div class=ac>'+b.map(x=>'<button class=ghost data-c='+x[1]+' data-i='+d.id+'>'+x[0]+'</button>').join('')+'</div></div>'}).join('');
  L.querySelectorAll('.dr').forEach((el,i)=>{el.querySelector('.nm').textContent=rows[i].name;el.querySelector('.pa').textContent=rows[i].path;el.querySelector('.nm').title=rows[i].url});
  L.querySelectorAll('button[data-c]').forEach(x=>x.onclick=()=>send({cmd:x.dataset.c,id:+x.dataset.i}))}
-async function poll(){try{D=await (await fetch('/downloads.json',{cache:'no-store'})).json();const a=D.filter(d=>d.status==='downloading');
+const ST=['downloading','paused','pending','done','failed','cancelled','interrupted'];
+async function poll(){try{D=(await (await fetch('/downloads.json',{cache:'no-store'})).json()).map(d=>({id:+d.id||0,name:String(d.name||''),path:String(d.path||''),url:String(d.url||''),status:ST.includes(d.status)?d.status:'failed',received:+d.received||0,total:+d.total||0,speed:+d.speed||0}));const a=D.filter(d=>d.status==='downloading');
  document.getElementById('agg').textContent=a.length?a.length+' active \u00b7 '+sz(a.reduce((s,d)=>s+d.speed,0))+'/s':D.length+(D.length===1?' file':' files');
  document.getElementById('clr').disabled=!D.some(d=>!act(d));
  const k=JSON.stringify(D)+F;if(k!==sig){sig=k;draw()}}catch(e){}}
