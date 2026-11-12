@@ -6,24 +6,37 @@ All notable changes to Owl are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-13
+
 ### Added
-- **Image compression threshold**: only images of 4 MB or more are touched, found with a one-byte size request, so small images pass through untouched.
-- **Permissions page** (Settings > Site permissions): review and reset the camera, microphone, location and other permissions you gave sites.
-- **Cloudflare WARP**: Settings > Privacy can connect and disconnect an installed WARP client (a real VPN). Owl does not bundle it.
-- Optional "Keep seeding finished torrents" setting (off by default). Resumed fast downloads keep their cookies, stored encrypted for your Windows account. Save image as now also works for blob: images and cookie-protected same-site images by asking the page to fetch them.
-- **Torrent engine on demand**: the BitTorrent engine starts only when a magnet link or .torrent file arrives and shuts down (DHT, trackers, peers) as soon as the last torrent ends. Nothing keeps seeding.
-- OwlKick: per-site off list (Settings > Privacy), weekly refresh of already downloaded filter lists, magnet links typed in the address bar start a torrent. A second launch of Owl now brings the running window forward and passes on the address.
-- **Segmented download engine**: files of 2 MB or more from servers that support ranges download over up to 8 connections at once, with pause, resume and retry with backoff, using the existing download UI. Page cookies are sent only to the host the download started from. Other downloads, and all downloads while a proxy is set, use the browser's normal path.
-- **Video and audio download button**: when a page plays a plain video or audio file, a button appears in the toolbar; choose a file from the list and it downloads with the fast engine. Streaming playlists (HLS, DASH) and YouTube are not offered, and nothing downloads until you choose.
-- **Lazy image compression**: Settings > Privacy slider (0 = off, 1-99). Images on web pages are shrunk and re-encoded before the page receives them; below-the-fold images load lazily. Small images, animations and images that would not get at least 10% smaller are left alone. Checked on a 9.2 MB 3840x5723 JPEG, which arrived as 537x800 at strength 80. Off while a proxy or secure DNS is on.
-- **Save image as**: right-click an image to save it as PNG, JPEG, BMP, WebP or GIF into Downloads (also listed in the download list).
-- **Secure DNS (Cloudflare 1.1.1.1)**: Settings > Privacy. Owl runs a loopback-only proxy that looks up site names over HTTPS at 1.1.1.1, so your network's DNS server cannot see them. Checked with Cloudflare's own test page (DoH: Yes). It is not a VPN and does not change your IP address; if 1.1.1.1 is blocked pages will not load. It is not used while a proxy is set, and the fast download engine stays off while it is on.
-- Download engine extras: a speed limit and a "downloads at once" setting (extra fast downloads wait in a queue), and interrupted fast downloads continue where they stopped when you press Retry.
-- **BitTorrent client**: magnet links and finished .torrent downloads open in Owl's built-in torrent engine (librqbit, Apache-2.0) and appear in the normal download list with progress, pause, resume and cancel. It only connects out (no listening port), stops seeding when complete, and is refused in private windows, while locked, and while a proxy is set, because peers would see your real address.
-- **OwlKick Engine**: content blocking now runs on the adblock-rust engine used by Brave (MPL-2.0; not made or endorsed by Brave). It understands EasyList and uBlock-style rules, matches by request type and third-party status, and hides page clutter with cosmetic filters. Owl's built-in tracker list always applies; Settings > Update lists downloads EasyList and EasyPrivacy on request.
+- **OwlKick Engine**: content blocking now runs on the adblock-rust engine that Brave uses (MPL-2.0; Owl is not made or endorsed by Brave). It understands EasyList and uBlock-style rules, matches by request type and third-party status, and hides page clutter. Owl's built-in tracker list always applies. Settings > Privacy has Update lists (EasyList and EasyPrivacy, only when you press it, then refreshed weekly), and an "off for these sites" list.
+- **Fast download engine**: files of 2 MB or more from servers that support ranges download over up to 8 connections, with pause, resume, retry with backoff, a speed limit, a "downloads at once" queue, and resume after Owl restarts (press Retry; cookies are kept encrypted for your Windows account). It uses the existing download list. Page cookies go only to the host the download started from.
+- **BitTorrent**: magnet links (on pages, typed in the address bar, or passed by a second launch) and .torrent files open in a built-in client (librqbit, Apache-2.0) and appear in the download list. The torrent engine runs only while a torrent is active, then shuts down completely. It opens no listening port, is refused in private windows, while locked and while a proxy is set, and does not seed unless you turn on "Keep seeding finished torrents".
+- **Data saver** (Settings > Privacy, slider 0-99 with Off, Light, Balanced and Ultra presets): sends the `Save-Data` header so cooperating sites send lighter pages and images; loads below-the-fold images lazily with low priority; fetches only the first part of big progressive JPEGs (1 MB or more), which shows as a slightly soft image and saves real bandwidth (checked: a 5.2 MB photo used 1.8 MB at strength 85 and rendered at full size); shrinks other huge images (4 MB or more). Small images are never touched. With a proxy or secure DNS on, the image fetching is off but the Save-Data request and lazy loading still apply. Applies to new pages.
+- **Video and audio download button**: when a page plays a plain video or audio file, a toolbar button lists it and downloads it with the fast engine. Streaming playlists (HLS, DASH) and YouTube are not offered.
+- **Save image as**: right-click an image to save it as PNG, JPEG, BMP, WebP or GIF. Works for blob: images and same-site cookie-protected images by asking the page to fetch them.
+- **Secure DNS (Cloudflare 1.1.1.1)**: Owl runs a loopback-only proxy that looks up site names over HTTPS. Checked with Cloudflare's test page (DoH: Yes). It is not a VPN and does not hide your IP address. If 1.1.1.1 is blocked, pages will not load.
+- **Cloudflare WARP switch**: connect, disconnect and check an installed WARP client (a real VPN) from Settings. Owl does not bundle WARP.
+- **Site permissions page** (Settings > Site permissions): review and reset what you allowed or blocked for sites.
+- A second launch of Owl now brings the running window forward and passes on the address instead of exiting silently.
 
 ### Changed
-- The executable is about 6 MB instead of 1 MB because of the filter and torrent engines.
+- The executable is about 7 MB (was 1 MB) because of the filter, torrent and image engines.
+- Settings > Privacy and Downloads and data have new rows for the features above.
+
+### Fixed
+- The Downloads page now coerces every stored value and allow-lists the status, so a tampered store cannot inject markup (#17).
+- Restart now waits for the old process to exit, so Owl no longer just closes (#21).
+- Two request types were mapped the wrong way round in the blocker.
+
+### Known issues
+- Not yet tried in the running app: right-click Save image as, choosing a file from the video list, magnet links on a normal window, the download queue, and resume after restart. They are verified at engine or unit level only (#107).
+- Torrents have no file selection; seeding only reaches peers Owl connects to (#104).
+- The image fetching part of Data saver, fast downloads and Save image as in another format are off while a proxy or secure DNS is on (they would bypass them).
+- Data saver's `Save-Data` header is not added to page navigations, only to sub-requests.
+- The permissions page and the WARP connect path were not checked visually or with a real WARP client.
+- Files are not Authenticode-signed (SmartScreen may warn); verify with the build attestation (#32).
+- macOS version is not started (#91). Open UI issues: form labels and errors (#51, #77), oversized headings (#56), find match counter (#65, #83). Many older P2 and P3 security and test issues remain open; see the issue list.
 
 ## [0.1.2] - 2026-11-11
 
@@ -89,7 +102,8 @@ First public release.
 - Command allow-list for web pages; native (non-forgeable) fullscreen, popup and dialog events.
 - Atomic settings and vault writes with backups and a recovery state.
 
-[Unreleased]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/fardinahosancse/owl-browser/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/fardinahosancse/owl-browser/releases/tag/v0.1.0

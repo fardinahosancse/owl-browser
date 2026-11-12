@@ -340,8 +340,9 @@ fn install_blocker(wv: &WebView, proxy: EventLoopProxy<Ev>, tab: u32) {
         let _ = core.add_WebResourceRequested(
             &WebResourceRequestedEventHandler::create(Box::new(move |_, args| {
                 let blocking = BLOCK.load(Relaxed);
-                let compress = imgcomp::STRENGTH.load(Relaxed) > 0 && engine::DIRECT_OK.load(Relaxed);
-                if !blocking && !compress {
+                let data_saver = imgcomp::STRENGTH.load(Relaxed) > 0;
+                let compress = data_saver && engine::DIRECT_OK.load(Relaxed);
+                if !blocking && !data_saver {
                     return Ok(());
                 }
                 if let Some(args) = args {
@@ -353,6 +354,12 @@ fn install_blocker(wv: &WebView, proxy: EventLoopProxy<Ev>, tab: u32) {
                     let _ = args.ResourceContext(&mut ctx);
                     let mut sp = PWSTR::null();
                     let src = if core2.Source(&mut sp).is_ok() { take_pwstr(sp) } else { String::new() };
+                    // Data saver: tell sites we prefer less data; many CDNs then send smaller images
+                    if data_saver && (u.starts_with("http://") || u.starts_with("https://")) && !is_local(&u) {
+                        if let Ok(h) = req.Headers() {
+                            let _ = h.SetHeader(w!("Save-Data"), w!("on"));
+                        }
+                    }
                     // video and audio files a page asks for, so Owl can offer to download them
                     if ctx.0 == 4 && (u.starts_with("http://") || u.starts_with("https://")) && !is_local(&u) {
                         let _ = proxy.send_event(Ev::MediaSeen(tab, u.clone()));

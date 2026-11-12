@@ -534,20 +534,52 @@ pub fn cancel(id: u32) -> bool {
     }
 }
 
-/// Size of a remote file in bytes without downloading it (a one-byte range request).
-pub fn remote_size(url: &str, referer: &str) -> Option<i64> {
+/// Size of a remote file without downloading it (a one-byte range request), and whether the server
+/// supports byte ranges.
+pub fn remote_size(url: &str, referer: &str) -> Option<(i64, bool)> {
     let ua = PAGE_UA.lock().unwrap().clone();
     let mut url = url.to_string();
     for _ in 0..5 {
-        let mut hdr = vec![("Range", "bytes=0-0".to_string()), ("User-Agent", ua.clone())];
+        let mut hdr = vec![("Range", "bytes=0-0".to_string()), ("User-Agent", ua.clone()), ("Save-Data", "on".to_string())];
         if !referer.is_empty() {
             hdr.push(("Referer", referer.to_string()));
         }
         let r = get(&url, &hdr)?;
         match r.status {
             301 | 302 | 303 | 307 | 308 => url = resolve(&url, &header(&r, WINHTTP_QUERY_LOCATION))?,
-            206 => return header(&r, WINHTTP_QUERY_CONTENT_RANGE).rsplit('/').next()?.trim().parse().ok(),
-            200 => return header(&r, WINHTTP_QUERY_CONTENT_LENGTH).trim().parse().ok(),
+            206 => return Some((header(&r, WINHTTP_QUERY_CONTENT_RANGE).rsplit('/').next()?.trim().parse().ok()?, true)),
+            200 => return Some((header(&r, WINHTTP_QUERY_CONTENT_LENGTH).trim().parse().ok()?, false)),
+            _ => return None,
+        }
+    }
+    None
+}
+
+/// Bytes `from..=to` of a remote file (the server must answer 206). No cookies are sent.
+pub fn fetch_range(url: &str, referer: &str, from: i64, to: i64) -> Option<Vec<u8>> {
+    let ua = PAGE_UA.lock().unwrap().clone();
+    let mut url = url.to_string();
+    for _ in 0..5 {
+        let mut hdr = vec![("Range", format!("bytes={from}-{to}")), ("User-Agent", ua.clone()), ("Save-Data", "on".to_string())];
+        if !referer.is_empty() {
+            hdr.push(("Referer", referer.to_string()));
+        }
+        let r = get(&url, &hdr)?;
+        match r.status {
+            301 | 302 | 303 | 307 | 308 => url = resolve(&url, &header(&r, WINHTTP_QUERY_LOCATION))?,
+            206 => {
+                let want = (to - from + 1) as usize;
+                let mut out = Vec::with_capacity(want.min(32 * 1024 * 1024));
+                let mut buf = vec![0u8; CHUNK];
+                while out.len() < want {
+                    let n = read(&r, &mut buf).ok()?;
+                    if n == 0 {
+                        break;
+                    }
+                    out.extend_from_slice(&buf[..n.min(want - out.len())]);
+                }
+                return if out.len() == want { Some(out) } else { None };
+            }
             _ => return None,
         }
     }
@@ -563,7 +595,7 @@ pub fn fetch_bytes(url: &str, referer: &str, cap: usize) -> Option<Vec<u8>> {
     let mut url = url.to_string();
     let ua = PAGE_UA.lock().unwrap().clone();
     for _ in 0..5 {
-        let mut hdr = vec![("Accept", "image/*,*/*;q=0.5".to_string()), ("User-Agent", ua.clone())];
+        let mut hdr = vec![("Accept", "image/*,*/*;q=0.5".to_string()), ("User-Agent", ua.clone()), ("Save-Data", "on".to_string())];
         if !referer.is_empty() {
             hdr.push(("Referer", referer.to_string()));
         }

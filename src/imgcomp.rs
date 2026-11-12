@@ -15,9 +15,11 @@ static INFLIGHT: AtomicUsize = AtomicUsize::new(0);
 const MAX_INFLIGHT: usize = 16;
 /// Only images at least this big are touched: smaller ones are not worth the extra round trip.
 pub const MIN_BYTES: usize = 4 * 1024 * 1024;
+/// Progressive JPEGs from this size up are cut short instead of re-encoded.
+pub const MIN_TRUNC: usize = 1024 * 1024;
 
 /// Added to pages while compression is on: images below the fold load only when scrolled near.
-pub const LAZY_JS: &str = "try{var _f=function(){document.querySelectorAll('img:not([loading])').forEach(function(i){if(i.getBoundingClientRect().top>innerHeight*1.5){i.loading='lazy'}i.decoding='async'})};var _o=new MutationObserver(_f);document.addEventListener('DOMContentLoaded',function(){_o.observe(document.documentElement,{childList:true,subtree:true});_f()})}catch(e){}";
+pub const LAZY_JS: &str = "try{var _f=function(){document.querySelectorAll('img:not([loading])').forEach(function(i){if(i.getBoundingClientRect().top>innerHeight*1.5){i.loading='lazy';i.fetchPriority='low'}i.decoding='async'})};var _o=new MutationObserver(_f);document.addEventListener('DOMContentLoaded',function(){_o.observe(document.documentElement,{childList:true,subtree:true});_f()})}catch(e){}";
 
 /// Start compressing one image in the background. Returns false if there is no capacity, in which
 /// case the caller lets the original through. The result arrives as `Ev::ImgReady(id, ..)`.
@@ -42,15 +44,62 @@ fn work(url: &str, referer: &str, strength: u32) -> Option<(Vec<u8>, &'static st
         return None;
     }
     // ask for the size first with a one-byte request; most images are small and pass straight through
-    if engine_size(url, referer)? < MIN_BYTES as i64 {
+    let (size, ranged) = crate::engine::remote_size(url, referer)?;
+    if size < MIN_TRUNC as i64 {
+        return None;
+    }
+    // 1. progressive JPEG: fetch only the first part. It shows as a slightly soft image and the
+    //    rest is never downloaded, so this saves real bandwidth and needs no re-encoding.
+    if ranged {
+        let head = crate::engine::fetch_range(url, referer, 0, 65_535.min(size - 1))?;
+        if is_progressive_jpeg(&head) {
+            let keep = ((size as f64) * keep_fraction(strength)) as i64;
+            if keep >= 128 * 1024 && keep < size * 95 / 100 {
+                let mut body = crate::engine::fetch_range(url, referer, 0, keep - 1)?;
+                body.extend_from_slice(&[0xFF, 0xD9]); // end-of-image, so decoders stop cleanly
+                return Some((body, "image/jpeg"));
+            }
+        }
+    }
+    // 2. anything else that is very large: shrink and re-encode it
+    if size < MIN_BYTES as i64 {
         return None;
     }
     let bytes = crate::engine::fetch_bytes(url, referer, 25 * 1024 * 1024)?;
     shrink(&bytes, strength)
 }
 
-fn engine_size(url: &str, referer: &str) -> Option<i64> {
-    crate::engine::remote_size(url, referer)
+/// Share of a progressive JPEG to keep: 92% at strength 1 down to about 25% at 99.
+pub fn keep_fraction(strength: u32) -> f64 {
+    (0.92 - strength.min(99) as f64 * 0.0068).clamp(0.2, 0.92)
+}
+
+/// True for a JPEG whose scans refine the whole picture step by step (SOF2 and its variants).
+pub fn is_progressive_jpeg(b: &[u8]) -> bool {
+    if b.len() < 4 || b[0] != 0xFF || b[1] != 0xD8 {
+        return false;
+    }
+    let mut i = 2;
+    while i + 4 <= b.len() {
+        if b[i] != 0xFF {
+            i += 1;
+            continue;
+        }
+        let m = b[i + 1];
+        if m == 0xFF {
+            i += 1;
+            continue;
+        }
+        if (0xC0..=0xCF).contains(&m) && !matches!(m, 0xC4 | 0xC8 | 0xCC) {
+            return matches!(m, 0xC2 | 0xC6 | 0xCA | 0xCE);
+        }
+        if m == 0xDA {
+            return false; // scan data before any frame header
+        }
+        let len = u16::from_be_bytes([b[i + 2], b[i + 3]]) as usize;
+        i += 2 + len;
+    }
+    false
 }
 
 /// Re-encode image bytes at the given strength; None when it should be served unchanged.
@@ -97,6 +146,20 @@ mod tests {
         let enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, q);
         img.write_with_encoder(enc).unwrap();
         out.into_inner()
+    }
+
+    #[test]
+    fn progressive_detection_and_truncation_decode() {
+        let prog = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/prog.jpg")).unwrap();
+        let base = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/base.jpg")).unwrap();
+        assert!(is_progressive_jpeg(&prog));
+        assert!(!is_progressive_jpeg(&base));
+        assert!(keep_fraction(99) < keep_fraction(1) && keep_fraction(99) > 0.2);
+        // a progressive JPEG cut at 40% plus an end marker still decodes to the full picture size
+        let mut cut = prog[..prog.len() * 4 / 10].to_vec();
+        cut.extend_from_slice(&[0xFF, 0xD9]);
+        let img = image::load_from_memory(&cut).expect("truncated progressive jpeg should still decode");
+        assert_eq!((img.width(), img.height()), (640, 480));
     }
 
     #[test]
