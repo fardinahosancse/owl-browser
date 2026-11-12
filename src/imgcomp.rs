@@ -12,8 +12,9 @@ use std::{
 /// 0 = off, otherwise 1-99.
 pub static STRENGTH: AtomicU32 = AtomicU32::new(0);
 static INFLIGHT: AtomicUsize = AtomicUsize::new(0);
-const MAX_INFLIGHT: usize = 8;
-const MIN_BYTES: usize = 100_000;
+const MAX_INFLIGHT: usize = 16;
+/// Only images at least this big are touched: smaller ones are not worth the extra round trip.
+pub const MIN_BYTES: usize = 4 * 1024 * 1024;
 
 /// Added to pages while compression is on: images below the fold load only when scrolled near.
 pub const LAZY_JS: &str = "try{var _f=function(){document.querySelectorAll('img:not([loading])').forEach(function(i){if(i.getBoundingClientRect().top>innerHeight*1.5){i.loading='lazy'}i.decoding='async'})};var _o=new MutationObserver(_f);document.addEventListener('DOMContentLoaded',function(){_o.observe(document.documentElement,{childList:true,subtree:true});_f()})}catch(e){}";
@@ -35,15 +36,25 @@ pub fn start(id: u32, url: String, referer: String, send: impl Fn(Ev) + Send + '
 }
 
 fn work(url: &str, referer: &str, strength: u32) -> Option<(Vec<u8>, &'static str)> {
+    // vector, animated and icon formats are never worth it
+    let path = url.split(['?', '#']).next().unwrap_or("").to_lowercase();
+    if [".svg", ".gif", ".ico", ".cur", ".avif"].iter().any(|e| path.ends_with(e)) {
+        return None;
+    }
+    // ask for the size first with a one-byte request; most images are small and pass straight through
+    if engine_size(url, referer)? < MIN_BYTES as i64 {
+        return None;
+    }
     let bytes = crate::engine::fetch_bytes(url, referer, 25 * 1024 * 1024)?;
     shrink(&bytes, strength)
 }
 
+fn engine_size(url: &str, referer: &str) -> Option<i64> {
+    crate::engine::remote_size(url, referer)
+}
+
 /// Re-encode image bytes at the given strength; None when it should be served unchanged.
 pub fn shrink(bytes: &[u8], strength: u32) -> Option<(Vec<u8>, &'static str)> {
-    if bytes.len() < MIN_BYTES {
-        return None;
-    }
     let fmt = image::guess_format(bytes).ok()?;
     if !matches!(fmt, ImageFormat::Jpeg | ImageFormat::Png | ImageFormat::WebP) {
         return None; // gifs may be animated; others are not worth the risk
@@ -96,8 +107,6 @@ mod tests {
         assert_eq!((m1, m2), ("image/jpeg", "image/jpeg"));
         assert!(low.len() < big.len(), "{} !< {}", low.len(), big.len());
         assert!(high.len() < low.len(), "{} !< {}", high.len(), low.len());
-        let small = jpeg(40, 40, 90);
-        assert!(shrink(&small, 90).is_none());
         // the result still decodes and respects the size cap
         let back = image::load_from_memory(&high).unwrap();
         assert!(back.width().max(back.height()) <= 2400 - 90 * 20);

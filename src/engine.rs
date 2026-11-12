@@ -531,6 +531,26 @@ pub fn cancel(id: u32) -> bool {
     }
 }
 
+/// Size of a remote file in bytes without downloading it (a one-byte range request).
+pub fn remote_size(url: &str, referer: &str) -> Option<i64> {
+    let ua = PAGE_UA.lock().unwrap().clone();
+    let mut url = url.to_string();
+    for _ in 0..5 {
+        let mut hdr = vec![("Range", "bytes=0-0".to_string()), ("User-Agent", ua.clone())];
+        if !referer.is_empty() {
+            hdr.push(("Referer", referer.to_string()));
+        }
+        let r = get(&url, &hdr)?;
+        match r.status {
+            301 | 302 | 303 | 307 | 308 => url = resolve(&url, &header(&r, WINHTTP_QUERY_LOCATION))?,
+            206 => return header(&r, WINHTTP_QUERY_CONTENT_RANGE).rsplit('/').next()?.trim().parse().ok(),
+            200 => return header(&r, WINHTTP_QUERY_CONTENT_LENGTH).trim().parse().ok(),
+            _ => return None,
+        }
+    }
+    None
+}
+
 /// The page engine's user agent, so fetches made for it look like its own requests.
 pub static PAGE_UA: Mutex<String> = Mutex::new(String::new());
 
