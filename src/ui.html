@@ -205,6 +205,7 @@ button.m{border:0;background:none;color:inherit;font:inherit;font-size:12px}
 #rcv button{height:48px;padding:0 24px;background:var(--ink);color:var(--on);font:700 11px "Helvetica Neue",Arial,sans-serif;letter-spacing:.12em;text-transform:uppercase;transition:background .12s}
 #rcv button:hover{background:var(--red);color:var(--onred)}#rcv button.g2{background:var(--soft);color:var(--ink)}
 body.recov #dots,body.recov #pad,body.recov #pf,body.recov #sf,body.recov #lmsg{display:none}body.recov #rcv{display:flex}
+#mdb[hidden]{display:none}
 @media(max-width:900px){#home,#inc,#pw{display:none}.chip{display:none!important}body.finding #addr{display:none}body.finding #find{flex:1;width:auto}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @media(max-width:900px){#menu{grid-template-columns:repeat(2,1fr)}#lock{grid-template-columns:1fr}#lock .l{display:none}#lock .r{margin:auto}#ctx .ch{display:none}}
@@ -231,6 +232,7 @@ body.recov #dots,body.recov #pad,body.recov #pf,body.recov #sf,body.recov #lmsg{
   <div id="addr"><span id="sec"></span><input id="url" spellcheck="false" autocomplete="off" aria-label="Address" placeholder="Search or enter address" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ovl"><button type="button" class="chip" id="zc" title="Reset zoom" aria-label="Reset zoom"></button><span class="chip" id="shield"></span></div>
   <div id="find" role="search"><input id="fi" placeholder="Find in page" aria-label="Find in page" spellcheck="false"><button type="button" id="fprev" data-i="up" title="Previous match (Shift+Enter)" aria-label="Previous match"></button><button type="button" id="fnext" data-i="down" title="Next match (Enter)" aria-label="Next match"></button><button type="button" id="fclose" data-i="x" title="Close (Esc)" aria-label="Close find"></button></div>
   <button class="b" id="rel" data-i="rel" title="Reload (Ctrl+R)" aria-label="Reload"></button>
+  <button class="b" id="mdb" data-i="vid" title="Download video or audio from this page" aria-label="Download video or audio from this page" hidden></button>
   <button class="b" id="home" data-i="home" title="Home" aria-label="Home"></button>
   <button class="b" id="dlb" data-i="dl" title="Downloads" aria-label="Downloads"><span id="dls"></span><i id="dlp"></i></button>
   <button class="b" id="inc" data-i="mask" title="New private window" aria-label="New private window"></button>
@@ -252,6 +254,7 @@ const P={
  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
  star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
  menu:'<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
+ vid:'<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
  dl:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
  home:'<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
  mask:'<path d="M18 11c-1.5 0-2.5.5-3 2"/><path d="M4 6a2 2 0 0 0-2 2v4a5 5 0 0 0 5 5 8 8 0 0 1 5 2 8 8 0 0 1 5-2 5 5 0 0 0 5-5V8a2 2 0 0 0-2-2h-3a8 8 0 0 0-5 2 8 8 0 0 0-5-2z"/><path d="M6 11c1.5 0 2.5.5 3 2"/>',
@@ -364,6 +367,7 @@ window.owl={
   if(!!s.bookmarked!==prevBm){prevBm=!!s.bookmarked;$('star').classList.remove('pop');void $('star').offsetWidth;$('star').classList.add('pop')}
   $('star').classList.toggle('on',!!s.bookmarked);
   $('shield').textContent=s.blocked+' blocked';$('shield').classList.toggle('show',s.blocked>0);
+  $('mdb').hidden=!(s.media>0);
   const d=s.dl||{active:0},db=$('dlb');
   db.classList.toggle('act',d.active>0);$('dls').textContent=d.active>0?spd(d.speed||0):'';$('dlp').style.width=d.active>0?d.pct+'%':'0';
   db.title=d.active>0?d.active+' downloading · '+d.pct+'% · '+spd(d.speed||0):'Downloads';
@@ -504,6 +508,7 @@ $('plus').onclick=()=>send({cmd:'new_tab'});$('back').onclick=()=>send({cmd:'bac
 $('rel').onclick=()=>{const a=S.tabs.find(t=>t.id===S.active);if(a&&a.loading)return send({cmd:'stop'});const b=$('rel');b.classList.remove('spin');void b.offsetWidth;b.classList.add('spin');send({cmd:'reload'})};
 $('home').onclick=()=>send({cmd:'navigate',url:'owl://newtab'});
 $('dlb').onclick=()=>send({cmd:'navigate',url:'owl://downloads'});
+$('mdb').onclick=()=>send({cmd:'media_list'});
 $('inc').onclick=()=>send({cmd:'private'});
 $('pw').onclick=()=>send({cmd:'navigate',url:'owl://passwords'});
 $('zc').onclick=()=>send({cmd:'zoom',d:0});

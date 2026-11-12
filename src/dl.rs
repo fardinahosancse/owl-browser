@@ -107,25 +107,32 @@ pub fn decide(id: u32, allow: bool) {
 /// The probe finished. If the file can be segmented, cancel the browser's download and hand it to
 /// the engine; otherwise let the browser download it as usual.
 pub fn probe_done(id: u32, probe: Option<crate::engine::Probe>, proxy: EventLoopProxy<Ev>) {
-    let Some((args, def)) = HELD.with(|h| h.borrow_mut().remove(&id)) else {
-        CTX.with(|c| c.borrow_mut().remove(&id));
-        return; // cancelled while probing
-    };
+    let held = HELD.with(|h| h.borrow_mut().remove(&id));
     let ctx = CTX.with(|c| c.borrow_mut().remove(&id));
+    // no held browser download: this was started by Owl itself (a detected video or audio file)
+    let direct = held.is_none();
+    if direct && ctx.is_none() {
+        return; // cancelled while probing
+    }
+    let min = if direct { 1 } else { crate::engine::MIN_SIZE };
     let take = match (&probe, &ctx) {
-        (Some(p), Some(c)) if p.total >= crate::engine::MIN_SIZE => !std::path::Path::new(&c.path).exists(),
+        (Some(p), Some(c)) if p.total >= min => !std::path::Path::new(&c.path).exists(),
         _ => false,
     };
-    unsafe {
-        if take {
-            let _ = args.SetCancel(true);
+    if let Some((args, def)) = held {
+        unsafe {
+            if take {
+                let _ = args.SetCancel(true);
+            }
+            let _ = def.Complete();
         }
-        let _ = def.Complete();
+        if take {
+            OPS.with(|o| {
+                o.borrow_mut().remove(&id);
+            });
+        }
     }
     if take {
-        OPS.with(|o| {
-            o.borrow_mut().remove(&id);
-        });
         match crate::engine::start(id, ctx.unwrap(), probe.unwrap(), proxy.clone()) {
             Some(true) => {
                 let _ = proxy.send_event(Ev::DlQueue(id, true));
@@ -136,7 +143,18 @@ pub fn probe_done(id: u32, probe: Option<crate::engine::Probe>, proxy: EventLoop
                 let _ = proxy.send_event(Ev::DlState(id, 1));
             }
         }
+    } else if direct {
+        let _ = proxy.send_event(Ev::DlState(id, 1));
     }
+}
+
+/// Download a file Owl found on a page (no browser download exists for it): probe it, then hand
+/// it to the segmented engine. Servers without range support are reported as failed.
+pub fn start_direct(id: u32, url: String, referer: String, path: String, proxy: EventLoopProxy<Ev>) {
+    let ua = crate::engine::PAGE_UA.lock().unwrap().clone();
+    let ctx = crate::engine::Ctx { url, cookie: String::new(), ua, referer, path };
+    CTX.with(|c| c.borrow_mut().insert(id, ctx.clone()));
+    crate::engine::probe(id, ctx, proxy);
 }
 
 pub fn next_id() -> u32 {

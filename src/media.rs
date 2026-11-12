@@ -24,6 +24,9 @@ pub const PAGE_JS: &str = r#"
   if(!art)art=yt();
   const o={cmd:'media',title:(md&&md.title)||document.title.replace(/ - YouTube.*$/,''),artist:(md&&md.artist)||'',art,playing:!m.paused,pos:Math.floor(m.currentTime),dur:isFinite(m.duration)?Math.floor(m.duration):0};
   const k=JSON.stringify(o);if(k===sent)return;sent=k;had=true;post(o)}
+ const seen=new Set();
+ function scan(){document.querySelectorAll('video,audio').forEach(m=>{const u=m.currentSrc||m.src;if(u&&/^https?:/.test(u)&&!seen.has(u)){seen.add(u);post({cmd:'media_found',url:u})}})}
+ setInterval(scan,1500);
  setInterval(tick,1000);
 })();
 "#;

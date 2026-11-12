@@ -211,7 +211,7 @@ fn owlkick_blocks(url: &str, source: &str, ctx: i32) -> bool {
         4 => "media",
         5 => "font",
         6 => "script",
-        8 | 9 => "xhr",
+        7 | 8 => "xhr",
         11 => "websocket",
         14 => "ping",
         _ => "other",
@@ -285,7 +285,7 @@ fn finish_image(id: u32, r: Option<(Vec<u8>, &'static str)>) {
     }
 }
 
-fn install_blocker(wv: &WebView, proxy: EventLoopProxy<Ev>) {
+fn install_blocker(wv: &WebView, proxy: EventLoopProxy<Ev>, tab: u32) {
     use webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL;
     use webview2_com::{take_pwstr, WebResourceRequestedEventHandler};
     use windows::core::{w, PWSTR};
@@ -317,6 +317,10 @@ fn install_blocker(wv: &WebView, proxy: EventLoopProxy<Ev>) {
                     let _ = args.ResourceContext(&mut ctx);
                     let mut sp = PWSTR::null();
                     let src = if core2.Source(&mut sp).is_ok() { take_pwstr(sp) } else { String::new() };
+                    // video and audio files a page asks for, so Owl can offer to download them
+                    if ctx.0 == 4 && (u.starts_with("http://") || u.starts_with("https://")) && !is_local(&u) {
+                        let _ = proxy.send_event(Ev::MediaSeen(tab, u.clone()));
+                    }
                     if blocking && owlkick_blocks(&u, &src, ctx.0) {
                         let r = env.CreateWebResourceResponse(None, 403, w!("Blocked"), w!(""))?;
                         args.SetResponse(&r)?;
@@ -502,6 +506,13 @@ pub struct Config {
     /// lock (and seal) when Windows locks or the PC sleeps
     #[serde(default = "yes")]
     pub lock_on_winlock: bool,
+}
+/// A readable file name for a media address.
+fn media_label(u: &str) -> String {
+    let last = u.split(['?', '#']).next().unwrap_or("").rsplit('/').next().unwrap_or("");
+    let clean: String = last.chars().filter(|c| c.is_ascii_alphanumeric() || "-_. ".contains(*c)).take(80).collect();
+    let clean = clean.trim_matches('.').to_string();
+    if clean.is_empty() { "media.mp4".into() } else if clean.contains('.') { clean } else { format!("{clean}.mp4") }
 }
 fn dl_active_default() -> u32 {
     3
@@ -947,6 +958,8 @@ pub enum Ev {
     DlProbe(u32, Option<engine::Probe>),
     /// a magnet link was opened
     Magnet(String),
+    /// a video or audio file was requested by a page: (tab, address)
+    MediaSeen(u32, String),
     /// compressed image ready for a held request: (request id, bytes and type)
     ImgReady(u32, Option<(Vec<u8>, &'static str)>),
     /// right-click > Save image as: (image address, format)
@@ -1118,6 +1131,8 @@ struct App {
     last_key: Instant,
     /// downloads waiting for the user's answer
     dl_ask: Vec<(u32, Instant)>,
+    /// downloadable media found on each tab's current page
+    seen_media: HashMap<u32, Vec<String>>,
     recent_dl: Vec<Instant>,
     engine_watch: bool,
     /// background seal started by Lock; unlock waits for it
@@ -1585,6 +1600,7 @@ impl App {
         }
         let v = json!({
             "cfg": cfg, "locked": self.locked, "dl": self.dl_summary(),
+            "media": self.seen_media.get(&self.active).map_or(0, |v| v.len()),
             "active": self.active, "private": self.ctx.private, "bookmarked": bm, "bookmarks": bookmarks,
             "blocked": BLOCKED.load(Relaxed), "today": today_secs,
             // while locked the chrome gets no tab titles, addresses or bookmarks at all
@@ -1724,7 +1740,7 @@ impl App {
             });
         match b.build_as_child(&self.window) {
             Ok(wv) => {
-                install_blocker(&wv, self.proxy.clone());
+                install_blocker(&wv, self.proxy.clone(), id);
                 dl::install(&wv, p6, id, move || cfgc.lock().unwrap().organize);
                 media::install_audio(&wv, p7, id);
                 native::install(&wv, p8, id);
@@ -1845,6 +1861,25 @@ impl App {
         }
     }
 
+    /// Remember a downloadable video or audio file found on a tab's page.
+    fn note_media(&mut self, tab: u32, u: String) {
+        // only plain http(s) files; stream playlists and services that forbid saving are not offered
+        let l = u.to_lowercase();
+        let skip = !(l.starts_with("http://") || l.starts_with("https://"))
+            || is_local(&u)
+            || [".m3u8", ".mpd", ".ts?", "googlevideo.com", "/manifest", ".key"].iter().any(|x| l.contains(x));
+        if skip || u.len() >= 2000 || !self.tabs.iter().any(|t| t.id == tab) {
+            return;
+        }
+        let key = u.split('#').next().unwrap_or("").to_string();
+        let v = self.seen_media.entry(tab).or_default();
+        // the same file is requested in many ranges; keep one entry per address
+        if !v.contains(&key) && v.len() < 6 {
+            v.push(key);
+            self.push();
+        }
+    }
+
     fn dl_mut<R>(&self, id: u32, f: impl FnOnce(&mut Dl) -> R) -> Option<R> {
         self.ctx.store.lock().unwrap().downloads.iter_mut().find(|d| d.id == id).map(f)
     }
@@ -1860,7 +1895,7 @@ impl App {
             "addr" | "find" | "reload" | "back" | "forward" | "zin" | "zout" | "z0" | "new" | "close" | "bookmark" | "history" | "bar" | "fs"
                 | "nexttab" | "prevtab" | "tab1" | "tab2" | "tab3" | "tab4" | "tab5" | "tab6" | "tab7" | "tab8" | "tab9"
         );
-        if !trusted && !(matches!(cmd, "icon" | "pw_query" | "pw_capture" | "media") || (cmd == "key" && safe_key)) {
+        if !trusted && !(matches!(cmd, "icon" | "pw_query" | "pw_capture" | "media" | "media_found") || (cmd == "key" && safe_key)) {
             return;
         }
         // a page message must come from a live tab, and shortcuts and password actions only from
@@ -2255,6 +2290,48 @@ impl App {
                     let n = json!({"id":"owlkick","label":"OwlKick","text":"Filter list updates are off while a proxy is set, so your address is not revealed.","actions":[{"t":"OK","pri":true}]});
                     let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
                 }
+            }
+            "media_found" => {
+                // sent by a page: it can only add a candidate; nothing downloads until the user chooses
+                if !trusted {
+                    self.note_media(id, s("url"));
+                }
+            }
+            "media_list" => {
+                let list = self.seen_media.get(&self.active).cloned().unwrap_or_default();
+                if list.is_empty() {
+                    return;
+                }
+                let mut actions: Vec<Value> = list
+                    .iter()
+                    .take(3)
+                    .enumerate()
+                    .map(|(i, u)| json!({"t": format!("{}. {}", i + 1, media_label(u)), "cmd": "dl_media", "args": {"url": u}, "pri": i == 0}))
+                    .collect();
+                actions.push(json!({"t": "Close"}));
+                let n = json!({"id":"media","label":"Media","text":format!("{} file(s) found on this page. Choose one to download.", list.len()),"actions":actions});
+                let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+            }
+            "dl_media" => {
+                let u = s("url");
+                let known = self.seen_media.get(&self.active).map_or(false, |v| v.contains(&u));
+                if !known || self.locked || self.ctx.private || !engine::DIRECT_OK.load(Relaxed) {
+                    let n = json!({"id":"media","label":"Media","text":"This download is not available right now (locked, private window, or a proxy or secure DNS is on).","actions":[{"t":"OK","pri":true}]});
+                    let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+                    return;
+                }
+                let referer = self.tabs.iter().find(|t| t.id == self.active).map(|t| t.url.clone()).unwrap_or_default();
+                let organize = self.ctx.cfg.lock().unwrap().organize;
+                let path = dl::target(&media_label(&u), organize);
+                let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                let did = dl::next_id();
+                self.ctx.store.lock().unwrap().downloads.push(Dl {
+                    id: did, name, path: path.clone(), url: u.clone(), status: "downloading".into(), received: 0, total: 0, speed: 0.0, t: now(),
+                });
+                self.speeds.insert(did, (Instant::now(), 0, 0.0));
+                dl::start_direct(did, u, referer, path, self.proxy.clone());
+                self.ctx.save();
+                self.push();
             }
             "update_check" => {
                 if self.ctx.cfg.lock().unwrap().proxy.is_empty() {
@@ -3020,7 +3097,7 @@ fn main() {
         locked: !private, fails: 0, lock_until: None, pending: None, speeds: HashMap::new(),
         last_push: Instant::now(), proxy, ctx, ticks: 0, media: None, mw: None, mcollapsed: false,
         mshown: std::cell::Cell::new(false),
-        upg: HashMap::new(), last_key: Instant::now(), dl_ask: vec![], recent_dl: vec![], engine_watch: false,
+        upg: HashMap::new(), last_key: Instant::now(), dl_ask: vec![], seen_media: HashMap::new(), recent_dl: vec![], engine_watch: false,
         sealer: None, sealed_at_lock: false, last_active: Instant::now(),
         snap_wait: None, unclean, block_reason: false, restore2: vec![],
         dlg_queue: Default::default(), dlg_active: None, modal: false, no_dialog: Default::default(),
@@ -3168,8 +3245,12 @@ fn main() {
                         let _ = app.ui.evaluate_script(&format!("owl.notice({n})"));
                     }
                 }
+                Ev::MediaSeen(tab, u) => app.note_media(tab, u),
                 Ev::Nav(id, u) => {
                     if let Some(t) = app.tabs.iter_mut().find(|t| t.id == id) {
+                        if display(&u) != t.url {
+                            app.seen_media.remove(&id);
+                        }
                         t.url = display(&u);
                     }
                     app.push();
