@@ -6,6 +6,12 @@ All notable changes to Owl are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **OwlKick Engine**: content blocking now runs on the adblock-rust engine used by Brave (MPL-2.0; not made or endorsed by Brave). It understands EasyList and uBlock-style rules, matches by request type and third-party status, and hides page clutter with cosmetic filters. Owl's built-in tracker list always applies; Settings > Update lists downloads EasyList and EasyPrivacy on request.
+
+### Changed
+- The executable is about 3 MB instead of 1 MB because of the filter engine.
+
 ## [0.1.2] - 2026-11-11
 
 ### Security

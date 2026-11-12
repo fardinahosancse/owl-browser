@@ -7,10 +7,14 @@ use tao::event_loop::EventLoopProxy;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Networking::WinHttp::*;
 
-const HOST: PCWSTR = w!("api.github.com");
-const PATH: PCWSTR = w!("/repos/fardinahosancse/owl-browser/releases/latest");
-
 fn fetch() -> Option<String> {
+    fetch_url("api.github.com", "/repos/fardinahosancse/owl-browser/releases/latest", 256 * 1024)
+}
+
+/// HTTPS GET of a small text resource, capped at `cap` bytes. No cookies, generic user agent.
+pub fn fetch_url(host: &str, path: &str, cap: usize) -> Option<String> {
+    let (host, path) = (windows::core::HSTRING::from(host), windows::core::HSTRING::from(path));
+    let (HOST, PATH) = (PCWSTR(host.as_ptr()), PCWSTR(path.as_ptr()));
     unsafe {
         let s = WinHttpOpen(w!("Owl-update-check"), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, PCWSTR::null(), PCWSTR::null(), 0);
         if s.is_null() {
@@ -31,7 +35,7 @@ fn fetch() -> Option<String> {
                             break;
                         }
                         buf.extend_from_slice(&chunk[..n as usize]);
-                        if buf.len() > 256 * 1024 {
+                        if buf.len() > cap {
                             break;
                         }
                     }

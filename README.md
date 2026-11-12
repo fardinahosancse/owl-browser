@@ -38,7 +38,7 @@
 
 | | |
 |---|---|
-| **Tiny** | The whole browser is a single executable of about 1 MB. The page engine is the Edge WebView2 runtime already on your PC, so YouTube, Facebook, logins, caching and 1080p60 video work as in Edge. |
+| **Tiny** | The whole browser is a single executable of about 3 MB. The page engine is the Edge WebView2 runtime already on your PC, so YouTube, Facebook, logins, caching and 1080p60 video work as in Edge. |
 | **Swiss design** | A footer toolbar (tabs, address bar, window controls), generous type, a red accent, and light, dark, black, navy, invert, sand and random themes. Motion respects the system "reduce motion" setting. |
 | **Private by default** | Built-in tracker and ad blocking, HTTPS-only mode, Global Privacy Control, fingerprint noise, a permission policy, an optional proxy or Tor, and private windows that never save anything. See [Privacy and security](#privacy-and-security). |
 | **Encrypted at rest** | Cookies, saved logins, history and site storage are sealed on lock, on exit, after a crash and at Windows shutdown. Saved passwords are bound to your passphrase. |
@@ -167,7 +167,7 @@ unless a page you open asks for it. The one optional exception is the update che
 | **Auto-lock** | Locks after idle time, and when Windows locks, sleeps or shuts down. Locking closes every page and seals the profile. Typed text and scroll position are restored on unlock. |
 | **Safe failure** | Settings and vault writes are atomic with backups. A damaged settings file puts Owl in a recovery state instead of starting over, and a failed restore never deletes the sealed file. |
 | **Strict internal pages** | `owl://` pages use a per-load nonce Content-Security-Policy, no inline handlers, and cannot be framed. Web pages can reach only a short allow-list of commands. Fullscreen, popup and dialog events come from the engine, not from page scripts. |
-| **Tracker and ad blocking** | Built-in host blocklist, with counters on the home page. Optional **strict tracking prevention** also blocks third-party trackers and their stored cookies. |
+| **Tracker and ad blocking** | The **OwlKick Engine** (built on Brave's adblock-rust) with a built-in tracker list, optional EasyList and EasyPrivacy, cosmetic filtering and counters on the home page. Optional **strict tracking prevention** also blocks third-party trackers and their stored cookies. |
 | **HTTPS-only mode** | Upgrades `http://` to `https://` and shows a warning page, with "Go back" as the default, before any plain-http page is used. The address bar shows a lock or "Not secure". |
 | **Permission policy** | Sensors, local fonts, MIDI system access and window management are always refused. An optional setting refuses camera, microphone, location and notifications without asking. |
 | **Fingerprint protection** | Noise on canvas and audio reads, hidden GPU model and rounded hardware hints. A strict mode also normalises screen size, language and plugins. |
@@ -257,6 +257,7 @@ Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING
 
 ## Credits
 
+- [adblock-rust](https://github.com/brave/adblock-rust) (MPL-2.0), the filter engine behind Owl's **OwlKick Engine**. Owl is not made or endorsed by Brave.
 - [Lucide](https://lucide.dev) icons (ISC licence), drawn inline.
 - [tao](https://github.com/tauri-apps/tao) and [wry](https://github.com/tauri-apps/wry) from the Tauri project.
 - [webview2-com](https://github.com/wravery/webview2-rs) and the [windows](https://github.com/microsoft/windows-rs) crate.

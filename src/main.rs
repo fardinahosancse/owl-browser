@@ -3,6 +3,7 @@
 mod crypt;
 mod dl;
 mod media;
+mod owlkick;
 mod update;
 mod native;
 mod pages;
@@ -176,6 +177,31 @@ static BLOCKED_BASE: AtomicU64 = AtomicU64::new(0);
 /// Hosts the user chose to open over plain http this session.
 static ALLOW_HTTP: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
+pub fn data_dir() -> PathBuf {
+    PathBuf::from(std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".into())).join("Owl")
+}
+
+/// OwlKick Engine check: the page's address and the kind of request decide, as in Brave's engine.
+fn owlkick_blocks(url: &str, source: &str, ctx: i32) -> bool {
+    let host = host_of(url);
+    if host == HOST || host.is_empty() || url.starts_with("data:") || url.starts_with("blob:") {
+        return false;
+    }
+    let kind = match ctx {
+        1 => "document",
+        2 => "stylesheet",
+        3 => "image",
+        4 => "media",
+        5 => "font",
+        6 => "script",
+        8 | 9 => "xhr",
+        11 => "websocket",
+        14 => "ping",
+        _ => "other",
+    };
+    owlkick::should_block(url, source, kind, BLOCKED_HOSTS, BLOCKED_PATHS)
+}
+
 fn is_blocked(url: &str) -> bool {
     let rest = url.split("://").nth(1).unwrap_or("");
     let host_s = host_of(url);
@@ -223,6 +249,7 @@ fn install_blocker(wv: &WebView) {
     use windows::core::{w, PWSTR};
     unsafe {
         let core = wv.webview();
+        let core2 = core.clone();
         let env = wv.environment();
         let _ = core.AddWebResourceRequestedFilter(w!("*"), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
         let mut token = Default::default();
@@ -236,7 +263,11 @@ fn install_blocker(wv: &WebView) {
                     let mut p = PWSTR::null();
                     req.Uri(&mut p)?;
                     let u = take_pwstr(p);
-                    if is_blocked(&u) {
+                    let mut ctx = Default::default();
+                    let _ = args.ResourceContext(&mut ctx);
+                    let mut sp = PWSTR::null();
+                    let src = if core2.Source(&mut sp).is_ok() { take_pwstr(sp) } else { String::new() };
+                    if owlkick_blocks(&u, &src, ctx.0) {
                         let r = env.CreateWebResourceResponse(None, 403, w!("Blocked"), w!(""))?;
                         args.SetResponse(&r)?;
                         BLOCKED.fetch_add(1, Relaxed);
@@ -838,6 +869,8 @@ pub enum Ev {
     EngineUpdate,
     /// (latest version if newer else empty, user asked, check reached GitHub)
     Update(String, bool, bool),
+    /// filter lists downloaded (count)
+    Filters(usize),
     Audible(u32, bool),
     Snap(u32, String),
     /// (dialog id, tab id, kind 0 alert / 1 confirm / 2 prompt / 3 leave-page, page address, message, default text)
@@ -2066,6 +2099,17 @@ impl App {
                     }
                 }
             }
+            "filters_update" => {
+                if self.ctx.cfg.lock().unwrap().proxy.is_empty() {
+                    let p = self.proxy.clone();
+                    owlkick::update_lists(move |n| {
+                        let _ = p.send_event(Ev::Filters(n));
+                    });
+                } else {
+                    let n = json!({"id":"owlkick","label":"OwlKick","text":"Filter list updates are off while a proxy is set, so your address is not revealed.","actions":[{"t":"OK","pri":true}]});
+                    let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+                }
+            }
             "update_check" => {
                 if self.ctx.cfg.lock().unwrap().proxy.is_empty() {
                     update::check(self.proxy.clone(), true);
@@ -2903,6 +2947,18 @@ fn main() {
                 }
                 Ev::NavOk(id) => {
                     app.upg.remove(&id);
+                    // OwlKick cosmetic filtering: hide ad containers named by the loaded lists
+                    if BLOCK.load(Relaxed) && owlkick::list_count() > 0 {
+                        if let Some(t) = app.tabs.iter().find(|t| t.id == id) {
+                            if t.url.starts_with("http") {
+                                let css = owlkick::cosmetic_css(&t.url, BLOCKED_HOSTS, BLOCKED_PATHS);
+                                if !css.is_empty() {
+                                    let js = format!("(function(){{var s=document.createElement('style');s.textContent={};(document.head||document.documentElement).appendChild(s)}})()", serde_json::to_string(&css).unwrap_or_default());
+                                    let _ = t.wv.evaluate_script(&js);
+                                }
+                            }
+                        }
+                    }
                 }
                 Ev::NavFail(id, status) => {
                     // 11 = the navigation was cancelled (user moved on), not a connection failure
@@ -2927,6 +2983,12 @@ fn main() {
                         "actions": [{"t":"Later"},{"t":"Restart now","cmd":"restart","pri":true}]
                     });
                     let _ = app.ui.evaluate_script(&format!("owl.notice({n})"));
+                }
+                Ev::Filters(n) => {
+                    owlkick::reload();
+                    let text = if n > 0 { format!("OwlKick Engine updated {n} filter lists.") } else { "Could not download the filter lists.".to_string() };
+                    let note = json!({"id":"owlkick","label":"OwlKick","text":text,"actions":[{"t":"OK","pri":true}]});
+                    let _ = app.ui.evaluate_script(&format!("owl.notice({note})"));
                 }
                 Ev::Update(latest, manual, reached) => {
                     let (text, acts) = if !latest.is_empty() {
