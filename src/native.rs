@@ -7,7 +7,7 @@ use webview2_com::{
     take_pwstr,
     Microsoft::Web::WebView2::Win32::{ICoreWebView2Deferral, ICoreWebView2Environment5, ICoreWebView2ScriptDialogOpeningEventArgs},
     ContainsFullScreenElementChangedEventHandler, NavigationCompletedEventHandler, NewBrowserVersionAvailableEventHandler,
-    NewWindowRequestedEventHandler, PermissionRequestedEventHandler, ScriptDialogOpeningEventHandler,
+    NavigationStartingEventHandler, NewWindowRequestedEventHandler, PermissionRequestedEventHandler, ScriptDialogOpeningEventHandler,
 };
 use webview2_com::Microsoft::Web::WebView2::Win32::{
     COREWEBVIEW2_PERMISSION_KIND_CAMERA, COREWEBVIEW2_PERMISSION_KIND_GEOLOCATION, COREWEBVIEW2_PERMISSION_KIND_LOCAL_FONTS,
@@ -81,6 +81,23 @@ pub fn install(wv: &WebView, proxy: EventLoopProxy<Ev>, id: u32) {
                     let mut b = BOOL(0);
                     s.ContainsFullScreenElement(&mut b)?;
                     let _ = p.send_event(Ev::Fullscreen(id, b.as_bool()));
+                }
+                Ok(())
+            })),
+            &mut t,
+        );
+        // magnet links open in Owl's torrent client instead of an external program
+        let pm = proxy.clone();
+        let _ = core.add_NavigationStarting(
+            &NavigationStartingEventHandler::create(Box::new(move |_, args| {
+                if let Some(a) = args {
+                    let mut s = windows::core::PWSTR::null();
+                    a.Uri(&mut s)?;
+                    let uri = take_pwstr(s);
+                    if uri.len() >= 8 && uri[..8].eq_ignore_ascii_case("magnet:?") {
+                        a.SetCancel(true)?;
+                        let _ = pm.send_event(Ev::Magnet(uri));
+                    }
                 }
                 Ok(())
             })),

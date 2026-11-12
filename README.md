@@ -38,7 +38,7 @@
 
 | | |
 |---|---|
-| **Tiny** | The whole browser is a single executable of about 3 MB. The page engine is the Edge WebView2 runtime already on your PC, so YouTube, Facebook, logins, caching and 1080p60 video work as in Edge. |
+| **Tiny** | The whole browser is a single executable of about 6 MB. The page engine is the Edge WebView2 runtime already on your PC, so YouTube, Facebook, logins, caching and 1080p60 video work as in Edge. |
 | **Swiss design** | A footer toolbar (tabs, address bar, window controls), generous type, a red accent, and light, dark, black, navy, invert, sand and random themes. Motion respects the system "reduce motion" setting. |
 | **Private by default** | Built-in tracker and ad blocking, HTTPS-only mode, Global Privacy Control, fingerprint noise, a permission policy, an optional proxy or Tor, and private windows that never save anything. See [Privacy and security](#privacy-and-security). |
 | **Encrypted at rest** | Cookies, saved logins, history and site storage are sealed on lock, on exit, after a crash and at Windows shutdown. Saved passwords are bound to your passphrase. |
@@ -257,6 +257,7 @@ Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING
 
 ## Credits
 
+- [librqbit](https://github.com/ikatson/rqbit) (Apache-2.0), the BitTorrent engine.
 - [adblock-rust](https://github.com/brave/adblock-rust) (MPL-2.0), the filter engine behind Owl's **OwlKick Engine**. Owl is not made or endorsed by Brave.
 - [Lucide](https://lucide.dev) icons (ISC licence), drawn inline.
 - [tao](https://github.com/tauri-apps/tao) and [wry](https://github.com/tauri-apps/wry) from the Tauri project.

@@ -8,10 +8,11 @@ All notable changes to Owl are documented here. The format follows
 
 ### Added
 - **Segmented download engine**: files of 2 MB or more from servers that support ranges download over up to 8 connections at once, with pause, resume and retry with backoff, using the existing download UI. Page cookies are sent only to the host the download started from. Other downloads, and all downloads while a proxy is set, use the browser's normal path.
+- **BitTorrent client**: magnet links and finished .torrent downloads open in Owl's built-in torrent engine (librqbit, Apache-2.0) and appear in the normal download list with progress, pause, resume and cancel. It only connects out (no listening port), stops seeding when complete, and is refused in private windows, while locked, and while a proxy is set, because peers would see your real address.
 - **OwlKick Engine**: content blocking now runs on the adblock-rust engine used by Brave (MPL-2.0; not made or endorsed by Brave). It understands EasyList and uBlock-style rules, matches by request type and third-party status, and hides page clutter with cosmetic filters. Owl's built-in tracker list always applies; Settings > Update lists downloads EasyList and EasyPrivacy on request.
 
 ### Changed
-- The executable is about 3 MB instead of 1 MB because of the filter engine.
+- The executable is about 6 MB instead of 1 MB because of the filter and torrent engines.
 
 ## [0.1.2] - 2026-11-11
 

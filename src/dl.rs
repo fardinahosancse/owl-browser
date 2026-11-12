@@ -133,6 +133,10 @@ pub fn probe_done(id: u32, probe: Option<crate::engine::Probe>, proxy: EventLoop
     }
 }
 
+pub fn next_id() -> u32 {
+    NEXT.fetch_add(1, Relaxed)
+}
+
 pub fn set_next(n: u32) {
     NEXT.store(n, Relaxed);
 }
@@ -295,7 +299,7 @@ pub fn install(wv: &WebView, proxy: EventLoopProxy<Ev>, tab: u32, organize: impl
 }
 
 pub fn pause(id: u32) {
-    if crate::engine::pause(id) {
+    if crate::engine::pause(id) || crate::torrent::pause(id) {
         return;
     }
     OPS.with(|o| {
@@ -307,6 +311,9 @@ pub fn pause(id: u32) {
     });
 }
 pub fn resume(id: u32) -> bool {
+    if crate::torrent::resume(id) {
+        return true;
+    }
     if let Some(p) = PROXY.with(|p| p.borrow().clone()) {
         if crate::engine::resume(id, p) {
             return true;
@@ -317,7 +324,7 @@ pub fn resume(id: u32) -> bool {
     })
 }
 pub fn cancel(id: u32) {
-    if crate::engine::cancel(id) {
+    if crate::engine::cancel(id) || crate::torrent::cancel(id) {
         return;
     }
     OPS.with(|o| {

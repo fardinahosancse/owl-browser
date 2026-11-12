@@ -4,6 +4,7 @@ mod crypt;
 mod dl;
 mod engine;
 mod media;
+mod torrent;
 mod owlkick;
 mod update;
 mod native;
@@ -865,6 +866,10 @@ pub enum Ev {
     DlProg(u32, i64, i64),
     DlState(u32, i32),
     DlProbe(u32, Option<engine::Probe>),
+    /// a magnet link was opened
+    Magnet(String),
+    /// torrent metadata known: (download id, name)
+    TorrentName(u32, String),
     Fullscreen(u32, bool),
     NavFail(u32, i32),
     NavOk(u32),
@@ -1370,6 +1375,37 @@ impl App {
     }
 
     /// Settle a download that was held for a decision.
+    /// Start a torrent as a normal entry in the download list.
+    fn start_torrent(&mut self, src: torrent::Source, label: String) {
+        let why = if self.locked {
+            Some("Owl is locked.")
+        } else if self.ctx.private {
+            Some("Torrents are not available in private windows.")
+        } else if !self.ctx.cfg.lock().unwrap().proxy.is_empty() {
+            Some("Torrents are off while a proxy is set, because peers would see your real address.")
+        } else {
+            None
+        };
+        if let Some(w) = why {
+            let n = json!({"id":"torrent","label":"Torrent","text":w,"actions":[{"t":"OK","pri":true}]});
+            let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+            return;
+        }
+        let id = dl::next_id();
+        let url = if let torrent::Source::Magnet(m) = &src { m.chars().take(300).collect() } else { String::new() };
+        self.ctx.store.lock().unwrap().downloads.push(Dl {
+            id, name: label, path: dl::root().to_string_lossy().to_string(), url,
+            status: "downloading".into(), received: 0, total: 0, speed: 0.0, t: now(),
+        });
+        self.speeds.insert(id, (Instant::now(), 0, 0.0));
+        let p = Mutex::new(self.proxy.clone());
+        torrent::add(id, src, move |e| {
+            let _ = p.lock().unwrap().send_event(e);
+        });
+        self.ctx.save();
+        self.push();
+    }
+
     fn dl_answer(&mut self, id: u32, allow: bool) {
         self.dl_ask.retain(|(i, _)| *i != id);
         dl::decide(id, allow);
@@ -3135,6 +3171,20 @@ fn main() {
                     }
                 }
                 Ev::DlAsk(id, tab, url, path) => app.dl_incoming(id, tab, url, path),
+                Ev::Magnet(m) => {
+                    if torrent::is_magnet(&m) {
+                        app.start_torrent(torrent::Source::Magnet(m), "Torrent (fetching details)".into());
+                    }
+                }
+                Ev::TorrentName(id, name) => {
+                    if !name.is_empty() {
+                        app.dl_mut(id, |d| {
+                            d.path = dl::root().join(&name).to_string_lossy().to_string();
+                            d.name = name;
+                        });
+                        app.push();
+                    }
+                }
                 Ev::DlProbe(id, p) => dl::probe_done(id, p, app.proxy.clone()),
                 Ev::DlProg(id, r, t) => {
                     let mut sp = 0.0;
@@ -3172,6 +3222,15 @@ fn main() {
                             });
                             dl::forget(id);
                             app.speeds.remove(&id);
+                            // a finished .torrent file starts its torrent
+                            let tpath = app.dl_mut(id, |d| d.path.clone()).unwrap_or_default();
+                            if tpath.to_lowercase().ends_with(".torrent") && dl::inside_root(&tpath) {
+                                if let Ok(b) = std::fs::read(&tpath) {
+                                    if b.len() < 4 * 1024 * 1024 {
+                                        app.start_torrent(torrent::Source::File(b), "Torrent (fetching details)".into());
+                                    }
+                                }
+                            }
                         }
                         1 if !paused => {
                             app.dl_mut(id, |d| {
