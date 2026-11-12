@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "owl"
 version = "0.1.2"
 edition = "2021"
@@ -16,7 +16,7 @@ serde_json = "1"
 sha2 = "0.11.1"
 chacha20poly1305 = "0.10"
 argon2 = "0.5"
-x25519-dalek = "2"
+x25519-dalek = "3"
 zeroize = "1"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "gif", "webp"] }
 anyhow = "1"
