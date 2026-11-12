@@ -35,6 +35,7 @@ All notable changes to Owl are documented here. The format follows
 - The image fetching part of Data saver, fast downloads and Save image as in another format are off while a proxy or secure DNS is on (they would bypass them).
 - Data saver's `Save-Data` header is not added to page navigations, only to sub-requests.
 - The permissions page and the WARP connect path were not checked visually or with a real WARP client.
+- Dependency advisory RUSTSEC-2026-0293 (ringbuf 0.4.8, pulled in by the torrent library's uTP transport) cannot be updated yet. The vulnerable code is not reachable because Owl starts the torrent engine with no listener, so no uTP socket exists. It is ignored in CI with this reason and tracked on GitHub.
 - Files are not Authenticode-signed (SmartScreen may warn); verify with the build attestation (#32).
 - macOS version is not started (#91). Open UI issues: form labels and errors (#51, #77), oversized headings (#56), find match counter (#65, #83). Many older P2 and P3 security and test issues remain open; see the issue list.
 
