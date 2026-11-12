@@ -171,6 +171,7 @@ unless a page you open asks for it. The one optional exception is the update che
 | **HTTPS-only mode** | Upgrades `http://` to `https://` and shows a warning page, with "Go back" as the default, before any plain-http page is used. The address bar shows a lock or "Not secure". |
 | **Permission policy** | Sensors, local fonts, MIDI system access and window management are always refused. An optional setting refuses camera, microphone, location and notifications without asking. |
 | **Fingerprint protection** | Noise on canvas and audio reads, hidden GPU model and rounded hardware hints. A strict mode also normalises screen size, language and plugins. |
+| **Secure DNS** | Optional. Site names are looked up over HTTPS at Cloudflare 1.1.1.1 through a loopback-only proxy, so your network's DNS server cannot see them. It is not a VPN. |
 | **Privacy signals and proxy** | Global Privacy Control is sent. An optional SOCKS or HTTP proxy (for example Tor) also carries WebRTC traffic. |
 | **Downloads** | Risky file types, downloads from background tabs and bursts are held for your approval. Files open without a shell and only from the Downloads folder. Windows reputation (SmartScreen) checks are required. |
 | **Dialogs** | JavaScript alerts, confirms and prompts appear in Owl's own centered dialog (with masked input for key prompts) instead of system boxes a page could use to trap you. |

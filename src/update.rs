@@ -13,6 +13,11 @@ fn fetch() -> Option<String> {
 
 /// HTTPS GET of a small text resource, capped at `cap` bytes. No cookies, generic user agent.
 pub fn fetch_url(host: &str, path: &str, cap: usize) -> Option<String> {
+    fetch_with(host, path, cap, "")
+}
+
+/// Like `fetch_url`, with an Accept header (for example the DNS-over-HTTPS JSON type).
+pub fn fetch_with(host: &str, path: &str, cap: usize, accept: &str) -> Option<String> {
     let (host, path) = (windows::core::HSTRING::from(host), windows::core::HSTRING::from(path));
     let (HOST, PATH) = (PCWSTR(host.as_ptr()), PCWSTR(path.as_ptr()));
     unsafe {
@@ -26,6 +31,11 @@ pub fn fetch_url(host: &str, path: &str, cap: usize) -> Option<String> {
             let r = WinHttpOpenRequest(c, w!("GET"), PATH, PCWSTR::null(), PCWSTR::null(), std::ptr::null(), WINHTTP_FLAG_SECURE);
             if !r.is_null() {
                 let _ = WinHttpSetTimeouts(r, 5000, 5000, 5000, 8000);
+                if !accept.is_empty() {
+                    let w: Vec<u16> = format!("Accept: {accept}
+").encode_utf16().collect();
+                    let _ = WinHttpAddRequestHeaders(r, &w, WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE);
+                }
                 if WinHttpSendRequest(r, None, None, 0, 0, 0).is_ok() && WinHttpReceiveResponse(r, std::ptr::null_mut()).is_ok() {
                     let mut buf: Vec<u8> = Vec::new();
                     loop {

@@ -2,6 +2,7 @@
 
 mod crypt;
 mod dl;
+mod doh;
 mod engine;
 mod media;
 mod torrent;
@@ -404,6 +405,9 @@ pub struct Config {
     /// refuse camera, microphone, location and notification requests without asking
     #[serde(default)]
     pub perm_block: bool,
+    /// resolve names through Cloudflare 1.1.1.1 over HTTPS (needs a restart)
+    #[serde(default)]
+    pub doh: bool,
     /// download speed limit in KB/s, 0 = none
     #[serde(default)]
     pub dl_limit: u32,
@@ -454,7 +458,7 @@ impl Default for Config {
             block: true, https_only: false, sync_dir: String::new(), theme: sys(), bookmark_bar: false,
             pin_hash: String::new(), pin_salt: String::new(), organize: true, pw_save: true, pw_never: vec![],
             strikes: 0, fails: 0, locked_until: 0, sync_key: String::new(), pin_mode: pin_mode(), kdf: 0, fp: true,
-            fp_strict: false, perm_block: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
+            fp_strict: false, perm_block: false, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
             seal_pub: String::new(), seal_priv: String::new(), lock_on_winlock: true,
         }
     }
@@ -1574,7 +1578,10 @@ impl App {
             }
         }
         let proxy = ctx.cfg.lock().unwrap().proxy.clone();
-        let proxy_args = if proxy.is_empty() {
+        let proxy_args = if proxy.is_empty() && doh::active() {
+            // secure DNS: connections go through Owl's loopback resolver proxy
+            format!(" --proxy-server=socks5://127.0.0.1:{} --force-webrtc-ip-handling-policy=disable_non_proxied_udp", doh::PORT.load(Relaxed))
+        } else if proxy.is_empty() {
             String::new()
         } else {
             // hide the IP behind the proxy and stop WebRTC from bypassing it
@@ -2561,6 +2568,7 @@ impl App {
                             c.track_strict = on;
                             native::TRACK_STRICT.store(on, Relaxed)
                         }
+                        "doh" => c.doh = on,
                         "perm_block" => {
                             c.perm_block = on;
                             native::PERM_BLOCK.store(on, Relaxed)
@@ -2844,7 +2852,9 @@ fn main() {
             || (cfg.seal_pub.is_empty() && cfg.pin_hash.is_empty() && profile::has_sealed(&dir) && !cfg_exists_ok(&dir)));
     BLOCK.store(cfg.block, Relaxed);
     native::PERM_BLOCK.store(cfg.perm_block, Relaxed);
-    engine::DIRECT_OK.store(cfg.proxy.is_empty(), Relaxed);
+    // secure DNS needs a loopback proxy; the fast download engine would bypass it, so it stays off
+    let secure_dns = cfg.doh && cfg.proxy.is_empty() && doh::start().is_some();
+    engine::DIRECT_OK.store(cfg.proxy.is_empty() && !secure_dns, Relaxed);
     engine::LIMIT_KB.store(cfg.dl_limit as u64, Relaxed);
     engine::MAX_ACTIVE.store(cfg.dl_active.clamp(1, 8), Relaxed);
     native::TRACK_STRICT.store(cfg.track_strict, Relaxed);
