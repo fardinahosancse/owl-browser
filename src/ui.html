@@ -17,7 +17,7 @@ svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke
 
 @keyframes sh{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 @keyframes dot{from{transform:scale(.4)}to{transform:scale(1)}}
-#bar{flex:none;display:flex;flex-direction:column;border-top:1px solid var(--ink);position:relative;background:var(--bg)}
+#bar{flex:none;display:flex;flex-direction:column;contain:layout paint;border-top:1px solid var(--ink);position:relative;background:var(--bg)}
 #top{height:32px;display:flex;align-items:stretch;border-bottom:1px solid var(--line)}
 #brand{width:40px;background:var(--red);color:var(--onred);letter-spacing:-.04em;display:flex;align-items:center;justify-content:center;flex:none;font:italic 700 16px Georgia,serif}
 #tabs{display:flex;flex:1;min-width:0}
@@ -259,6 +259,7 @@ body.top #ovl{border-top:0;border-bottom:2px solid var(--ink)}
 const $=id=>document.getElementById(id), send=o=>window.ipc.postMessage(JSON.stringify(o));
 const url=$('url'), tl=$('tl'), find=$('find'), fi=$('fi'), ovl=$('ovl');
 let S={tabs:[],active:0,bookmarks:[],cfg:{}}, drag=null, mode=null, sugg=[], sel=0, typed='', pend=null, pin='', ctxId=0, prevBm=false;
+let lastMarks='',lastLoad='';
 /* Lucide icons (ISC licence) */
 const P={
  back:'<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',fwd:'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
@@ -358,7 +359,7 @@ tl.addEventListener('wheel',e=>{if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){tl.scr
 $('marks').addEventListener('wheel',e=>{if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){$('marks').scrollLeft+=e.deltaY;e.preventDefault()}},{passive:false});
 /* ---------- state ---------- */
 window.owl={
- state(s){S=s;const c=s.cfg||{};
+ state(s){S=s;const c=s.cfg||{};if(s.locked){lastMarks='';lastLoad=''}
   document.documentElement.dataset.theme=c.eff||c.theme||'system';
   document.body.classList.toggle('private',!!s.private);document.body.classList.toggle('bm',!!c.bar);
   document.body.classList.toggle('locked',!!s.locked);
@@ -375,7 +376,8 @@ window.owl={
   if(a){if(document.activeElement!==url)url.value=(a.url==='owl://newtab')?'':a.url;
    const z=Math.round(a.zoom*100);$('zc').textContent=z+'%';$('zc').classList.toggle('show',z!==100);
    $('back').disabled=!a.back;$('fwd').disabled=!a.fwd;setIc($('rel'),a.loading?'x':'rel');setSec(a.url);
-   const l=$('load');l.className='';l.style.width='0';if(a.loading){void l.offsetWidth;l.className='go'}else{l.style.width='100%';setTimeout(()=>{if(!l.className)l.style.width='0'},250)}}
+   // the loading bar only restarts when loading starts or stops, not on every state update
+   const l=$('load'),lk=a.id+':'+!!a.loading;if(lk!==lastLoad){lastLoad=lk;l.className='';l.style.width='0';if(a.loading){void l.offsetWidth;l.className='go'}else{l.style.width='100%';setTimeout(()=>{if(!l.className)l.style.width='0'},250)}}}
   if(!!s.bookmarked!==prevBm){prevBm=!!s.bookmarked;$('star').classList.remove('pop');void $('star').offsetWidth;$('star').classList.add('pop')}
   $('star').classList.toggle('on',!!s.bookmarked);
   $('shield').textContent=s.blocked>0?'Kick '+s.blocked:'Kick';$('qkick').title='OwlKick: '+(c.block?s.blocked+' blocked on this page session':'off')+'. Open activity';$('qkick').classList.toggle('off',!c.block);
@@ -386,6 +388,8 @@ window.owl={
   const d=s.dl||{active:0},db=$('dlb');
   db.classList.toggle('act',d.active>0);$('dls').textContent=d.active>0?spd(d.speed||0):'';$('dlp').style.width=d.active>0?d.pct+'%':'0';
   db.title=d.active>0?d.active+' downloading · '+d.pct+'% · '+spd(d.speed||0):'Downloads';
+  // rebuild the bookmark bar only when the bookmarks change (it holds icons that would flicker)
+  const bsig=JSON.stringify(s.bookmarks);if(bsig!==lastMarks){lastMarks=bsig;
   const bm=$('marks');bm.innerHTML='';let cur=null;
   [...s.bookmarks].sort((a,b)=>(a.group||'').localeCompare(b.group||'')).forEach(b=>{
    if(b.group!==cur){cur=b.group;bm.appendChild(el('div','g',cur||'General'))}
@@ -393,7 +397,7 @@ window.owl={
    m.onclick=()=>send({cmd:'navigate',url:b.url});m.onauxclick=e=>{if(e.button===1)send({cmd:'new_tab',url:b.url})};
    m.oncontextmenu=e=>{e.preventDefault();askLocal('prompt','Bookmark','Move "'+(b.title||b.url)+'" to which group? Remove it from the Bookmarks page.',b.group||'General').then(g=>{
     if(g===null||!g.trim())return;send({cmd:'bm_group',url:b.url,group:g.trim()})})};
-   bm.appendChild(m)});
+   bm.appendChild(m)});}
   if(mode==='menu')drawMenu(false);if(mode==='ctx')drawCtx(false)},
  focusAddr(){mode==='menu'&&closeOvl();url.focus();url.select()},
  toggleFind(){closeOvl();find.classList.toggle('show');const on=find.classList.contains('show');document.body.classList.toggle('finding',on);if(on){fi.focus();fi.select()}else send({cmd:'find',q:''})},

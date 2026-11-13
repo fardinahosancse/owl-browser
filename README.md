@@ -259,6 +259,7 @@ Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING
 
 ## Credits
 
+- [Space Grotesk](https://github.com/floriankarsten/space-grotesk) typeface (SIL Open Font License 1.1, see `assets/fonts/OFL.txt`).
 - [librqbit](https://github.com/ikatson/rqbit) (Apache-2.0), the BitTorrent engine.
 - [adblock-rust](https://github.com/brave/adblock-rust) (MPL-2.0), the filter engine behind Owl's **OwlKick Engine**. Owl is not made or endorsed by Brave.
 - [Lucide](https://lucide.dev) icons (ISC licence), drawn inline.

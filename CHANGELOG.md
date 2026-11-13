@@ -6,6 +6,22 @@ All notable changes to Owl are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Download manager**: add a download by pasting a link or magnet link; live per-part progress and connection count for fast downloads; Start now for queued downloads; filters (active, completed, torrents), file-type filter and search; speed limit and downloads-at-once controls on the page; Copy link and Open folder; totals for active downloads, speed, connections and torrent upload.
+- **Torrent rows**: their own icon and tag, state (fetching details, downloading, seeding), peers and seeders connected, upload speed and amount uploaded, Stop, Stop and delete, Stop seeding.
+- **Toolbar quick toggles**: Saver (Data saver on/off), DNS (secure DNS, applies after restart) and Kick (OwlKick count; opens the activity page).
+- **OwlKick activity page** (owl://owlkick): blocked this session and all time, most blocked hosts, pages with most blocking, blocks by kind and the latest blocked requests. Kept in memory only.
+- **Settings sidebar**: sticky section list with the current section highlighted, and new groups: Appearance, Security, Privacy, OwlKick blocking, Network, Speed and data, Downloads, Sync, Profile and advanced.
+- **Toolbar at the top** option (Settings > Appearance).
+- **New clock**: Space Grotesk (SIL Open Font License, bundled; nothing is fetched at run time), a seconds line and the week number.
+
+### Fixed
+- A fast download showed "failed" while still downloading, because the browser's cancelled copy reported an interruption.
+- Screen-reader-only labels were visible on some pages.
+
+### Changed
+- Smoother toolbar: the bookmark bar is rebuilt only when bookmarks change, the loading bar no longer restarts on every update, and download rows update in place instead of redrawing the list.
+
 ## [0.2.0] - 2026-11-13
 
 ### Added

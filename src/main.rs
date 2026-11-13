@@ -1822,6 +1822,16 @@ impl App {
                  --autoplay-policy=no-user-gesture-required{proxy_args}"
             ))
             .with_custom_protocol("owl".into(), move |_id, req| {
+                // bundled typeface (Space Grotesk, SIL Open Font License) for Owl's own pages
+                if req.uri().path() == "/font/space-grotesk.woff2" {
+                    return Response::builder()
+                        .status(200)
+                        .header("Content-Type", "font/woff2")
+                        .header("Cache-Control", "max-age=31536000, immutable")
+                        .header("X-Content-Type-Options", "nosniff")
+                        .body(Cow::Borrowed(&include_bytes!("../assets/fonts/SpaceGrotesk-latin.woff2")[..]))
+                        .unwrap();
+                }
                 let (code, ctype, body) = serve(req.uri().path(), req.uri().query().unwrap_or(""), &c1);
                 Response::builder()
                     .status(code)

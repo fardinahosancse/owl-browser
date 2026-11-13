@@ -62,8 +62,16 @@ body.landing{padding:0}
 .hero header{margin-bottom:0}
 .hcore{display:flex;flex-direction:column;justify-content:center;gap:clamp(18px,4vh,44px)}
 .hcore>*{animation:rise .9s cubic-bezier(.2,.7,.2,1) both}.hcore>:nth-child(2){animation-delay:.08s}.hcore>:nth-child(3){animation-delay:.16s}
-.clock{font:italic 400 clamp(80px,19vh,240px)/.82 Georgia,"Palatino Linotype","Book Antiqua",serif;letter-spacing:-.045em;white-space:nowrap;font-variant-numeric:oldstyle-nums}
-.clock small{font:700 .17em/1 "Helvetica Neue",Helvetica,Arial,sans-serif;font-style:normal;letter-spacing:0;color:var(--red);margin-left:.3em;vertical-align:top;display:inline-block;padding-top:.35em}
+@font-face{font-family:"Space Grotesk";src:url(/font/space-grotesk.woff2) format("woff2");font-weight:300 700;font-display:swap}
+.clock{font:600 clamp(96px,22vh,280px)/.8 "Space Grotesk","Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:-.065em;white-space:nowrap;font-variant-numeric:tabular-nums;display:flex;align-items:flex-start}
+.clock .co{font-style:normal;color:var(--red);margin:0 .02em;transform:translateY(-.04em);transition:opacity .35s}
+.clock.tick .co{opacity:.25}
+.clock small{font:500 .16em/1 "Space Grotesk","Helvetica Neue",Arial,sans-serif;letter-spacing:0;color:var(--red);margin-left:.35em;padding-top:.32em;font-variant-numeric:tabular-nums}
+.clk{display:inline-flex;flex-direction:column;align-self:flex-start;gap:10px}
+.secs{height:3px;background:var(--line);position:relative}
+.secs i{position:absolute;left:0;top:0;bottom:0;background:var(--red);width:0;transition:width .95s linear}
+.stat b,.kst b,.stats b{font-family:"Space Grotesk","Helvetica Neue",Arial,sans-serif}
+@media(prefers-reduced-motion:reduce){.clock .co,.secs i{transition:none}.clock.tick .co{opacity:1}}
 .hello{display:flex;justify-content:space-between;align-items:baseline;font-size:clamp(18px,3vh,28px);font-weight:500}
 .hello b{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin-right:14px}
 .hello span:last-child{color:var(--mute)}
@@ -183,7 +191,7 @@ fn page(title: &str, body: &str, head: &str, theme: &str, cls: &str) -> String {
     // Strict CSP: only scripts carrying this per-response nonce run, so injected markup or
     // inline handlers can never execute inside these privileged pages.
     let csp = format!(
-        "default-src 'none'; script-src 'nonce-{n}'; style-src 'unsafe-inline'; img-src http: https: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"
+        "default-src 'none'; script-src 'nonce-{n}'; style-src 'unsafe-inline'; img-src http: https: data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"
     );
     let html = format!(
         "<!doctype html><html data-theme=\"{theme}\"><meta http-equiv=\"Content-Security-Policy\" content=\"{csp}\"><meta charset=utf-8><title>{title}</title>\
@@ -213,9 +221,10 @@ fn dur_txt(s: u64) -> String {
     if h > 0 { format!("{h}h {m:02}m") } else if m > 0 { format!("{m}m") } else if s > 0 { "<1m".into() } else { "0m".into() }
 }
 
-const NEWTAB_JS: &str = r#"<script>const p=n=>String(n).padStart(2,'0');function t(){const d=new Date(),h=d.getHours();c.innerHTML=p(h)+':'+p(d.getMinutes())+'<small>'+p(d.getSeconds())+'</small>';
+const NEWTAB_JS: &str = r#"<script>const p=n=>String(n).padStart(2,'0');function t(){const d=new Date(),h=d.getHours(),sec=d.getSeconds();hh.textContent=p(h);mm.textContent=p(d.getMinutes());ss.textContent=p(sec);c.classList.toggle('tick',sec%2===1);sb.style.transition=sec===0?'none':'';sb.style.width=(sec/59*100)+'%';
+const wk=(()=>{const x=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const n=x.getUTCDay()||7;x.setUTCDate(x.getUTCDate()+4-n);const y=new Date(Date.UTC(x.getUTCFullYear(),0,1));return Math.ceil(((x-y)/864e5+1)/7)})();
 const nm=document.querySelector('.hello').dataset.name;gr.textContent=(h<5?'Good night':h<12?'Good morning':h<18?'Good afternoon':'Good evening')+(nm?', '+nm:'');
-wd.textContent=d.toLocaleDateString('en',{weekday:'long'});dt.textContent=d.toLocaleDateString('en',{day:'numeric',month:'long',year:'numeric'})}t();setInterval(t,1000);
+wd.textContent=d.toLocaleDateString('en',{weekday:'long'});dt.textContent=d.toLocaleDateString('en',{day:'numeric',month:'long',year:'numeric'})+' \u00b7 Week '+wk}t();setInterval(t,1000);
 f.onsubmit=e=>{e.preventDefault();const v=q.value.trim();if(!v)return;
 location.href=/^[a-z]+:\/\//i.test(v)?v:(!/\s/.test(v)&&/\./.test(v))?'https://'+v:'https://duckduckgo.com/?q='+encodeURIComponent(v)};
 addEventListener('keydown',e=>{if(document.activeElement===q||e.ctrlKey||e.altKey||e.metaKey)return;
@@ -303,7 +312,7 @@ pub fn newtab(s: &Store, c: &Config, sess: u32, total: u64, pw_count: usize, tod
         "<div class=land>\
 <section class=hero>{hdr}<div class=hcore>\
 <div class=hello data-name=\"{name}\"><span><b id=gr></b><span id=wd></span></span><span id=dt></span></div>\
-<div class=clock id=c>00:00<small>00</small></div>\
+<div class=clk><div class=clock id=c aria-live=off><span id=hh>00</span><i class=co aria-hidden=true>:</i><span id=mm>00</span><small id=ss>00</small></div><div class=secs aria-hidden=true><i id=sb></i></div></div>\
 <form class=s id=f><input id=q autofocus autocomplete=off spellcheck=false placeholder=\"Search privately or type an address\"><kbd>/</kbd></form></div>\
 <div class=scroll><span>Scroll</span><span><a href=\"#quick\">Jump back in</a> \u{00b7} <a href=\"#priv\">Privacy</a> \u{00b7} <a href=\"#time\">Time</a> \u{00b7} <a href=\"#dl\">Downloads</a> \u{00b7} <a href=\"owl://about\">About</a></span></div></section>\
 <section class=\"rv q\" id=quick><h2 style=\"margin-bottom:20px\">Quick access <span>press 1\u{2013}8</span></h2><div class=\"huge sm\">Jump back in<em>.</em></div><div class=tiles>{tiles}</div><h2>Bookmarks</h2><div class=groups>{gh}</div></section>\
