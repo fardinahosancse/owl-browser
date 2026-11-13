@@ -23,6 +23,7 @@ svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke
 #tabs{display:flex;flex:1;min-width:0}
 #tl{display:flex;min-width:0;flex:0 1 auto;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}#tl::-webkit-scrollbar{display:none}
 #fill{flex:1;min-width:28px}
+#top,#tabs,#fill,#brand,#ldrag{app-region:drag}#top button,#top input,.tab,#plus,#priv,#tl>*{app-region:no-drag}
 .tab{flex:0 1 200px;max-width:200px;min-width:56px;display:flex;align-items:center;gap:7px;padding:0 6px 0 10px;border-right:1px solid var(--line);cursor:pointer;position:relative;overflow:hidden;transition:background .16s,color .16s,box-shadow .16s}
 .tab.enter{animation:tin .24s cubic-bezier(.2,.8,.2,1)}
 .tab.leave{animation:tout .17s ease-in forwards;pointer-events:none}
@@ -37,6 +38,7 @@ svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke
 .tab:hover{background:var(--soft)}
 .tab.on{background:var(--ink);color:var(--on);--red:var(--rink);box-shadow:inset 0 -3px 0 var(--red)}.tab.on .n{color:inherit;opacity:.7}.tab.on .x{color:var(--mute-on)}.tab.on .x:hover{color:var(--onred)}
 .tab.over{box-shadow:inset 3px 0 0 var(--red)}
+.tab.lift{z-index:3;transition:none;background:var(--bg);box-shadow:0 0 0 1px var(--ink);cursor:grabbing}.tab.slide{transition:transform .18s cubic-bezier(.2,.8,.2,1)}#tl.dragging .tab:not(.lift){transition:transform .18s cubic-bezier(.2,.8,.2,1)}
 .tab.pin{flex:none;width:38px;min-width:38px;padding:0;justify-content:center}
 .tab.pin .n,.tab.pin .t,.tab.pin .x{display:none}
 .tab.pin::after{content:"";position:absolute;right:0;top:0;border-top:7px solid var(--red);border-left:7px solid transparent}
@@ -343,16 +345,28 @@ $('tabs').ondblclick=e=>{if(e.target===$('tabs')||e.target===$('fill'))send({cmd
 document.addEventListener('contextmenu',e=>{if(!e.target.closest('input'))e.preventDefault()});
 /* ---------- tabs (keyed, animated) ---------- */
 const tmap=new Map();
-function mkTab(id){const d=el('div','tab');d.draggable=true;d.dataset.id=id;d.setAttribute('role','tab');d.tabIndex=-1;
+function mkTab(id){const d=el('div','tab');d.draggable=false;d.dataset.id=id;d.setAttribute('role','tab');d.tabIndex=-1;
   const x=el('span','x');x.innerHTML=ic('x');
   d.append(el('span','n'),ico('',''),el('span','au'),el('span','t'),x);
-  d.onclick=e=>x.contains(e.target)?send({cmd:'close',id}):send({cmd:'switch',id});
+  d.onclick=e=>{if(Date.now()-tdSuppress<250)return;x.contains(e.target)?send({cmd:'close',id}):send({cmd:'switch',id})};
   d.onauxclick=e=>{if(e.button===1)send({cmd:'close',id})};
   d.oncontextmenu=e=>{e.preventDefault();ctxId=id;drawCtx(true)};
-  d.ondragstart=e=>{drag=id;e.dataTransfer.effectAllowed='move'};
-  d.ondragover=e=>{e.preventDefault();d.classList.add('over')};d.ondragleave=()=>d.classList.remove('over');
-  d.ondrop=e=>{e.preventDefault();d.classList.remove('over');if(drag!==null&&drag!==id)send({cmd:'move',from:drag,to:id});drag=null};
+  d.onpointerdown=e=>{if(e.button!==0||x.contains(e.target))return;tabDrag(e,d,id)};
   return d}
+let tdSuppress=0;
+function tabDrag(e,d,id){
+  const tl=$('tl'),sx=e.clientX;let on=false,tabs=[],rects=[],from=0,to=0;
+  const mv=ev=>{const dx=ev.clientX-sx;
+    if(!on){if(Math.abs(dx)<6)return;on=true;tabs=[...tl.children].filter(c=>c.classList.contains('tab')&&!c.classList.contains('leave'));rects=tabs.map(t=>t.getBoundingClientRect());from=tabs.indexOf(d);to=from;d.classList.add('lift');tl.classList.add('dragging');try{d.setPointerCapture(ev.pointerId)}catch(_){}}
+    const r=rects[from],lo=rects[0].left-r.left,hi=rects[rects.length-1].right-r.right;const cx=Math.max(lo,Math.min(hi,dx));
+    d.style.transform='translateX('+cx+'px)';const mid=r.left+r.width/2+cx;
+    to=from;rects.forEach((q,i)=>{if(i<from&&mid<q.left+q.width/2)to=Math.min(to,i);if(i>from&&mid>q.left+q.width/2)to=Math.max(to,i)});
+    tabs.forEach((t,i)=>{if(t===d)return;let s=0;if(from<to&&i>from&&i<=to)s=-r.width;if(to<from&&i>=to&&i<from)s=r.width;t.style.transform=s?'translateX('+s+'px)':''})};
+  const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up);
+    if(!on)return;tdSuppress=Date.now();d.classList.remove('lift');tl.classList.remove('dragging');
+    if(to!==from){const target=tabs[to].dataset.id;tabs.forEach(t=>t.style.transform='');send({cmd:'move',from:id,to:+target})}
+    else{d.classList.add('slide');d.style.transform='';setTimeout(()=>d.classList.remove('slide'),200);tabs.forEach(t=>t.style.transform='')}};
+  addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up)}
 function renderTabs(s){
   const live=new Set(s.tabs.map(t=>t.id));
   for(const [id,e] of [...tmap]){if(!live.has(id)){tmap.delete(id);e.classList.add('leave');setTimeout(()=>e.remove(),180)}}

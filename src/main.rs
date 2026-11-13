@@ -687,6 +687,19 @@ fn system_is_dark() -> bool {
         .map(|o| String::from_utf8_lossy(&o.stdout).contains("0x0"))
         .unwrap_or(false)
 }
+/// The theme's page colour, painted by the engine before a page draws, so switching tabs, opening
+/// Owl's own pages and resizing never flash white in a dark theme.
+fn theme_bg(t: &str) -> (u8, u8, u8, u8) {
+    let dark = matches!(themes::is_dark(t), Some(true)) || (themes::is_dark(t).is_none() && system_is_dark());
+    match t {
+        "black" => (0, 0, 0, 255),
+        "navy" => (0x0b, 0x1a, 0x3a, 255),
+        "sand" => (0xef, 0xe9, 0xdc, 255),
+        "invert" => (0xe3, 0x06, 0x13, 255),
+        _ if dark => (0x10, 0x10, 0x10, 255),
+        _ => (255, 255, 255, 255),
+    }
+}
 fn wry_theme(t: &str) -> wry::Theme {
     match themes::is_dark(t) {
         Some(true) => wry::Theme::Dark,
@@ -1425,9 +1438,12 @@ impl App {
 
     fn apply_theme(&self) {
         let t = wry_theme(&theme_attr());
+        let bg = theme_bg(&theme_attr());
         let _ = self.ui.set_theme(t);
+        let _ = self.ui.set_background_color(bg);
         for tab in &self.tabs {
             let _ = tab.wv.set_theme(t);
+            let _ = tab.wv.set_background_color(bg);
         }
     }
 
@@ -1459,9 +1475,16 @@ impl App {
         let top = self.ctx.cfg.lock().unwrap().bar_top;
         let page_y = if top && !self.fs { base } else { 0.0 };
         let _ = self.ui.set_bounds(r(if top { 0.0 } else { (s.height - ui_h).max(0.0) }, ui_h));
+        // only the visible tab is resized: resizing every hidden page on each step of a window
+        // drag made resizing and maximizing stutter with many tabs open. A tab is sized here
+        // right before it is shown, since switching tabs also runs layout().
         for t in &self.tabs {
-            let _ = t.wv.set_bounds(r(page_y, page_h));
-            let _ = t.wv.set_visible(t.id == self.active);
+            if t.id == self.active {
+                let _ = t.wv.set_bounds(r(page_y, page_h));
+                let _ = t.wv.set_visible(true);
+            } else {
+                let _ = t.wv.set_visible(false);
+            }
         }
         self.layout_media(s.width, page_y, page_h);
         // the overlay may never be taller than the window: it scrolls instead
@@ -2150,6 +2173,7 @@ impl App {
                     native::watch_engine(&self.ui, self.proxy.clone());
                 }
                 let _ = wv.set_theme(wry_theme(&theme_attr()));
+                let _ = wv.set_background_color(theme_bg(&theme_attr()));
                 self.tabs.push(Tab {
                     id, wv, title: String::new(), url: display(&url), icon: String::new(), loading: true, zoom: 1.0,
                     pinned: false, muted: false, audible: false,
@@ -3752,6 +3776,7 @@ fn main() {
         Ok(v) => v,
         Err(e) => fatal(&format!("Owl could not start its browser engine (Microsoft Edge WebView2).\n\n{e}\n\nInstall or repair the WebView2 Runtime from:\nhttps://developer.microsoft.com/microsoft-edge/webview2/")),
     };
+    native::native_drag(&ui);
     let wctx = WebContext::new(Some(if private { private_dir.join("tabs") } else { dir.join("profile") }));
     let mut app = App {
         window, ui, wctx, tabs: vec![], active: 0, next: 1, fs: false, extra: 0.0,

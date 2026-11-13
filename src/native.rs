@@ -281,6 +281,20 @@ pub fn reset_permission(wv: &WebView, kind: i32, origin: &str) {
 }
 
 /// Tells Owl when Windows has installed a newer WebView2 engine than the one this run uses.
+/// Let the chrome's CSS `app-region: drag` areas act as the window's title bar, handled by the
+/// engine itself: dragging starts at once (no message round trip), Windows snap layouts and
+/// double-click to maximize work. Needs WebView2 runtime 1.0.2420 or newer; returns false on older
+/// runtimes, where the script-driven drag keeps working.
+pub fn native_drag(wv: &WebView) -> bool {
+    unsafe {
+        let Ok(st) = wv.webview().Settings() else { return false };
+        match st.cast::<webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings9>() {
+            Ok(s9) => s9.SetIsNonClientRegionSupportEnabled(true).is_ok(),
+            Err(_) => false,
+        }
+    }
+}
+
 pub fn watch_engine(wv: &WebView, proxy: EventLoopProxy<Ev>) {
     unsafe {
         let Ok(env5) = wv.environment().cast::<ICoreWebView2Environment5>() else { return };
