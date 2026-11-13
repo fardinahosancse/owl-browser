@@ -4,7 +4,7 @@
   "installCommand": "echo no install needed",
   "buildCommand": "node scripts/build-site.mjs",
   "outputDirectory": "site",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- site CHANGELOG.md scripts/build-site.mjs vercel.json",
+  "ignoreCommand": "git diff --quiet ${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- site CHANGELOG.md scripts/build-site.mjs vercel.json",
   "cleanUrls": true,
   "headers": [
     {
