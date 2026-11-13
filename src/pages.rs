@@ -614,7 +614,8 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
 
     let groups: Vec<(&str, &str, String)> = vec![
         ("appearance", "Appearance", format!(
-            "<div class=themes role=group aria-label=\"Theme\">{cards}</div>{}{}",
+            "<div class=themes role=group aria-label=\"Theme\">{cards}</div>{}{}{}",
+            tog("home_calm", c.home_calm, "Calm home page", "A quieter home page built from your own day: time online, what OwlKick stopped, running downloads and the pages you were on. Off shows the classic home page."),
             tog("bar_top", c.bar_top, "Toolbar at the top", "Moves the address bar and tabs to the top of the window instead of the bottom."),
             tog("bar", c.bookmark_bar, "Bookmark bar", "Show bookmarks next to the tabs (Ctrl+B).")
         )),
@@ -785,4 +786,164 @@ document.getElementById('kupd').onclick=()=>{send({cmd:'filters_update'});docume
 poll();setInterval(poll,2000)})();
 </script>"#;
     list_page("OwlKick", body, "<p class=lead style=\"max-width:62ch;margin-bottom:24px\">What Owl's content blocker stopped while you browsed. Nothing here leaves this PC, and it is cleared when Owl closes.</p>", css, theme)
+}
+
+/// The calm home page: one screen, built from the user's own day rather than fixed sections.
+pub fn home_calm(s: &Store, c: &Config, sess: u32, total: u64, today: u64, theme: &str) -> String {
+    // recent distinct pages, newest first
+    let mut seen = HashSet::new();
+    let mut recent = String::new();
+    for e in s.history.iter().rev() {
+        let h = host(&e.url);
+        if h.is_empty() || !seen.insert(h.clone()) {
+            continue;
+        }
+        let t = if e.title.trim().is_empty() { h.clone() } else { e.title.chars().take(90).collect() };
+        recent += &format!(
+            "<a class=rc href=\"{}\" style=\"--d:{}\"><span class=rn>{:02}</span><span class=rt>{}</span><span class=rh>{}</span><time data-t=\"{}\"></time></a>",
+            esc(&safe_href(&e.url)), seen.len(), seen.len(), esc(&t), esc(&h), e.t
+        );
+        if seen.len() >= 6 {
+            break;
+        }
+    }
+    if recent.is_empty() {
+        recent = "<p class=quiet>Pages you open will gather here, newest first.</p>".into();
+    }
+    // where the time went (all days), top three
+    let mut use_: Vec<(&String, &u64)> = s.usage.iter().collect();
+    use_.sort_by(|a, b| b.1.cmp(a.1));
+    let max = use_.first().map(|x| *x.1).unwrap_or(1).max(1);
+    let spent: String = use_
+        .iter()
+        .take(3)
+        .map(|(h, v)| format!("<div class=sp><span>{}</span><b>{}</b><i style=\"--w:{}%\"></i></div>", esc(h), dur_txt(**v), (**v * 100 / max).max(4)))
+        .collect();
+    // short, honest hints that change with the user's settings
+    let mut hints: Vec<String> = vec![];
+    if crate::owlkick::list_count() == 0 && c.block {
+        hints.push("<a href=\"owl://settings#owlkick\">Turn on wider blocking</a> with EasyList and EasyPrivacy.".into());
+    }
+    if c.autolock == 0 {
+        hints.push("Auto-lock is off. <a href=\"owl://settings#security\">Lock after a while</a> to keep your data sealed.".into());
+    }
+    if c.compress > 0 {
+        hints.push(format!("Data saver is on at strength {}.", c.compress));
+    }
+    if c.doh {
+        hints.push("Site names are looked up privately through 1.1.1.1.".into());
+    }
+    let hint = hints.into_iter().next().unwrap_or_else(|| "Everything you do here stays on this PC.".into());
+    let name = esc(s.name.split_whitespace().next().unwrap_or(""));
+    let css = r#"<style>
+@font-face{font-family:"Space Grotesk";src:url(/font/space-grotesk.woff2) format("woff2");font-weight:300 700;font-display:swap}
+body.calm{padding:0;overflow-x:hidden}
+.cw{position:relative;min-height:100vh;padding:28px 48px 40px;display:grid;grid-template-rows:auto 1fr auto;isolation:isolate}
+.cw::before{content:"";position:absolute;inset:-20vmax;z-index:-1;background:radial-gradient(40vmax 40vmax at var(--sx,70%) var(--sy,30%),color-mix(in srgb,var(--red) 14%,transparent),transparent 70%);animation:drift 38s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate(-6vmax,4vmax) scale(1.08)}}
+.ct{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.ct span:last-child{color:var(--mute)}
+.cm{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:clamp(32px,6vw,96px);align-items:center;padding:4vh 0}
+.gr{font-size:clamp(20px,2.4vw,30px);font-weight:500;letter-spacing:-.01em;margin-bottom:14px;opacity:0;animation:up .8s .05s cubic-bezier(.2,.7,.2,1) forwards}
+.gr em{font-style:normal;color:var(--red)}
+.ck{font:300 clamp(88px,15vw,210px)/.82 "Space Grotesk","Helvetica Neue",Arial,sans-serif;letter-spacing:-.06em;font-variant-numeric:tabular-nums;opacity:0;animation:up .9s .12s cubic-bezier(.2,.7,.2,1) forwards}
+.ck b{font-weight:600}
+.day{position:relative;height:28px;margin:22px 0 30px;opacity:0;animation:up .9s .2s cubic-bezier(.2,.7,.2,1) forwards}
+.day .tr{position:absolute;left:0;right:0;top:12px;height:2px;background:var(--line)}
+.day .fl{position:absolute;left:0;top:12px;height:2px;background:var(--ink);width:var(--p,0%);transition:width 1s linear}
+.day .nw{position:absolute;top:6px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--red);left:var(--p,0%);box-shadow:0 0 0 6px color-mix(in srgb,var(--red) 20%,transparent);transition:left 1s linear}
+.day .hr{position:absolute;top:22px;font-size:10px;color:var(--mute);font-variant-numeric:tabular-nums;transform:translateX(-50%)}
+.cs{display:flex;border-bottom:2px solid var(--ink);opacity:0;animation:up .9s .28s cubic-bezier(.2,.7,.2,1) forwards}
+.cs input{flex:1;min-width:0;border:0;outline:0;background:none;color:var(--ink);font:400 clamp(20px,2.2vw,28px) "Helvetica Neue",Helvetica,Arial,sans-serif;padding:12px 0}
+.cs input::placeholder{color:var(--mute)}
+.cs:focus-within{border-color:var(--red)}
+.story{font-size:clamp(16px,1.5vw,19px);line-height:1.55;max-width:46ch;margin-top:26px;opacity:0;animation:up .9s .36s cubic-bezier(.2,.7,.2,1) forwards}
+.story b{font-weight:700;font-variant-numeric:tabular-nums}
+.hint{margin-top:12px;font-size:13px;color:var(--mute)}.hint a{color:var(--ink)}
+.side h2{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding-bottom:10px;border-bottom:2px solid var(--ink);margin:0 0 4px}
+.side section{margin-bottom:34px}
+.rc{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:2px 12px;padding:11px 0;border-bottom:1px solid var(--line);color:var(--ink);text-decoration:none;opacity:0;animation:up .7s calc(.3s + var(--d)*.06s) cubic-bezier(.2,.7,.2,1) forwards;transition:padding .2s,background .2s}
+.rc:hover{padding-left:8px;background:var(--soft)}
+.rn{font-size:11px;color:var(--mute);font-variant-numeric:tabular-nums;padding-top:3px}
+.rt{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rh{grid-column:2;font-size:12px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rc time{grid-row:1;grid-column:3;font-size:11px;color:var(--mute);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:3px}
+.sp{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.sp span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sp b{font-variant-numeric:tabular-nums}
+.sp i{grid-column:1/-1;height:3px;background:var(--soft);position:relative}.sp i::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--w);background:var(--red)}
+.quiet{color:var(--mute);font-size:14px;padding:12px 0}
+.cf{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.cf a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:2px}.cf a:hover{border-color:var(--red)}
+.cf nav{display:flex;gap:18px;flex-wrap:wrap}
+@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media(max-width:900px){.cw{padding:20px}.cm{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.cw::before{animation:none}.gr,.ck,.day,.cs,.story,.rc{animation:none;opacity:1}}
+</style>"#;
+    let body = format!(
+        "<div class=cw><div class=ct><span>Owl</span><span id=cd></span></div>\
+<div class=cm><div>\
+<div class=gr><span id=cg>Hello</span>{nm}<em>.</em></div>\
+<div class=ck id=ck aria-label=\"Time\"><b id=chh>00</b>:<span id=cmm>00</span></div>\
+<div class=day aria-hidden=true><div class=tr></div><div class=fl id=dfl></div><div class=nw id=dnw></div>\
+<span class=hr style=\"left:0\">00</span><span class=hr style=\"left:25%\">06</span><span class=hr style=\"left:50%\">12</span><span class=hr style=\"left:75%\">18</span><span class=hr style=\"left:100%\">24</span></div>\
+<form class=cs id=cf2><input id=cq autofocus autocomplete=off spellcheck=false aria-label=\"Search or address\" placeholder=\"Search privately or type an address\"></form>\
+<p class=story id=st aria-live=polite>You have spent <b>{today_t}</b> online today. OwlKick stopped <b id=sbk>{sess}</b> requests this session and <b>{total}</b> in all.<span id=sdl></span></p>\
+<p class=hint>{hint}</p></div>\
+<div class=side><section><h2>Pick up where you left off</h2>{recent}</section>{spent_block}</div></div>\
+<div class=cf><span id=cpart></span><nav><a href=\"owl://downloads\">Downloads</a><a href=\"owl://history\">History</a><a href=\"owl://bookmarks\">Bookmarks</a><a href=\"owl://owlkick\">OwlKick</a><a href=\"owl://settings\">Settings</a></nav></div></div>",
+        nm = if name.is_empty() { String::new() } else { format!(", {name}") },
+        today_t = dur_txt(today),
+        sess = sess,
+        total = total,
+        hint = hint,
+        recent = recent,
+        spent_block = if spent.is_empty() { String::new() } else { format!("<section><h2>Where your time goes</h2>{spent}</section>") }
+    );
+    let js = r#"<script>
+(function(){const p=n=>String(n).padStart(2,'0'),$=i=>document.getElementById(i);
+const part=h=>h<5?'Night':h<12?'Morning':h<17?'Afternoon':h<21?'Evening':'Night';
+const greet=h=>h<5?'Still up':h<12?'Good morning':h<17?'Good afternoon':h<21?'Good evening':'Good night';
+const ago=t=>{const s=Math.max(0,Math.floor(Date.now()/1000)-t);return s<60?'just now':s<3600?Math.floor(s/60)+' min ago':s<86400?Math.floor(s/3600)+' h ago':Math.floor(s/86400)+' d ago'};
+function tick(){const d=new Date(),h=d.getHours(),m=d.getMinutes();$('chh').textContent=p(h);$('cmm').textContent=p(m);
+ $('cg').textContent=greet(h);$('cd').textContent=d.toLocaleDateString('en',{weekday:'long',day:'numeric',month:'long'});
+ const pc=((h*60+m)/1440*100).toFixed(2)+'%';$('dfl').style.setProperty('--p',pc);$('dnw').style.setProperty('--p',pc);
+ $('cpart').textContent=part(h)+' · '+Math.round((1440-h*60-m)/60)+' hours left in the day';
+ // the light drifts across the page with the time of day
+ document.querySelector('.cw').style.setProperty('--sx',(15+70*(h*60+m)/1440)+'%');document.querySelector('.cw').style.setProperty('--sy',(20+30*Math.abs(12-h)/12)+'%');
+ document.querySelectorAll('time[data-t]').forEach(x=>x.textContent=ago(+x.dataset.t))}
+tick();setInterval(tick,15000);
+async function live(){try{const k=await (await fetch('/owlkick.json',{cache:'no-store'})).json();$('sbk').textContent=(+k.session||0).toLocaleString();
+ const d=await (await fetch('/downloads.json',{cache:'no-store'})).json();const a=(d.items||[]).filter(x=>x.status==='downloading');
+ $('sdl').textContent=a.length?' '+a.length+(a.length===1?' download is':' downloads are')+' running.':''}catch(e){}}
+live();setInterval(live,4000);
+$('cf2').onsubmit=e=>{e.preventDefault();const v=$('cq').value.trim();if(!v)return;
+ location.href=/^[a-z]+:\/\//i.test(v)?v:(!/\s/.test(v)&&/\./.test(v))?'https://'+v:'https://duckduckgo.com/?q='+encodeURIComponent(v)};
+document.addEventListener('keydown',e=>{if(e.key==='/'&&document.activeElement!==$('cq')){e.preventDefault();$('cq').focus()}});
+})();
+</script>"#;
+    page("Home", &format!("{body}{js}"), css, theme, "calm")
+}
+
+#[cfg(test)]
+mod preview {
+    /// Writes preview HTML of Owl pages to OWL_PREVIEW_DIR (run with --ignored).
+    #[test]
+    #[ignore]
+    fn dump_pages() {
+        let Ok(dir) = std::env::var("OWL_PREVIEW_DIR") else { return };
+        let mut s = crate::Store::default();
+        s.name = "Alex Example".into();
+        for (i, (u, t)) in [("https://news.ycombinator.com/", "Hacker News"), ("https://github.com/fardinahosancse/owl-browser", "owl-browser on GitHub"), ("https://en.wikipedia.org/wiki/Swiss_Style_(design)", "Swiss Style (design) - Wikipedia"), ("https://www.bbc.co.uk/news", "BBC News")].iter().enumerate() {
+            s.history.push(crate::Entry { url: u.to_string(), title: t.to_string(), t: 1_794_500_000 + i as u64 * 600, ..Default::default() });
+        }
+        s.usage.insert("github.com".into(), 5400);
+        s.usage.insert("news.ycombinator.com".into(), 2600);
+        s.usage.insert("wikipedia.org".into(), 1200);
+        let mut c = crate::Config::default();
+        c.home_calm = true;
+        let html = super::home_calm(&s, &c, 42, 1337, 4380, "light").replace("/font/space-grotesk.woff2", "../../Desktop/Owlbrowser/assets/fonts/SpaceGrotesk-latin.woff2");
+        std::fs::write(format!("{dir}/calm-light.html"), html).unwrap();
+        let html = super::home_calm(&s, &c, 42, 1337, 4380, "navy");
+        std::fs::write(format!("{dir}/calm-navy.html"), html).unwrap();
+    }
 }

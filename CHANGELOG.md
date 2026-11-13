@@ -13,6 +13,8 @@ All notable changes to Owl are documented here. The format follows
 - **OwlKick activity page** (owl://owlkick): blocked this session and all time, most blocked hosts, pages with most blocking, blocks by kind and the latest blocked requests. Kept in memory only.
 - **Settings sidebar**: sticky section list with the current section highlighted, and new groups: Appearance, Security, Privacy, OwlKick blocking, Network, Speed and data, Downloads, Sync, Profile and advanced.
 - **Toolbar at the top** option (Settings > Appearance).
+- **Calm home page** (Settings > Appearance): one screen built from your own day: a greeting, a large clock and a line showing how much of the day has passed, a plain sentence on time online, what OwlKick stopped and running downloads, the pages you were on with how long ago, where your time goes, and one useful hint. A soft light drifts across the page with the time of day (still with reduced motion).
+- With the toolbar at the top, the address bar row with the window buttons is now the topmost row.
 - **New clock**: Space Grotesk (SIL Open Font License, bundled; nothing is fetched at run time), a seconds line and the week number.
 
 ### Fixed

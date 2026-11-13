@@ -525,6 +525,9 @@ pub struct Config {
     /// toolbar (address bar and tabs) at the top of the window
     #[serde(default)]
     pub bar_top: bool,
+    /// use the calm home page instead of the classic one
+    #[serde(default)]
+    pub home_calm: bool,
     /// last Data saver strength, restored by the toolbar toggle
     #[serde(default)]
     pub compress_last: u32,
@@ -604,7 +607,7 @@ impl Default for Config {
             block: true, https_only: false, sync_dir: String::new(), theme: sys(), bookmark_bar: false,
             pin_hash: String::new(), pin_salt: String::new(), organize: true, pw_save: true, pw_never: vec![],
             strikes: 0, fails: 0, locked_until: 0, sync_key: String::new(), pin_mode: pin_mode(), kdf: 0, fp: true,
-            fp_strict: false, perm_block: false, bar_top: false, compress_last: 0, torrent_seed: false, kick_off: vec![], compress: 0, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
+            fp_strict: false, perm_block: false, bar_top: false, home_calm: false, compress_last: 0, torrent_seed: false, kick_off: vec![], compress: 0, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
             seal_pub: String::new(), seal_priv: String::new(), lock_on_winlock: true,
         }
     }
@@ -1189,7 +1192,11 @@ fn serve(path: &str, query: &str, ctx: &Ctx) -> (u16, &'static str, String) {
             let n = ctx.vault.lock().unwrap().len();
             let total = BLOCKED_BASE.load(Relaxed) + BLOCKED.load(Relaxed) as u64;
             let day = s.daily.get(&today()).copied().unwrap_or(0);
-            (200, html, pages::newtab(&s, &cfg, BLOCKED.load(Relaxed), total, n, day, &th))
+            if cfg.home_calm {
+                (200, html, pages::home_calm(&s, &cfg, BLOCKED.load(Relaxed), total, day, &th))
+            } else {
+                (200, html, pages::newtab(&s, &cfg, BLOCKED.load(Relaxed), total, n, day, &th))
+            }
         }
         "/history" => (200, html, pages::history(&s, &th)),
         "/bookmarks" => (200, html, pages::bookmarks(&s, &th)),
@@ -3017,6 +3024,7 @@ impl App {
                         }
                         "bar" => c.bookmark_bar = on,
                         "bar_top" => c.bar_top = on,
+                        "home_calm" => c.home_calm = on,
                         "organize" => c.organize = on,
                         "fp" => c.fp = on,
                         "fp_strict" => c.fp_strict = on,
