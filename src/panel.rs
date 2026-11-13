@@ -12,6 +12,7 @@ html,body{background:var(--bg);color:var(--ink);font:13px/1.45 "Segoe UI","Helve
 header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 header svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;color:var(--red);flex:none}
 header b{font-size:15px;letter-spacing:-.01em;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.full{background:none;border:1px solid var(--ink);color:var(--ink);min-height:24px;padding:0 8px;font:700 9px "Segoe UI",sans-serif;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;flex:none}.full:hover{background:var(--ink);color:var(--on)}
 .x{background:none;border:0;color:var(--mute);width:24px;height:24px;cursor:pointer;font-size:16px;line-height:1}.x:hover{color:var(--ink)}
 .big{font-size:26px;font-weight:700;letter-spacing:-.03em;line-height:1.05;font-family:"Space Grotesk","Segoe UI",sans-serif}
 .cap{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);font-weight:700;margin-top:3px}
@@ -37,7 +38,7 @@ header b{font-size:15px;letter-spacing:-.01em;flex:1;overflow:hidden;text-overfl
 .ld{color:var(--mute);font-size:12px}
 :focus-visible{outline:2px solid var(--red);outline-offset:2px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
-</style><body><div id="p" role="dialog" aria-labelledby="pt"><header><span id="pi"></span><b id="pt"></b><button class="x" id="px" aria-label="Close" title="Close (Esc)">&#215;</button></header><div id="pb"></div></div>
+</style><body><div id="p" role="dialog" aria-labelledby="pt"><header><span id="pi"></span><b id="pt"></b><button class="full" id="pf" title="Open the full page">Full page &#8599;</button><button class="x" id="px" aria-label="Close" title="Close (Esc)">&#215;</button></header><div id="pb"></div></div>
 <script>
 const send=o=>window.ipc.postMessage(JSON.stringify(o));
 const $=i=>document.getElementById(i);
@@ -77,7 +78,8 @@ const P={saver(b){const v=+D.compress||0,k=v===0?0:v<38?1:v<68?2:3,names=['Off',
   const k=el('div');k.id='cook';k.appendChild(row('Cookies','checking...'));b.appendChild(k);
   const p=el('div');p.id='perm';b.appendChild(p);
   b.appendChild(acts([['Clear site data',()=>{send({cmd:'site_clear',origin:D.origin,panel:'site'});const x=$('cook');x.textContent='';x.appendChild(row('Cookies','cleared'))}],['Permissions',()=>go('owl://permissions'),1]]))}};
-window.Pn={show(d){D=d;document.documentElement.dataset.theme=d.theme||'system';const p=$('p');
+const FULL={saver:'owl://settings#speed',dns:'owl://settings#network',kick:'owl://owlkick',site:'owl://permissions'};
+window.Pn={show(d){$('pf').onclick=()=>go(d.owl?'owl://about':FULL[d.kind]);D=d;document.documentElement.dataset.theme=d.theme||'system';const p=$('p');
   $('pi').innerHTML=svg(d.kind==='site'?(d.owl?'info':d.https?'lock':'open'):d.kind);$('pt').textContent=d.title||'';
   const b=$('pb');b.textContent='';(P[d.kind]||(()=>{}))(b);if(!d.keep){p.classList.remove('in');void p.offsetWidth}p.classList.add('in');fit();if(!d.keep)setTimeout(()=>{const f=b.querySelector('button');if(f)f.focus({preventScroll:true});else $('px').focus()},60)},
  part(k,v){if(k==='cert'){const c=$('cert');if(!c)return;c.textContent='';if(!v||!v.subject){c.appendChild(row('Certificate',D.https?'verified by Windows':'none',!D.https))}else{c.appendChild(row('Issued to',v.subject));c.appendChild(row('Issued by',v.issuer));c.appendChild(row('Valid until',v.until))}}

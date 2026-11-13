@@ -19,7 +19,7 @@ svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke
 @keyframes dot{from{transform:scale(.4)}to{transform:scale(1)}}
 #bar{flex:none;display:flex;flex-direction:column;contain:layout paint;border-top:1px solid var(--ink);position:relative;background:var(--bg)}
 #top{height:32px;display:flex;align-items:stretch;border-bottom:1px solid var(--line)}
-#brand{width:56px;color:var(--red);display:flex;align-items:center;justify-content:center;flex:none}#brand svg{width:38px;height:auto;fill:currentColor;stroke:none}
+#brand{width:60px;align-self:stretch;color:var(--red);display:flex;align-items:center;justify-content:center;flex:none}#brand svg{width:38px;height:auto;fill:currentColor;stroke:none}
 #tabs{display:flex;flex:1;min-width:0}
 #tl{display:flex;min-width:0;flex:0 1 auto;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}#tl::-webkit-scrollbar{display:none}
 #fill{flex:1;min-width:28px}
@@ -263,16 +263,17 @@ body.top #tool{order:1;border-bottom:1px solid var(--line)}body.top #top{order:2
 <div id="bar">
  <div id="load"></div>
  <div id="marks"></div>
- <div id="top"><div id="brand" title="Owl."><svg viewBox="0 0 508.1 217" aria-hidden="true"><path d="__WM__"/></svg></div><div id="tabs"><div id="tl" role="tablist" aria-label="Tabs"></div><button id="plus" data-i="plus" title="New tab (Ctrl+T)" aria-label="New tab"></button><div id="fill"></div></div><div id="priv">PRIVATE</div></div>
+ <div id="top"><div id="tabs"><div id="tl" role="tablist" aria-label="Tabs"></div><button id="plus" data-i="plus" title="New tab (Ctrl+T)" aria-label="New tab"></button><div id="fill"></div></div><div id="priv">PRIVATE</div></div>
  <div id="tool">
+  <div id="brand" title="Owl."><svg viewBox="0 0 508.1 217" aria-hidden="true"><path d="__WM__"/></svg></div>
   <button class="b" id="back" data-i="back" title="Back (Alt+Left)" aria-label="Back"></button>
   <button class="b" id="fwd" data-i="fwd" title="Forward (Alt+Right)" aria-label="Forward"></button>
   <button class="b" id="rel" data-i="rel" title="Reload (Ctrl+R)" aria-label="Reload"></button>
+  <button class="b" id="home" data-i="home" title="Home" aria-label="Home"></button>
   <div id="addr"><span id="sec"></span><input id="url" spellcheck="false" autocomplete="off" aria-label="Address" placeholder="Search or enter address" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ovl"><button type="button" class="chip" id="zc" title="Reset zoom" aria-label="Reset zoom"></button></div>
   <div id="quick" role="group" aria-label="Quick settings"><button type="button" class="b q" id="qsav" data-i="gauge" aria-pressed="false" aria-label="Data saver" title="Data saver"></button><button type="button" class="b q" id="qdns" data-i="dnsi" aria-pressed="false" aria-label="Secure DNS" title="Secure DNS"></button><button type="button" class="b q" id="qkick" data-i="kick" aria-label="OwlKick activity" title="OwlKick activity"><span id="shield" class="vh"></span></button></div>
   <div id="find" role="search"><input id="fi" placeholder="Find in page" aria-label="Find in page" spellcheck="false"><button type="button" id="fprev" data-i="up" title="Previous match (Shift+Enter)" aria-label="Previous match"></button><button type="button" id="fnext" data-i="down" title="Next match (Enter)" aria-label="Next match"></button><button type="button" id="fclose" data-i="x" title="Close (Esc)" aria-label="Close find"></button></div>
   <button class="b" id="mdb" data-i="vid" title="Download video or audio from this page" aria-label="Download video or audio from this page" hidden></button>
-  <button class="b" id="home" data-i="home" title="Home" aria-label="Home"></button>
   <button class="b" id="dlb" data-i="dl" title="Downloads" aria-label="Downloads"><span id="dls"></span><i id="dlp"></i></button>
   <button class="b" id="inc" data-i="mask" title="New private window" aria-label="New private window"></button>
   <button class="b" id="star" data-i="star" title="Bookmark (Ctrl+D)" aria-label="Bookmark"></button>

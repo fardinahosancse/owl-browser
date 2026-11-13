@@ -45,6 +45,7 @@ input::placeholder{color:var(--mute);opacity:1}
 select{-webkit-appearance:none;appearance:none;font:700 11px "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.12em;text-transform:uppercase;min-height:38px;padding:0 36px 0 14px;border:1px solid var(--ink);border-radius:0;color:var(--ink);cursor:pointer;outline:0;background:var(--bg) no-repeat;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 19px) 52%,calc(100% - 14px) 52%;background-size:5px 5px;transition:background-color .15s,color .15s,box-shadow .15s}select:hover{background-color:var(--ink);color:var(--on)}select:focus-visible{box-shadow:0 0 0 2px var(--red)}option{background:var(--bg);color:var(--ink);font:500 14px "Helvetica Neue",Helvetica,Arial,sans-serif;text-transform:none;letter-spacing:0}
 /* Data saver: segmented presets over a flat scale with a square thumb */
 .sv{display:grid;gap:12px;width:380px;max-width:100%}.sv .seg{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--ink)}.sv .seg button{background:var(--bg);color:var(--ink);justify-content:center;padding:0 6px;min-height:36px;border-right:1px solid var(--ink)}.sv .seg button:last-child{border-right:0}.sv .seg button:hover{background:var(--ink);color:var(--on)}.sv .seg button.on{background:var(--red);color:var(--onred)}.sv .rr{display:grid;grid-template-columns:1fr 70px;gap:16px;align-items:center}.sv output{font:700 30px/1 "Space Grotesk","Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:-.03em;text-align:right;font-variant-numeric:tabular-nums}.sv .sc{position:relative;height:26px}.sv .sc::before{content:"";position:absolute;left:0;right:0;top:12px;height:2px;background:var(--ink)}.sv .sc::after{content:"";position:absolute;left:0;top:10px;height:6px;width:var(--v,0%);background:var(--red)}.sv .sc i{position:absolute;top:4px;width:1px;height:18px;background:var(--ink)}.set input.sw{-webkit-appearance:none;appearance:none;position:absolute;inset:0;width:100%;height:26px;margin:0;padding:0;border:0;background:transparent;z-index:1;cursor:pointer;box-shadow:none}input.sw::-webkit-slider-runnable-track{height:26px;background:transparent}input.sw::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:26px;border:0;border-radius:0;background:var(--ink);transition:background .15s,transform .12s}input.sw:hover::-webkit-slider-thumb,input.sw:active::-webkit-slider-thumb{background:var(--red)}input.sw:active::-webkit-slider-thumb{transform:scaleX(1.4)}input.sw:focus-visible::-webkit-slider-thumb{background:var(--red);box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--red)}.sv .lbl{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.filebtn{cursor:pointer}
 .soon{display:inline-block;vertical-align:2px;margin-left:8px;padding:2px 6px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--red);color:var(--red)}
 .pill{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
 code{font-size:13px;background:var(--soft);padding:2px 6px}
@@ -146,6 +147,7 @@ form.s kbd{align-self:center;font:700 12px "Helvetica Neue",Arial;color:var(--mu
 const SHARED_JS: &str = r#"<script>
 (function(){
  const send=o=>ipc.postMessage(JSON.stringify(o)),$=i=>document.getElementById(i);
+ document.addEventListener('change',e=>{const i=e.target;if(!i.dataset||!i.dataset.imp||!i.files||!i.files[0])return;const f=i.files[0];if(f.size>8*1024*1024){alert('That file is larger than 8 MB.');return}f.text().then(t=>{send({cmd:i.dataset.imp,data:t});i.value=''})});
  // links out of Owl's own pages open in a new tab instead of replacing the page
  document.addEventListener('click',e=>{const l=e.target.closest('a[href]');if(!l||e.defaultPrevented)return;const h=l.getAttribute('href')||'';if(/^https?:\/\//i.test(h)&&!/^https?:\/\/owl\.localhost/i.test(h)){e.preventDefault();send({cmd:'open_owl',url:h})}},true);
  document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;
@@ -153,6 +155,9 @@ const SHARED_JS: &str = r#"<script>
   if(a==='warp'){send({cmd:'warp',a:b.dataset.w});return}
   if(a==='setko'){send({cmd:'set_kick_off',sites:document.getElementById('ko').value});return}
   if(a==='kickupd'){send({cmd:'filters_update'});return}
+  if(a==='impb'){send({cmd:'imp_browser',from:b.dataset.from});return}
+  if(a==='expbm'){send({cmd:'exp_bm'});return}
+  if(a==='exppw'){if(confirm('Export your saved passwords to a plain CSV file in Downloads? Anyone who opens that file can read every password. Delete it after you import it elsewhere.'))send({cmd:'exp_pw'});return}
   if(a==='updcheck'){send({cmd:'update_check'});return}
   if(a==='clear_history'){if(!confirm('Delete all '+(b.dataset.n||'')+' history entries, including any not shown here? This cannot be undone.'))return;send({cmd:'clear_history'});location.reload()}
   else if(a==='hrm'){send({cmd:'hist_remove',t:+b.dataset.t,url:b.dataset.u});const r=b.closest('.row');if(r)r.remove()}
@@ -853,6 +858,11 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
             tog("organize", c.organize, "Sort downloads into folders", "Documents, Images, Video, Music, Archives and Programs inside your Downloads folder."),
             tog("torrent_seed", c.torrent_seed, "Keep seeding finished torrents", "Off by default: the torrent engine shuts down as soon as a download ends. When on, finished torrents keep uploading to peers Owl is connected to until you stop them. Owl opens no listening port.")
         )),
+        ("import", "Import and export", format!(
+            "<div class=set><div><b>Bookmarks from another browser</b><p>Copies the bookmarks of the Chrome or Edge profile you used last on this PC, with their folders as groups. Nothing is changed in that browser.</p></div><div class=ctl><button class=ghost data-act=impb data-from=chrome>From Chrome</button><button class=ghost data-act=impb data-from=edge>From Edge</button></div></div>\
+<div class=set><div><b>Bookmarks file</b><p>Import the HTML file any browser exports (Chrome, Edge, Firefox, Safari), or export Owl's bookmarks in the same format.</p></div><div class=ctl><label class=\"btn ghost filebtn\">Import file<input type=file accept=\".html,.htm\" data-imp=imp_bm_html hidden></label><button class=ghost data-act=expbm>Export</button></div></div>\
+<div class=set><div><b>Passwords</b><p>Chrome keeps saved passwords locked to Chrome, so import them in two steps: in Chrome open <b>Settings &gt; Passwords &gt; Export passwords</b>, then choose that CSV file here. Owl encrypts them with your passphrase; delete the CSV afterwards. Export writes the same CSV layout, which Chrome, Edge and Firefox import.</p></div><div class=ctl><label class=\"btn ghost filebtn\">Import CSV<input type=file accept=\".csv\" data-imp=imp_pw_csv hidden></label><button class=ghost data-act=exppw>Export</button></div></div>"
+        )),
         ("sync", "Sync", format!(
             "<div class=set><div><b>Sync folder</b><p>Keep bookmarks, history and open tabs in a folder synced by OneDrive, Dropbox or Syncthing. Set the passphrase below first. Restart Owl after changing.</p></div>\
 <div class=ctl><label class=cf><span>Sync folder</span><input class=pk id=sy aria-label=\"Sync folder\" value=\"{}\" placeholder=\"C:\\Users\\you\\OneDrive\\Owl\"></label><button data-act=setsync>Save</button></div></div>\
@@ -881,6 +891,7 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
         "network" => (r#"<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>"#, "Secure DNS, Cloudflare WARP, proxy"),
         "speed" => (r#"<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>"#, "Data saver"),
         "downloads" => (r#"<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>"#, "Speed limit, queue, folders, torrents"),
+        "import" => (r#"<path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4v16h16V5h-4"/>"#, "Bring bookmarks and passwords from Chrome or Edge, or take them with you"),
         "sync" => (r#"<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>"#, "Keep bookmarks and history in a synced folder"),
         "advanced" => (r#"<path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>"#, "Your profile, time tracking, restart, about"),
         _ => ("", ""),

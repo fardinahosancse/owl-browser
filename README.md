@@ -68,6 +68,8 @@ made-up sample data: the sites are `example.com` addresses and the downloads are
 | **Menu**: icons, shortcuts and switches with tooltips. | **About**: version, creator, credits, privacy and terms. |
 | ![OwlKick panel open from the toolbar](assets/screenshots/panel.jpg) | ![Site information panel: connection, certificate, cookies, permissions](assets/screenshots/site-info.jpg) |
 | **Toolbar panels**: OwlKick, Data saver, Secure DNS. | **Site information**: from the lock in the address bar. |
+| ![Settings, Import and export](assets/screenshots/import.jpg) | ![Bookmarks imported from Chrome with their folders](assets/screenshots/bookmarks.jpg) |
+| **Import and export**: Chrome and Edge bookmarks, passwords CSV, bookmarks HTML. | **Bookmarks** after an import from Chrome. |
 
 ### How the main features work
 

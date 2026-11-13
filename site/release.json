@@ -1,66 +1,37 @@
 {
-  "version": "0.3.1",
+  "version": "0.3.2",
   "date": "2026-11-14",
-  "url": "https://github.com/fardinahosancse/owl-browser/releases/tag/v0.3.1",
+  "url": "https://github.com/fardinahosancse/owl-browser/releases/tag/v0.3.2",
   "added": [
     {
-      "name": "Owl. wordmark",
-      "text": "The browser is called Owl. (with the dot). A new wordmark, traced from the brand artwork, replaces the owl-face logo in the app icon, installer, tab strip, lock screen, landing page, favicon and README."
+      "name": "Import and export",
+      "text": "(Settings > Import and export): bookmarks straight from Chrome or Edge (last used profile, folders kept as groups), bookmarks from any browser's HTML export, passwords from Chrome's CSV export (encrypted with your passphrase on import); export bookmarks as HTML and passwords as Chrome-style CSV."
     },
     {
-      "name": "Site information",
-      "text": "Click the lock in the address bar to see whether the connection is secure, the certificate, cookies for the site and the permissions you gave it, with Clear site data and Reset."
-    },
-    {
-      "name": "Toolbar panels",
-      "text": "OwlKick, Data saver and Secure DNS open a small floating panel with the key numbers and switches, including turning OwlKick off for one site."
-    },
-    {
-      "name": "What's new",
-      "text": "Shown once after an install or update, with screenshots."
-    },
-    {
-      "name": "Downloads",
-      "text": "Select a download to see its own progress, speed, connections or peers in the totals bar; row actions are icons with tooltips."
-    },
-    {
-      "name": "Lock screen",
-      "text": "The wordmark writes itself; Owl's pages and new web pages glide in; a loading line runs in the address bar while a page loads."
+      "name": "Full page",
+      "text": "Link on every toolbar panel (OwlKick, Data saver, Secure DNS, site information)."
     }
   ],
   "sections": [
     {
       "title": "Added",
       "items": [
-        "**Owl. wordmark**: the browser is called Owl. (with the dot). A new wordmark, traced from the brand artwork, replaces the owl-face logo in the app icon, installer, tab strip, lock screen, landing page, favicon and README.",
-        "**Site information**: click the lock in the address bar to see whether the connection is secure, the certificate, cookies for the site and the permissions you gave it, with Clear site data and Reset.",
-        "**Toolbar panels**: OwlKick, Data saver and Secure DNS open a small floating panel with the key numbers and switches, including turning OwlKick off for one site.",
-        "**What's new**: shown once after an install or update, with screenshots.",
-        "**Downloads**: select a download to see its own progress, speed, connections or peers in the totals bar; row actions are icons with tooltips.",
-        "**Lock screen**: the wordmark writes itself; Owl's pages and new web pages glide in; a loading line runs in the address bar while a page loads."
+        "**Import and export** (Settings > Import and export): bookmarks straight from Chrome or Edge (last used profile, folders kept as groups), bookmarks from any browser's HTML export, passwords from Chrome's CSV export (encrypted with your passphrase on import); export bookmarks as HTML and passwords as Chrome-style CSV.",
+        "**Full page** link on every toolbar panel (OwlKick, Data saver, Secure DNS, site information)."
       ]
     },
     {
       "title": "Fixed",
       "items": [
-        "Links between Owl's own pages (for example Settings > About Owl) did nothing.",
-        "OwlKick Update lists stayed on Updating... and never showed the result.",
-        "The landing page was not deployed when the last commit of a push did not touch the site."
+        "Site information shows who issued the certificate and until when; it showed only \"verified by Windows\"."
       ]
     },
     {
       "title": "Changed",
       "items": [
-        "Owl's pages opened from the menu or the toolbar open in their own tab, or switch to the tab that already shows them, instead of replacing the page you are on. Web links on Owl's pages open in a new tab.",
-        "Reload sits next to Back and Forward.",
-        "The Invert theme was removed; it falls back to Light."
-      ]
-    },
-    {
-      "title": "Known issues",
-      "items": [
-        "The site information panel shows \"verified by Windows\" instead of the certificate's issuer when the engine does not report certificate details.",
-        "Releases are not code-signed yet (#32). Torrent file selection is not available yet (#104)."
+        "The Owl. mark sits at the start of the address bar row next to Back; Home sits next to Reload.",
+        "Every screenshot on the site and in the README is retaken with the new layout and the Owl. wordmark.",
+        "Releases are marked as pre-releases while Owl. is in the 0.x alpha."
       ]
     }
   ]

@@ -167,7 +167,8 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.v.outputs.tag }}
-          name: Owl ${{ steps.v.outputs.version }}
+          # 0.x is an alpha developer preview; kept as a normal release so "latest" download links work
+          name: Owl. ${{ steps.v.outputs.version }}${{ startsWith(steps.v.outputs.version, '0.') && ' (alpha developer preview)' || '' }}
           body_path: release-body.md
           prerelease: ${{ contains(steps.v.outputs.version, '-') }}
           files: |

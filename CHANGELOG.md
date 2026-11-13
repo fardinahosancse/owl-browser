@@ -6,6 +6,26 @@ All notable changes to Owl are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-14
+
+Alpha developer preview.
+
+![Site information panel with the certificate](https://raw.githubusercontent.com/fardinahosancse/owl-browser/main/assets/screenshots/site-info.jpg)
+
+### Added
+- **Import and export** (Settings > Import and export): bookmarks straight from Chrome or Edge (last used profile, folders kept as groups), bookmarks from any browser's HTML export, passwords from Chrome's CSV export (encrypted with your passphrase on import); export bookmarks as HTML and passwords as Chrome-style CSV.
+- **Full page** link on every toolbar panel (OwlKick, Data saver, Secure DNS, site information).
+
+### Fixed
+- Site information shows who issued the certificate and until when; it showed only "verified by Windows".
+
+### Changed
+- The Owl. mark sits at the start of the address bar row next to Back; Home sits next to Reload.
+- Every screenshot on the site and in the README is retaken with the new layout and the Owl. wordmark.
+- Release titles say "alpha developer preview" while Owl. is in 0.x (they stay normal releases, so the site's Download link keeps pointing at the newest one).
+
+![Import and export](https://raw.githubusercontent.com/fardinahosancse/owl-browser/main/assets/screenshots/import.jpg)
+
 ## [0.3.1] - 2026-11-14
 
 Quickpatch. From 0.3 on, Owl. releases are an **alpha developer preview**: usable every day, still changing quickly.
@@ -180,7 +200,8 @@ First public release.
 - Command allow-list for web pages; native (non-forgeable) fullscreen, popup and dialog events.
 - Atomic settings and vault writes with backups and a recovery state.
 
-[Unreleased]: https://github.com/fardinahosancse/owl-browser/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/fardinahosancse/owl-browser/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/fardinahosancse/owl-browser/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/fardinahosancse/owl-browser/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/fardinahosancse/owl-browser/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.2...v0.2.0

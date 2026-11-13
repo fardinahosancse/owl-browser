@@ -16,6 +16,7 @@ mod profile;
 mod themes;
 mod vault;
 mod panel;
+mod transfer;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -70,8 +71,8 @@ pub const WORDMARK: &str = include_str!("../assets/wordmark.d");
 /// What's new in this version: shown once after an install or update.
 const WHATS_NEW: &[(&str, &str, &[u8])] = &[
     ("Site information", "Click the lock in the address bar to see whether the connection is secure, who issued the site's certificate and until when, how many cookies it keeps, and what you allowed it to do. Clear its data or reset a permission in one click.", include_bytes!("../assets/whatsnew/site.jpg")),
-    ("Panels for OwlKick, Data saver and Secure DNS", "The three toolbar buttons now open a small panel with the numbers that matter and a switch, like an extension popup. Turn OwlKick off for one site, pick a Data saver level, or see whether Secure DNS is running.", include_bytes!("../assets/whatsnew/panel.jpg")),
-    ("Owl. has a signature", "A new wordmark everywhere, a lock screen that writes itself, pages that glide in, a loading line in the address bar, and Owl's own pages opening in their own tab.", include_bytes!("../assets/whatsnew/brand.jpg")),
+    ("Import from Chrome", "Bring your bookmarks straight from Chrome or Edge, and passwords from Chrome's CSV export. Export them again in the same formats any time.", include_bytes!("../assets/whatsnew/panel.jpg")),
+    ("Panels with a full page", "OwlKick, Data saver and Secure DNS open a small panel from the toolbar, each with Full page to open the whole view.", include_bytes!("../assets/whatsnew/brand.jpg")),
 ];
 const SEARCH: &str = "https://duckduckgo.com/?q=";
 const HOST: &str = "owl.localhost";
@@ -1700,7 +1701,11 @@ impl App {
                 };
                 if url.starts_with("https://") {
                     let s1 = send("cert");
+                    // the Network domain must be on before it reports certificates; calls run in order
                     native::cdp(&t.wv, "Network.getCertificate", &json!({"origin": origin}).to_string(), move |j| {
+                        if std::env::var("OWL_DEBUG").is_ok() {
+                            let _ = fs::write(std::env::temp_dir().join("owl-cert.txt"), &j);
+                        }
                         let v = native::cert_info(&j).map(|(a, b, c)| json!({"subject": a, "issuer": b, "until": c})).unwrap_or(json!({}));
                         s1(v.to_string());
                     });
@@ -2420,6 +2425,9 @@ impl App {
                 dl::install(&wv, p6, id, move || cfgc.lock().unwrap().organize);
                 media::install_audio(&wv, p7, id);
                 native::install(&wv, p8, id);
+                // the engine reports a site's certificate (site information) only for pages loaded
+                // while its Network domain is on; small buffers keep the cost down
+                native::cdp(&wv, "Network.enable", r#"{"maxTotalBufferSize":200000,"maxResourceBufferSize":100000}"#, |_| {});
                 native::apply_tracking(&wv);
                 if !self.engine_watch {
                     self.engine_watch = true;
@@ -2628,6 +2636,90 @@ impl App {
         let did = v["id"].as_u64().unwrap_or(0) as u32;
         match cmd {
             "ready" => self.push(),
+            "imp_browser" | "imp_bm_html" => {
+                let got = if cmd == "imp_browser" { transfer::chromium_bookmarks(&s("from")) } else { Ok(transfer::parse_html(&s("data"))) };
+                let text = match got {
+                    Ok(list) => {
+                        let total = list.len();
+                        let added = {
+                            let mut st = self.ctx.store.lock().unwrap();
+                            let mut n = 0;
+                            for (url, title, group) in list {
+                                if url.len() < 2048 && !st.bookmarks.iter().any(|b| b.url == url) {
+                                    st.bookmarks.push(Entry { url, title: title.chars().take(300).collect(), t: now(), icon: String::new(), group: group.chars().take(60).collect() });
+                                    n += 1;
+                                }
+                            }
+                            n
+                        };
+                        self.ctx.save();
+                        self.push();
+                        format!("Imported {added} bookmarks{}.", if total > added { format!(" ({} were already here)", total - added) } else { String::new() })
+                    }
+                    Err(e) => e,
+                };
+                let n = json!({"id":"import","label":"Import","text":text,"actions":[{"t":"Open bookmarks","cmd":"open_owl","args":{"url":"owl://bookmarks"}},{"t":"OK","pri":true}]});
+                let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+            }
+            "imp_pw_csv" => {
+                let text = match transfer::parse_passwords(&s("data")) {
+                    Ok(list) => {
+                        let mut added = 0;
+                        for (url, user, pass) in list {
+                            let h = host_of(&url);
+                            if h.is_empty() {
+                                continue;
+                            }
+                            if let Some(enc) = self.ctx.enc_cred(&h, &user, &pass) {
+                                let scheme = if url.starts_with("https://") { "https" } else { "http" }.to_string();
+                                let mut vlt = self.ctx.vault.lock().unwrap();
+                                vlt.retain(|c| !(c.host == h && c.user == user));
+                                vlt.push(Cred { host: h, user, pass: enc, t: now(), v: 1, scheme });
+                                added += 1;
+                            }
+                        }
+                        self.ctx.save_vault();
+                        format!("Imported {added} passwords. They are encrypted with your passphrase. Delete the CSV file now: anyone who opens it can read them.")
+                    }
+                    Err(e) => e,
+                };
+                let n = json!({"id":"import","label":"Passwords","text":text,"actions":[{"t":"Open passwords","cmd":"open_owl","args":{"url":"owl://passwords"}},{"t":"OK","pri":true}]});
+                let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+            }
+            "exp_bm" | "exp_pw" => {
+                let day = today();
+                let (name, body, what) = if cmd == "exp_bm" {
+                    let marks: Vec<transfer::Mark> = self.ctx.store.lock().unwrap().bookmarks.iter().map(|b| (b.url.clone(), b.title.clone(), b.group.clone())).collect();
+                    (format!("owl-bookmarks-{day}.html"), transfer::export_html(&marks), format!("{} bookmarks", marks.len()))
+                } else {
+                    let v = self.ctx.vault.lock().unwrap().clone();
+                    let logins: Vec<transfer::Login> = v
+                        .iter()
+                        .filter_map(|c| self.ctx.dec_cred(c).map(|p| (format!("{}://{}/", if c.scheme == "http" { "http" } else { "https" }, c.host), c.user.clone(), p)))
+                        .collect();
+                    (format!("owl-passwords-{day}.csv"), transfer::export_csv(&logins), format!("{} passwords", logins.len()))
+                };
+                let path = dl::root().join(&name);
+                let text = match fs::write(&path, body) {
+                    Ok(_) => {
+                        unsafe {
+                            use windows::core::{w, HSTRING, PCWSTR};
+                            use windows::Win32::UI::Shell::ShellExecuteW;
+                            use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+                            let arg = HSTRING::from(format!("/select,\"{}\"", path.display()));
+                            let _ = ShellExecuteW(None, w!("open"), w!("explorer.exe"), &arg, PCWSTR::null(), SW_SHOWNORMAL);
+                        }
+                        if cmd == "exp_pw" {
+                            format!("Saved {what} to Downloads\\{name}. The file is NOT encrypted: import it where you need it, then delete it.")
+                        } else {
+                            format!("Saved {what} to Downloads\\{name}. Any browser can import it.")
+                        }
+                    }
+                    Err(e) => format!("Could not save {name}: {e}"),
+                };
+                let n = json!({"id":"export","label":"Export","text":text,"actions":[{"t":"OK","pri":true}]});
+                let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+            }
             "open_owl" => {
                 let u = s("url");
                 self.open_owl(&u, None);
