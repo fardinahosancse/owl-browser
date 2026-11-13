@@ -507,7 +507,7 @@ pub struct Config {
     /// hex(DPAPI(sync passphrase)); empty = sync file stays plain text
     #[serde(default)]
     pub sync_key: String,
-    /// "pin" (4 digits) or "pass" (a passphrase of 10+ characters)
+    /// "pin" (4 digits, from early builds; upgraded at the next unlock) or "pass" (a passphrase)
     #[serde(default = "pin_mode")]
     pub pin_mode: String,
     /// key-derivation generation: below 3 means data still uses the older iterated-SHA scheme
@@ -592,6 +592,37 @@ fn dl_active_default() -> u32 {
 fn autolock_default() -> u32 {
     15
 }
+/// A passphrase must be at least this long.
+pub const MIN_PASS: usize = 12;
+
+/// Refuse passphrases that are too short, too long, made of one repeated character, or among the
+/// most common choices. Returns the reason, or None when it is acceptable.
+fn weak_passphrase(p: &str) -> Option<&'static str> {
+    let n = p.chars().count();
+    if n < MIN_PASS {
+        return Some("Use a passphrase of at least 12 characters.");
+    }
+    if n > 128 {
+        return Some("Use at most 128 characters.");
+    }
+    let lower = p.to_lowercase();
+    let mut chars: Vec<char> = lower.chars().collect();
+    chars.dedup();
+    if chars.len() <= 2 {
+        return Some("That passphrase is too easy to guess. Use several words.");
+    }
+    const COMMON: &[&str] = &[
+        "123456789012", "1234567890123", "password1234", "passwordpassword", "qwertyuiopas", "qwerty123456",
+        "iloveyou1234", "letmein12345", "welcome12345", "administrator", "abcdefghijkl", "abc123abc123",
+        "111111111111", "000000000000", "123123123123", "passw0rd1234", "trustno1trustno1", "football1234",
+        "princess1234", "sunshine1234", "monkey123456", "dragon123456", "1q2w3e4r5t6y", "zaq12wsxcde3",
+    ];
+    if COMMON.contains(&lower.as_str()) || lower.starts_with("password") || lower.starts_with("12345678") {
+        return Some("That passphrase is too common. Use several words only you would pick.");
+    }
+    None
+}
+
 fn pin_mode() -> String {
     "pin".into()
 }
@@ -1240,6 +1271,8 @@ struct App {
     mshown: std::cell::Cell<bool>,
     /// tab id -> the http:// URL that HTTPS-only upgraded
     upg: HashMap<u32, String>,
+    /// the verified 4-digit key, held only while the user chooses a passphrase
+    upgrade_old: Option<zeroize::Zeroizing<String>>,
     last_key: Instant,
     /// downloads waiting for the user's answer
     dl_ask: Vec<(u32, Instant)>,
@@ -2191,6 +2224,15 @@ impl App {
                     }
                     self.last_active = Instant::now();
                     self.locked = false;
+                    if self.ctx.cfg.lock().unwrap().pin_mode == "pin" && !self.ctx.private {
+                        // a 4-digit key can be guessed offline in minutes: choose a passphrase first
+                        self.upgrade_old = Some(zeroize::Zeroizing::new(pin.clone()));
+                        self.modal = true;
+                        self.layout();
+                        self.push();
+                        let _ = self.ui.evaluate_script("owl.mustUpgrade()");
+                        return;
+                    }
                     self.ensure_tabs();
                     self.layout();
                     self.push();
@@ -2213,18 +2255,46 @@ impl App {
                 }
             }
             "lock" => self.begin_lock(),
+            "upgrade_pin" => {
+                let new = s("new");
+                let Some(old) = self.upgrade_old.take() else { return };
+                if let Some(w) = weak_passphrase(&new) {
+                    self.upgrade_old = Some(old);
+                    let _ = self.ui.evaluate_script(&format!("owl.mustUpgrade({})", serde_json::to_string(w).unwrap()));
+                    return;
+                }
+                self.command(json!({"cmd": "set_pin", "old": old.as_str(), "new": new, "internal": true, "quiet": true}), true, id);
+                if self.ctx.cfg.lock().unwrap().pin_mode == "pass" {
+                    self.modal = false;
+                    self.ensure_tabs();
+                    self.layout();
+                    self.push();
+                    let n = json!({"id":"upg","label":"Security","text":"Passphrase set. Your 4-digit key no longer opens Owl.","actions":[{"t":"OK","pri":true}]});
+                    let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+                } else {
+                    self.upgrade_old = Some(old);
+                    let _ = self.ui.evaluate_script("owl.mustUpgrade('That did not work. Try again.')");
+                }
+            }
+            "upgrade_cancel" => {
+                // no passphrase, no browsing: lock again
+                self.upgrade_old = None;
+                self.modal = false;
+                self.begin_lock();
+            }
             "set_pin" => {
                 let (old, new) = (s("old"), s("new"));
                 // only passphrases: a 4-digit key can be guessed offline in minutes
                 let is_pin = false;
-                let is_pass = new.chars().count() >= 10 && new.chars().count() <= 128;
+                let weak = weak_passphrase(&new);
+                let is_pass = weak.is_none();
                 let internal = v["internal"].as_bool().unwrap_or(false);
                 let msg = if !internal && !self.pin_gate() {
                     "Slow down: one attempt every two seconds."
                 } else if !self.ctx.verify_pin(&old) {
                     "Your current key is wrong."
-                } else if !is_pass {
-                    "Use a passphrase of at least 10 characters."
+                } else if let Some(w) = weak {
+                    w
                 } else {
                     let salt = crypt::hex(&crypt::random(16));
                     let m = zeroize::Zeroizing::new(master_key(&salt, &new));
@@ -2273,8 +2343,8 @@ impl App {
                 if email.len() > 120 || at.map_or(true, |i| i == 0 || !email[i + 1..].contains('.') || email.contains(' ')) {
                     return fail(self, "Enter a valid email address.");
                 }
-                if pass.chars().count() < 10 || pass.chars().count() > 128 {
-                    return fail(self, "Choose a password of at least 10 characters.");
+                if let Some(w) = weak_passphrase(&pass) {
+                    return fail(self, w);
                 }
                 if pass == DEFAULT_PIN {
                     return fail(self, "Choose a new password, not the default.");
@@ -3433,7 +3503,7 @@ fn main() {
         locked: !private, fails: 0, lock_until: None, pending: None, speeds: HashMap::new(),
         last_push: Instant::now(), proxy, ctx, ticks: 0, media: None, mw: None, mcollapsed: false,
         mshown: std::cell::Cell::new(false),
-        upg: HashMap::new(), last_key: Instant::now(), dl_ask: vec![], seen_media: HashMap::new(), recent_dl: vec![], engine_watch: false,
+        upg: HashMap::new(), upgrade_old: None, last_key: Instant::now(), dl_ask: vec![], seen_media: HashMap::new(), recent_dl: vec![], engine_watch: false,
         sealer: None, sealed_at_lock: false, last_active: Instant::now(),
         snap_wait: None, unclean, block_reason: false, restore2: vec![],
         dlg_queue: Default::default(), dlg_active: None, modal: false, no_dialog: Default::default(),
@@ -3875,4 +3945,21 @@ fn main() {
             _ => {}
         }
     });
+}
+
+#[cfg(test)]
+mod passphrase_tests {
+    use super::weak_passphrase;
+
+    #[test]
+    fn rules() {
+        assert!(weak_passphrase("1966").is_some());
+        assert!(weak_passphrase("short words").is_some());
+        assert!(weak_passphrase("aaaaaaaaaaaaaaaa").is_some());
+        assert!(weak_passphrase("password1234").is_some());
+        assert!(weak_passphrase("Password123456").is_some());
+        assert!(weak_passphrase("1234567890123").is_some());
+        assert!(weak_passphrase("quiet owl reads maps").is_none());
+        assert!(weak_passphrase(&"x".repeat(129)).is_some());
+    }
 }

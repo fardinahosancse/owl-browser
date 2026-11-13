@@ -229,7 +229,7 @@ body.top #tool{order:1;border-bottom:1px solid var(--line)}body.top #top{order:2
  <div class="l"><div class="hint">Owl<span>Ultra-light browser</span></div><div class="w">Owl.</div><div class="hint"><i id="lh" style="font-style:normal">Locked</i><span id="ls">Enter your key to open the browser.</span></div></div>
  <div class="r"><div id="rcv" role="alert"><h3>Settings need attention</h3><p>Owl&#39;s settings file is damaged or missing, so your encrypted data cannot be opened safely. Nothing was changed or deleted.</p><p>Restore <b>config.json</b> from <b>config.bak</b> in your Owl folder, then start Owl again.</p><div class="rb"><button id="rcvo" type="button">Open Owl folder</button><button id="rcvq" type="button" class="g2">Quit</button></div></div><div id="dots" role="img" aria-label="0 of 4 digits entered"><i></i><i></i><i></i><i></i></div><form id="sf" autocomplete="off"><h3>Welcome to Owl</h3><p>Set up your browser. Your name and email stay on this PC, inside the encrypted store, and are never sent anywhere. The password replaces the default key and protects your saved passwords, history and cookies.</p>
   <input id="sn" placeholder="Your name" aria-label="Your name" maxlength="60" autocomplete="off"><input id="se" type="email" placeholder="Email address" aria-label="Email address" maxlength="120" autocomplete="off">
-  <input id="sp1" type="password" placeholder="New password (10+ characters)" aria-label="New password" maxlength="128" autocomplete="off"><input id="sp2" type="password" placeholder="Repeat password" aria-label="Repeat password" maxlength="128" autocomplete="off"><button type="submit">Create and open</button></form>
+  <input id="sp1" type="password" placeholder="New passphrase (12+ characters)" aria-label="New password" maxlength="128" autocomplete="off"><input id="sp2" type="password" placeholder="Repeat password" aria-label="Repeat password" maxlength="128" autocomplete="off"><button type="submit">Create and open</button></form>
  <form id="pf" autocomplete="off"><input id="pw1" type="password" placeholder="Passphrase" aria-label="Passphrase" autocomplete="off"><button type="submit">Unlock</button></form><div id="lmsg" role="alert" aria-live="assertive"></div>
   <div id="pad"></div></div>
 </div>
@@ -411,6 +411,14 @@ window.owl={
  clearPrompt(){pend=null;if(mode==='save'){mode=null;finish()}},
  dialog(o){showDialog(o)},
  dialogClose(){dlg=null;document.body.classList.remove('modal');unInert()},
+ mustUpgrade(why){(async()=>{let note=why?why+' ':'';for(;;){
+   const a=await askLocal('prompt','Choose a passphrase',note+'Your startup key has 4 digits, which can be guessed offline in minutes. Choose a passphrase of at least 12 characters, for example a few words. It replaces the 4-digit key.','',true);
+   if(a===null){send({cmd:'upgrade_cancel'});return}
+   if(a.length<12){note='Use at least 12 characters.';continue}
+   const b=await askLocal('prompt','Choose a passphrase','Type the passphrase again.','',true);
+   if(b===null){send({cmd:'upgrade_cancel'});return}
+   if(a!==b){note='The two passphrases did not match.';continue}
+   send({cmd:'upgrade_pin',new:a});return}})()},
  lockFail(m){const d=$('dots');d.classList.add('bad');$('lmsg').textContent=m;pin='';$('pw1').value='';setTimeout(()=>{d.classList.remove('bad');drawDots();if(document.body.classList.contains('passmode'))$('pw1').focus()},350)}
 };
 /* ---------- tab context menu ---------- */
@@ -497,7 +505,7 @@ function endDialog(ok){if(!dlg)return;const o=dlg;dlg=null;document.body.classLi
   if(o.local){o.resolve(o.kind==='prompt'?(ok?val:null):ok);send({cmd:'modal',on:false})}
   else send({cmd:'dlg_answer',id:o.id,ok,text:val,block:dlgBlock})}
 /* a chrome-side dialog (for example the bookmark group): returns a promise */
-const askLocal=(kind,title,text,def)=>new Promise(resolve=>{send({cmd:'modal',on:true});showDialog({kind,title,text,def,local:true,resolve})});
+const askLocal=(kind,title,text,def,secret)=>new Promise(resolve=>{send({cmd:'modal',on:true});showDialog({kind,title,text,def,local:true,resolve,secret:!!secret})});
 $('mok').onclick=()=>endDialog(true);$('mcn').onclick=()=>endDialog(false);$('mx').onclick=()=>endDialog(false);
 $('mshow').onclick=()=>{const m=$('mi');m.type=m.type==='password'?'text':'password';$('mshow').textContent=m.type==='password'?'Show':'Hide'};
 $('mblk').onclick=()=>{dlgBlock=true;$('mblk').textContent='This page’s dialogs will be blocked'};
@@ -515,7 +523,7 @@ function press(k){if(!document.body.classList.contains('locked'))return;$('lmsg'
 $('sf').onsubmit=e=>{e.preventDefault();const n=$('sn').value.trim(),m=$('se').value.trim(),a=$('sp1').value,b=$('sp2').value,l=$('lmsg');
   if(!n)return l.textContent='Enter your name.';
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m))return l.textContent='Enter a valid email address.';
-  if(a.length<10)return l.textContent='Choose a password of at least 10 characters.';
+  if(a.length<12)return l.textContent='Choose a passphrase of at least 12 characters.';
   if(a!==b)return l.textContent='The two passwords do not match.';
   l.textContent='';send({cmd:'setup',name:n,email:m,pass:a})};
 addEventListener('keydown',e=>{const B=document.body.classList;if(!B.contains('locked')||B.contains('passmode')||B.contains('setupmode'))return;if(/^\d$/.test(e.key))press(e.key);else if(e.key==='Backspace')press('<')},true);

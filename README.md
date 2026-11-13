@@ -122,7 +122,7 @@ iscc installer\owl.iss        # writes installer\Output\Owl-Setup-0.1.0.exe
 
 ## First run
 
-1. A **Welcome** screen asks for your name, email and a new passphrase (10 or more characters).
+1. A **Welcome** screen asks for your name, email and a new passphrase (12 or more characters).
    Your name and email stay on this PC inside the encrypted store and are never sent anywhere.
 2. Owl opens to the home page: clock, search, quick access, bookmark groups, time-online and
    privacy statistics, downloads and shortcuts.

@@ -620,7 +620,7 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
             tog("bar", c.bookmark_bar, "Bookmark bar", "Show bookmarks next to the tabs (Ctrl+B).")
         )),
         ("security", "Security", format!(
-            "<div class=set><div><b>Startup key</b><p><b>Use a passphrase of 10 or more characters.</b> It protects your saved passwords, history, bookmarks and cookies. A 4-digit key can be guessed offline.</p>\
+            "<div class=set><div><b>Startup key</b><p><b>Use a passphrase of 12 or more characters.</b> It protects your saved passwords, history, bookmarks and cookies. A 4-digit key can be guessed offline.</p>\
 <details><summary>How it works</summary><p>The key is stretched with Argon2id and wrong guesses lock you out for longer each time. Data is sealed when Owl locks or closes cleanly; if Owl is killed it stays readable until the next lock or start. The default key before setup is 1966.</p></details></div>\
 <div class=ctl><input class=pk type=password id=op maxlength=128 autocomplete=off aria-label=\"Current key\" placeholder=\"Current key\"><input class=pk type=password id=np maxlength=128 autocomplete=off aria-label=\"New key or passphrase\" placeholder=\"New key or passphrase\"><button data-act=setpin>Change</button></div></div>\
 <div class=set><div><b>Auto-lock</b><p>After this long without use, Owl locks, closes every page and encrypts your data on disk. Playing media and downloads count as use. Unlocking reopens your tabs.</p></div>{}</div>{}{}{}\
