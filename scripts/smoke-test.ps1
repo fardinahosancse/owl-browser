@@ -12,8 +12,14 @@ New-Item -ItemType Directory -Force (Join-Path $data "Owl"), (Join-Path $userp "
 '{"theme":"light","autolock":0,"organize":true}' | Set-Content (Join-Path $data "Owl\config.json") -Encoding ASCII
 
 $server = Start-Process python -ArgumentList (Join-Path $PSScriptRoot "test-server.py"), $Port -PassThru -NoNewWindow -RedirectStandardOutput (Join-Path $root "server.txt")
-Start-Sleep 2
-$bigHash = (Get-Content (Join-Path $root "server.txt") -TotalCount 1).Trim()
+# the server prints the test file's checksum once it has built the file; wait for it (slow on CI)
+$bigHash = $null
+for ($i = 0; $i -lt 60 -and -not $bigHash; $i++) {
+  Start-Sleep 1
+  $line = Get-Content (Join-Path $root "server.txt") -TotalCount 1 -ErrorAction SilentlyContinue
+  if ($line) { $bigHash = "$line".Trim() }
+}
+if (-not $bigHash) { "SMOKE TEST FAILED: the test server did not start"; exit 1 }
 
 $base = "http://127.0.0.1:$Port"
 $cmds = @(
