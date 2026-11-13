@@ -503,6 +503,34 @@ fn segment(job: &Job, i: usize) {
     }
 }
 
+/// Live details for the download list: per-part progress, open connections, queued state.
+pub fn live(id: u32) -> Option<serde_json::Value> {
+    let job = jobs(|j| j.get(&id).cloned())?;
+    let parts: Vec<f64> = job
+        .segs
+        .iter()
+        .map(|s| {
+            let len = (s.end - s.start + 1).max(1) as f64;
+            ((s.pos.load(Relaxed) - s.start) as f64 / len * 100.0).clamp(0.0, 100.0)
+        })
+        .collect();
+    let running = job.running.load(Relaxed) && job.state.load(Relaxed) == RUN;
+    let conns = if running { job.segs.iter().filter(|s| s.pos.load(Relaxed) <= s.end).count() } else { 0 };
+    Some(serde_json::json!({"parts": parts, "conns": conns, "queued": job.state.load(Relaxed) == QUEUE, "resumable": true}))
+}
+
+/// Start a queued download now, ignoring the "downloads at once" limit.
+pub fn force(id: u32, proxy: EventLoopProxy<Ev>) -> bool {
+    match jobs(|j| j.get(&id).cloned()) {
+        Some(job) if job.state.load(Relaxed) == QUEUE => {
+            let _ = proxy.send_event(Ev::DlQueue(id, false));
+            run(id, job, proxy);
+            true
+        }
+        _ => false,
+    }
+}
+
 pub fn pause(id: u32) -> bool {
     jobs(|j| j.get(&id).map(|x| x.state.store(PAUSE, Relaxed)).is_some())
 }

@@ -406,41 +406,107 @@ pub fn bookmarks(s: &Store, theme: &str) -> String {
 
 pub fn downloads(theme: &str) -> String {
     let css = r#"<style>
-.tb{display:flex;gap:8px;align-items:center;margin-bottom:20px;flex-wrap:wrap}.tb .sp{flex:1}
-.agg{font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums}
-.dr{display:grid;grid-template-columns:48px 1fr 190px 230px;gap:20px;padding:16px 0;border-top:1px solid var(--line);align-items:center;animation:rise .4s cubic-bezier(.2,.7,.2,1) both}
-.dr .nm{font-size:18px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dtop{display:grid;grid-template-columns:1fr auto;gap:12px;margin-bottom:14px}
+.dtop .pf{width:100%}
+.tb{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}.tb .sp{flex:1}
+.tb select,.tb .pf{width:auto;min-width:0}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);border-top:2px solid var(--ink);margin-bottom:8px}
+.stats div{padding:12px 0 14px;border-right:1px solid var(--line)}.stats div:last-child{border-right:0}
+.stats b{display:block;font-size:28px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.stats span{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.stats div+div{padding-left:16px}
+.vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.dr>div{min-width:0}
+.dr{display:grid;grid-template-columns:44px minmax(0,1fr) 230px 240px;gap:18px;padding:16px 0;border-top:1px solid var(--line);align-items:center}
+.dr .ic{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--soft);color:var(--ink)}
+.dr.torrent .ic{background:var(--ink);color:var(--on)}
+.dr .ic svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.dr .nm{font-size:17px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dr .pa{font-size:12px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
-.dr .bar{margin-top:8px}.dr .bar i{transition:width .5s ease}.dr .inf{font-size:12px;font-variant-numeric:tabular-nums}.dr .inf b{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:3px}
+.dr .tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:2px 6px;margin-right:6px;border:1px solid var(--line);color:var(--mute);vertical-align:2px}
+.dr .tag.t{border-color:var(--ink);color:var(--ink)}
+.dr .bar{margin-top:8px}.dr .bar i{transition:width .45s ease}
+.parts{display:flex;gap:2px;margin-top:8px;height:6px}.parts i{flex:1;background:var(--soft);position:relative;overflow:hidden}
+.parts i::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--p);background:var(--red);transition:width .45s ease}
+.dr.paused .parts i::after,.dr.paused .bar i{background:var(--mute)}
+.dr .inf{font-size:12px;font-variant-numeric:tabular-nums;line-height:1.5}.dr .inf b{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:2px}
+.dr .inf .m{color:var(--mute)}
 .dr .ac{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}.dr .ac button{min-height:32px;padding:0 12px;font-size:11px}
-.dr.done .bar i{background:var(--ink)}.dr.failed .bar i,.dr.cancelled .bar i{background:var(--mute)}.dr.paused .bar i{background:var(--mute)}
+.dr.done .bar i{background:var(--ink)}.dr.failed .bar i,.dr.cancelled .bar i{background:var(--mute)}
 button[disabled]{opacity:.45;cursor:default}
-@media(max-width:900px){.dr{grid-template-columns:1fr}.dr .ac{justify-content:flex-start}}
+@media(max-width:900px){.dr{grid-template-columns:44px 1fr}.dr .inf,.dr .ac{grid-column:2}.dr .ac{justify-content:flex-start}.stats{grid-template-columns:repeat(2,1fr)}.dtop{grid-template-columns:1fr}}
 </style>"#;
-    let extra = r#"<div class=tb role=group aria-label="Filter downloads"><button class=on data-f=all aria-pressed=true>All</button><button class=ghost data-f=active aria-pressed=false>Active</button><button class=ghost data-f=done aria-pressed=false>Completed</button><span class=sp></span><span class=agg id=agg aria-live=polite></span><button class=ghost id=clr disabled>Clear finished</button></div><div id=list><div class=empty>Files you download appear here.</div></div>
+    let extra = r#"<div class=dtop><label class=vh for=addu>Add a download</label><input class=pf id=addu placeholder="Paste a link or a magnet link to download it" autocomplete=off spellcheck=false><button id=addb>Add download</button></div>
+<div class=stats aria-live=polite><div><b id=s1>0</b><span>Active</span></div><div><b id=s2>0 B/s</b><span>Download speed</span></div><div><b id=s3>0</b><span>Connections</span></div><div><b id=s4>0 B/s</b><span>Torrent upload</span></div></div>
+<div class=tb role=group aria-label="Filter downloads"><button class=on data-f=all aria-pressed=true>All</button><button class=ghost data-f=active aria-pressed=false>Active</button><button class=ghost data-f=done aria-pressed=false>Completed</button><button class=ghost data-f=torrent aria-pressed=false>Torrents</button>
+<label class=vh for=cat>Type</label><select class=pk id=cat aria-label="File type"><option value="">All types</option><option>Video</option><option>Music</option><option>Documents</option><option>Images</option><option>Archives</option><option>Programs</option><option>Other</option></select>
+<label class=vh for=dq>Search downloads</label><input class=pf id=dq placeholder="Search" style="width:180px"><span class=sp></span>
+<label class=vh for=lim>Speed limit</label><select class=pk id=lim data-sel=dl_limit aria-label="Speed limit"><option value=0>No speed limit</option><option value=512>512 KB/s</option><option value=1024>1 MB/s</option><option value=2048>2 MB/s</option><option value=5120>5 MB/s</option><option value=10240>10 MB/s</option><option value=20480>20 MB/s</option></select>
+<label class=vh for=par>Downloads at once</label><select class=pk id=par data-sel=dl_active aria-label="Downloads at once"><option value=1>1 at once</option><option value=2>2 at once</option><option value=3>3 at once</option><option value=5>5 at once</option><option value=8>8 at once</option></select>
+<button class=ghost id=fold>Open folder</button><button class=ghost id=clr>Clear finished</button></div>
+<div id=list></div>
 <script>
-const send=o=>ipc.postMessage(JSON.stringify(o));let F='all',D=[],sig='';
-const sz=b=>b>=1e9?(b/1e9).toFixed(2)+' GB':b>=1e6?(b/1e6).toFixed(1)+' MB':b>=1e3?Math.round(b/1e3)+' KB':b+' B';
+const send=o=>ipc.postMessage(JSON.stringify(o));let F='all',C='',Q='',D=[],sig='',meta={};
+const sz=b=>b>=1e9?(b/1e9).toFixed(2)+' GB':b>=1e6?(b/1e6).toFixed(1)+' MB':b>=1e3?Math.round(b/1e3)+' KB':Math.round(b)+' B';
 const eta=s=>{if(!isFinite(s)||s<=0)return '';s=Math.round(s);return s>3600?Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m':s>60?Math.floor(s/60)+'m '+s%60+'s':s+'s'};
 const act=d=>d.status==='downloading'||d.status==='paused'||d.status==='pending';
-function draw(){const L=document.getElementById('list');const rows=D.filter(d=>F==='all'||(F==='active'?act(d):d.status==='done'));
- if(!rows.length){L.innerHTML='<div class=empty>'+(F==='active'?'Nothing is downloading right now.':F==='done'?'No completed downloads yet.':'Files you download appear here.')+'</div>';return}
- const first=!L.querySelector('.dr');
- L.innerHTML=rows.map((d,i)=>{const pct=d.total>0?Math.min(100,d.received*100/d.total):(d.status==='done'?100:0);
-  const sp=d.status==='downloading'?sz(d.speed)+'/s':'';const e=d.status==='downloading'&&d.total>0&&d.speed>0?eta((d.total-d.received)/d.speed):'';
-  const b=[];if(d.status==='downloading')b.push(['Pause','dl_pause']);if(d.status==='paused')b.push(['Resume','dl_resume']);
-  if(act(d))b.push(['Cancel','dl_cancel']);if(d.status==='done'){b.push(['Open','dl_open']);b.push(['Show','dl_reveal'])}
-  if(d.status==='failed'||d.status==='cancelled'||d.status==='interrupted')b.push(['Retry','dl_retry']);if(!act(d))b.push(['Remove','dl_remove']);
-  return '<div class="dr '+d.status+'" style="'+(first?'animation-delay:'+Math.min(i,10)*30+'ms':'animation:none')+'"><span class=n>'+String(i+1).padStart(2,'0')+'</span><div><div class=nm></div><div class=pa></div><div class=bar role=progressbar aria-valuemin=0 aria-valuemax=100 aria-valuenow='+Math.round(pct)+'><i style="width:'+pct+'%"></i></div></div>'+
-  '<div class=inf><b>'+d.status+'</b>'+sz(d.received)+(d.total>0?' of '+sz(d.total):'')+(sp?' &middot; '+sp:'')+(e?' &middot; '+e:'')+'</div><div class=ac>'+b.map(x=>'<button class=ghost data-c='+x[1]+' data-i='+d.id+'>'+x[0]+'</button>').join('')+'</div></div>'}).join('');
- L.querySelectorAll('.dr').forEach((el,i)=>{el.querySelector('.nm').textContent=rows[i].name;el.querySelector('.pa').textContent=rows[i].path;el.querySelector('.nm').title=rows[i].url});
- L.querySelectorAll('button[data-c]').forEach(x=>x.onclick=()=>send({cmd:x.dataset.c,id:+x.dataset.i}))}
-const ST=['downloading','paused','pending','done','failed','cancelled','interrupted'];
-async function poll(){try{D=(await (await fetch('/downloads.json',{cache:'no-store'})).json()).map(d=>({id:+d.id||0,name:String(d.name||''),path:String(d.path||''),url:String(d.url||''),status:ST.includes(d.status)?d.status:'failed',received:+d.received||0,total:+d.total||0,speed:+d.speed||0}));const a=D.filter(d=>d.status==='downloading');
- document.getElementById('agg').textContent=a.length?a.length+' active \u00b7 '+sz(a.reduce((s,d)=>s+d.speed,0))+'/s':D.length+(D.length===1?' file':' files');
+const EXT={Video:['mp4','mkv','avi','mov','webm','wmv','m4v'],Music:['mp3','wav','flac','m4a','ogg','aac','opus'],Documents:['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','csv','epub','odt','rtf'],Images:['jpg','jpeg','png','gif','webp','bmp','svg','avif','heic'],Archives:['zip','rar','7z','tar','gz','bz2','xz','iso'],Programs:['exe','msi','msix','apk','dmg']};
+function cat(d){if(d.kind==='torrent')return 'Torrent';const e=(d.name.split('.').pop()||'').toLowerCase();for(const k in EXT)if(EXT[k].includes(e))return k;return 'Other'}
+const P={Torrent:'<path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/>',Video:'<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',Music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',Documents:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 13H8"/><path d="M16 17H8"/>',Images:'<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',Archives:'<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',Programs:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',Other:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>'};
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function btn(label,cmd,d){const b=el('button','ghost',label);b.onclick=()=>{if(cmd==='copy'){try{navigator.clipboard.writeText(d.url)}catch(e){}b.textContent='Copied';setTimeout(()=>b.textContent=label,1200);return}send({cmd,id:d.id});setTimeout(poll,150)};return b}
+function row(d){const L=d.live||{},tor=d.kind==='torrent',k=cat(d);const r=el('div','dr '+d.status+(tor?' torrent':''));
+ const ic=el('div','ic');ic.setAttribute('aria-hidden','true');ic.innerHTML='<svg viewBox="0 0 24 24">'+(P[k]||P.Other)+'</svg>';r.appendChild(ic);
+ const mid=el('div');const nm=el('div','nm');const tg=el('span','tag'+(tor?' t':''),tor?'Torrent':d.kind==='fast'?'Fast':d.kind==='media'?'Media':k);nm.appendChild(tg);nm.appendChild(document.createTextNode(d.name));nm.title=d.url||d.name;mid.appendChild(nm);
+ mid.appendChild(el('div','pa',d.path));
+ const pct=d.total>0?Math.min(100,d.received*100/d.total):(d.status==='done'?100:0);
+ if(Array.isArray(L.parts)&&L.parts.length>1&&act(d)){const ps=el('div','parts');ps.setAttribute('role','progressbar');ps.setAttribute('aria-valuenow',Math.round(pct));ps.setAttribute('aria-label',L.parts.length+' parts');L.parts.forEach(p=>{const i=el('i');i.style.setProperty('--p',(+p||0)+'%');ps.appendChild(i)});mid.appendChild(ps)}
+ else{const b=el('div','bar');b.setAttribute('role','progressbar');b.setAttribute('aria-valuenow',Math.round(pct));const i=el('i');i.style.width=pct+'%';b.appendChild(i);mid.appendChild(b)}
+ r.appendChild(mid);
+ const inf=el('div','inf');let label=d.status;if(L.queued)label='queued';if(tor&&L.state&&act(d))label=L.state;if(tor&&L.state==='seeding')label='seeding';inf.appendChild(el('b','',label));
+ const sp=d.status==='downloading'?d.speed:0,e=sp>0&&d.total>0?eta((d.total-d.received)/sp):'';
+ inf.appendChild(el('div','',sz(d.received)+(d.total>0?' of '+sz(d.total):'')+(sp?' · '+sz(sp)+'/s':'')+(e?' · '+e+' left':'')));
+ if(tor&&d.live)inf.appendChild(el('div','m',L.peers+' peers · '+L.seeders+' seeders · ↑ '+sz(L.up||0)+'/s · uploaded '+sz(L.uploaded||0)));
+ else if(L.conns>0)inf.appendChild(el('div','m',L.conns+' connections · resumable'));
+ else if(d.kind==='fast'&&act(d))inf.appendChild(el('div','m','resumable'));
+ r.appendChild(inf);
+ const ac=el('div','ac');
+ if(L.queued)ac.appendChild(btn('Start now','dl_force',d));
+ if(d.status==='downloading'&&!L.queued)ac.appendChild(btn(tor?'Stop':'Pause','dl_pause',d));
+ if(d.status==='paused')ac.appendChild(btn('Resume','dl_resume',d));
+ if(tor&&(act(d)||L.state==='seeding'))ac.appendChild(btn('Stop and delete','dl_delete',d));
+ else if(act(d))ac.appendChild(btn('Cancel','dl_cancel',d));
+ if(d.status==='done'){ac.appendChild(btn('Open','dl_open',d));ac.appendChild(btn('Show','dl_reveal',d))}
+ if(tor&&L.state==='seeding')ac.appendChild(btn('Stop seeding','dl_seedstop',d));
+ if(d.url&&!tor)ac.appendChild(btn('Copy link','copy',d));
+ if(d.status==='failed'||d.status==='cancelled'||d.status==='interrupted')ac.appendChild(btn('Retry','dl_retry',d));
+ if(!act(d))ac.appendChild(btn('Remove','dl_remove',d));
+ r.appendChild(ac);return r}
+const R=new Map();
+function draw(){const L=document.getElementById('list');
+ const rows=D.filter(d=>(F==='all'||(F==='active'?act(d):F==='done'?d.status==='done':d.kind==='torrent'))&&(!C||cat(d)===C)&&(!Q||(d.name+' '+d.url).toLowerCase().includes(Q)));
+ if(!rows.length){L.textContent='';R.clear();L.appendChild(el('div','empty',F==='active'?'Nothing is downloading right now.':F==='torrent'?'No torrents yet. Open a magnet link or a .torrent file, or paste one above.':D.length?'Nothing matches.':'Files you download appear here. Paste a link above to download it with up to 8 connections.'));return}
+ const em=L.querySelector('.empty');if(em)em.remove();
+ // update rows in place: only a row whose data changed is rebuilt, so the list does not flicker
+ const keep=new Set(),fa=document.activeElement,ft=fa&&fa.tagName==='BUTTON'?fa.textContent:null;
+ rows.forEach(d=>{const s=JSON.stringify(d);let x=R.get(d.id);if(!x||x.s!==s){const n=row(d);const had=x&&x.el.contains(fa);if(x)x.el.replaceWith(n);x={el:n,s};R.set(d.id,x);if(had&&ft){const b=[...n.querySelectorAll('button')].find(b=>b.textContent===ft);if(b)b.focus()}}keep.add(d.id);L.appendChild(x.el)});
+ for(const [id,x] of R)if(!keep.has(id)){x.el.remove();R.delete(id)}}
+const ST=['downloading','paused','pending','done','failed','cancelled','interrupted'],KD=['','fast','torrent','media','image','add'];
+async function poll(){try{const j=await (await fetch('/downloads.json',{cache:'no-store'})).json();meta=j||{};
+ D=(j.items||[]).map(d=>({id:+d.id||0,name:String(d.name||''),path:String(d.path||''),url:String(d.url||''),status:ST.includes(d.status)?d.status:'failed',kind:KD.includes(d.kind)?d.kind:'',received:+d.received||0,total:+d.total||0,speed:+d.speed||0,live:d.live&&typeof d.live==='object'?d.live:null}));
+ const a=D.filter(d=>d.status==='downloading');
+ document.getElementById('s1').textContent=a.length;document.getElementById('s2').textContent=sz(a.reduce((s,d)=>s+d.speed,0))+'/s';
+ document.getElementById('s3').textContent=D.reduce((s,d)=>s+((d.live&&+d.live.conns)||0)+((d.live&&+d.live.peers)||0),0);
+ document.getElementById('s4').textContent=sz(D.reduce((s,d)=>s+((d.live&&+d.live.up)||0),0))+'/s';
+ const lim=document.getElementById('lim'),par=document.getElementById('par');if(document.activeElement!==lim)lim.value=String(+meta.limit||0);if(document.activeElement!==par)par.value=String(+meta.active||3);
  document.getElementById('clr').disabled=!D.some(d=>!act(d));
- const k=JSON.stringify(D)+F;if(k!==sig){sig=k;draw()}}catch(e){}}
+ const k=JSON.stringify(D)+F+C+Q;if(k!==sig){sig=k;draw()}}catch(e){}}
 document.querySelectorAll('.tb button[data-f]').forEach(b=>b.onclick=()=>{F=b.dataset.f;document.querySelectorAll('.tb button[data-f]').forEach(x=>{x.className=x===b?'on':'ghost';x.setAttribute('aria-pressed',x===b)});sig='';poll()});
+document.getElementById('cat').onchange=e=>{C=e.target.value;sig='';draw()};
+document.getElementById('dq').oninput=e=>{Q=e.target.value.trim().toLowerCase();sig='';draw()};
+function add(){const i=document.getElementById('addu'),u=i.value.trim();if(!u)return;send({cmd:'dl_add',url:u});i.value='';setTimeout(poll,300)}
+document.getElementById('addb').onclick=add;document.getElementById('addu').onkeydown=e=>{if(e.key==='Enter')add()};
+document.getElementById('fold').onclick=()=>send({cmd:'dl_folder'});
 document.getElementById('clr').onclick=()=>{send({cmd:'dl_clear'});setTimeout(poll,150)};poll();setInterval(poll,700);
 </script>"#;
     list_page("Downloads", "", extra, css, theme)

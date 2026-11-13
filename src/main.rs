@@ -438,6 +438,9 @@ pub struct Dl {
     pub speed: f64,
     #[serde(default)]
     pub t: u64,
+    /// how it is downloaded: "" browser, "fast" segmented engine, "torrent", "media", "image", "add"
+    #[serde(default)]
+    pub kind: String,
 }
 #[derive(Serialize, Deserialize, Default)]
 pub struct Store {
@@ -562,6 +565,13 @@ fn media_label(u: &str) -> String {
     let clean: String = last.chars().filter(|c| c.is_ascii_alphanumeric() || "-_. ".contains(*c)).take(80).collect();
     let clean = clean.trim_matches('.').to_string();
     if clean.is_empty() { "media.mp4".into() } else if clean.contains('.') { clean } else { format!("{clean}.mp4") }
+}
+/// A file name for any link, keeping its own extension.
+fn media_label_any(u: &str) -> String {
+    let last = u.split(['?', '#']).next().unwrap_or("").rsplit('/').next().unwrap_or("");
+    let clean: String = last.chars().filter(|c| c.is_ascii_alphanumeric() || "-_. ()".contains(*c)).take(120).collect();
+    let clean = clean.trim_matches('.').trim().to_string();
+    if clean.is_empty() { "download".into() } else { clean }
 }
 fn dl_active_default() -> u32 {
     3
@@ -1004,6 +1014,10 @@ pub enum Ev {
     DlAsk(u32, u32, String, String),
     DlProg(u32, i64, i64),
     DlState(u32, i32),
+    /// which engine took a download over
+    DlKind(u32, &'static str),
+    /// a download Owl started itself could not use the fast engine
+    DlDirectFail(u32),
     DlProbe(u32, Option<engine::Probe>),
     /// a magnet link was opened
     Magnet(String),
@@ -1132,7 +1146,20 @@ fn serve(path: &str, query: &str, ctx: &Ctx) -> (u16, &'static str, String) {
     if path == "/downloads.json" {
         let mut d = ctx.store.lock().unwrap().downloads.clone();
         d.reverse();
-        return (200, "application/json", serde_json::to_string(&d).unwrap_or("[]".into()));
+        // add what the engines know right now: parts and connections, or peers and speeds
+        let out: Vec<Value> = d
+            .iter()
+            .map(|x| {
+                let mut v = serde_json::to_value(x).unwrap_or(Value::Null);
+                let live = engine::live(x.id).or_else(|| torrent::live(x.id));
+                v["live"] = live.unwrap_or(Value::Null);
+                v
+            })
+            .collect();
+        let limit = ctx.cfg.lock().unwrap().dl_limit;
+        let at_once = ctx.cfg.lock().unwrap().dl_active;
+        let body = json!({"items": out, "limit": limit, "active": at_once, "root": dl::root().to_string_lossy()});
+        return (200, "application/json", body.to_string());
     }
     let s = ctx.store.lock().unwrap();
     match path {
@@ -1447,6 +1474,12 @@ impl App {
     /// Once a second: decay stale download speeds, count time on the active site, save now and then.
     fn tick(&mut self) {
         self.ticks += 1;
+        // test hook: OWL_TEST_ADD=<url> adds a download at start-up (used to screenshot the download list)
+        if self.ticks == 3 {
+            if let Ok(u) = std::env::var("OWL_TEST_ADD") {
+                self.command(json!({"cmd": "dl_add", "url": u}), true, 0);
+            }
+        }
         // daily notify-only update check (opt-in; skipped with a proxy, in private windows and while locked)
         // refresh downloaded filter lists once a week (only if the user downloaded them before)
         if self.ticks == 25 && !self.ctx.private && !self.locked && self.ctx.cfg.lock().unwrap().proxy.is_empty() && !doh::active() && owlkick::lists_age_days().map_or(false, |d| d >= 7) {
@@ -1558,7 +1591,7 @@ impl App {
         }
         let id = dl::next_id();
         let url = if let torrent::Source::Magnet(m) = &src { m.chars().take(300).collect() } else { String::new() };
-        self.ctx.store.lock().unwrap().downloads.push(Dl {
+        self.ctx.store.lock().unwrap().downloads.push(Dl { kind: "torrent".into(),
             id, name: label, path: dl::root().to_string_lossy().to_string(), url,
             status: "downloading".into(), received: 0, total: 0, speed: 0.0, t: now(),
         });
@@ -1596,7 +1629,7 @@ impl App {
         let background = tab != self.active;
         let burst = self.recent_dl.len() > 3;
         let ask = (risky || background || burst) && !self.locked;
-        self.ctx.store.lock().unwrap().downloads.push(Dl {
+        self.ctx.store.lock().unwrap().downloads.push(Dl { kind: String::new(),
             id, name: name.clone(), path, url: url.clone(),
             status: if ask { "pending".into() } else { "downloading".into() },
             received: 0, total: 0, speed: 0.0, t: now(),
@@ -2346,6 +2379,57 @@ impl App {
                 self.dl_mut(did, |d| d.status = if ok { "downloading".into() } else { "failed".into() });
             }
             "dl_allow" => self.dl_answer(did, true),
+            "dl_add" => {
+                // the download list's "Add" box: a link or a magnet link
+                let u = s("url").trim().to_string();
+                if torrent::is_magnet(&u) {
+                    self.start_torrent(torrent::Source::Magnet(u), "Torrent (fetching details)".into());
+                } else if (u.starts_with("http://") || u.starts_with("https://")) && u.len() < 2048 && !self.locked {
+                    if engine::DIRECT_OK.load(Relaxed) && !self.ctx.private {
+                        let organize = self.ctx.cfg.lock().unwrap().organize;
+                        let path = dl::target(&media_label_any(&u), organize);
+                        let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                        let nid = dl::next_id();
+                        self.ctx.store.lock().unwrap().downloads.push(Dl {
+                            kind: "add".into(), id: nid, name, path: path.clone(), url: u.clone(), status: "downloading".into(),
+                            received: 0, total: 0, speed: 0.0, t: now(),
+                        });
+                        self.speeds.insert(nid, (Instant::now(), 0, 0.0));
+                        dl::start_direct(nid, u, String::new(), path, self.proxy.clone());
+                        self.ctx.save();
+                        self.push();
+                    } else {
+                        self.new_tab(&u);
+                    }
+                }
+            }
+            "dl_seedstop" => torrent::stop(did),
+            "dl_force" => {
+                if engine::force(did, self.proxy.clone()) {
+                    self.dl_mut(did, |d| d.status = "downloading".into());
+                    self.push();
+                }
+            }
+            "dl_folder" => {
+                use windows::core::{w, HSTRING, PCWSTR};
+                use windows::Win32::UI::Shell::ShellExecuteW;
+                use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+                let p = HSTRING::from(dl::root().to_string_lossy().as_ref());
+                unsafe {
+                    let _ = ShellExecuteW(None, w!("open"), &p, PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL);
+                }
+            }
+            "dl_delete" => {
+                // torrents only: stop and delete what was downloaded
+                if torrent::cancel(did) {
+                    self.dl_mut(did, |d| {
+                        d.status = "cancelled".into();
+                        d.speed = 0.0;
+                    });
+                    self.ctx.save();
+                    self.push();
+                }
+            }
             "dl_deny" => self.dl_answer(did, false),
             "http_allow" => {
                 let u = s("url");
@@ -2457,7 +2541,7 @@ impl App {
                 let path = dl::target(&media_label(&u), organize);
                 let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
                 let did = dl::next_id();
-                self.ctx.store.lock().unwrap().downloads.push(Dl {
+                self.ctx.store.lock().unwrap().downloads.push(Dl { kind: "media".into(),
                     id: did, name, path: path.clone(), url: u.clone(), status: "downloading".into(), received: 0, total: 0, speed: 0.0, t: now(),
                 });
                 self.speeds.insert(did, (Instant::now(), 0, 0.0));
@@ -3591,7 +3675,7 @@ fn main() {
                     } else {
                         let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
                         let id = dl::next_id();
-                        app.ctx.store.lock().unwrap().downloads.push(Dl {
+                        app.ctx.store.lock().unwrap().downloads.push(Dl { kind: "image".into(),
                             id, name: name.clone(), path, url: String::new(), status: "done".into(),
                             received: size as i64, total: size as i64, speed: 0.0, t: now(),
                         });
@@ -3616,6 +3700,31 @@ fn main() {
                         });
                         app.push();
                     }
+                }
+                Ev::DlKind(id, k) => {
+                    app.dl_mut(id, |d| {
+                        if d.kind.is_empty() || d.kind == "add" {
+                            d.kind = k.to_string();
+                        }
+                    });
+                }
+                Ev::DlDirectFail(id) => {
+                    // a link the user added: hand it to the browser's normal (single connection) download
+                    let (kind, url) = app.dl_mut(id, |d| (d.kind.clone(), d.url.clone())).unwrap_or_default();
+                    if kind == "add" && (url.starts_with("http://") || url.starts_with("https://")) {
+                        app.ctx.store.lock().unwrap().downloads.retain(|d| d.id != id);
+                        app.speeds.remove(&id);
+                        app.new_tab(&url);
+                        let n = json!({"id":"dladd","label":"Download","text":"That server does not support fast downloads, so it opened in a tab for a normal download.","actions":[{"t":"OK","pri":true}]});
+                        let _ = app.ui.evaluate_script(&format!("owl.notice({n})"));
+                    } else {
+                        app.dl_mut(id, |d| {
+                            d.status = "failed".into();
+                            d.speed = 0.0;
+                        });
+                    }
+                    app.ctx.save();
+                    app.push();
                 }
                 Ev::DlProbe(id, p) => dl::probe_done(id, p, app.proxy.clone()),
                 Ev::DlProg(id, r, t) => {

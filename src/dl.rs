@@ -133,6 +133,7 @@ pub fn probe_done(id: u32, probe: Option<crate::engine::Probe>, proxy: EventLoop
         }
     }
     if take {
+        let _ = proxy.send_event(Ev::DlKind(id, "fast"));
         match crate::engine::start(id, ctx.unwrap(), probe.unwrap(), proxy.clone()) {
             Some(true) => {
                 let _ = proxy.send_event(Ev::DlQueue(id, true));
@@ -144,7 +145,7 @@ pub fn probe_done(id: u32, probe: Option<crate::engine::Probe>, proxy: EventLoop
             }
         }
     } else if direct {
-        let _ = proxy.send_event(Ev::DlState(id, 1));
+        let _ = proxy.send_event(Ev::DlDirectFail(id));
     }
 }
 
@@ -287,6 +288,10 @@ pub fn install(wv: &WebView, proxy: EventLoopProxy<Ev>, tab: u32, organize: impl
                 let mut t1 = Default::default();
                 let _ = op.add_BytesReceivedChanged(
                     &BytesReceivedChangedEventHandler::create(Box::new(move |s, _| {
+                        // once the fast engine owns the download, the browser's cancelled copy is ignored
+                        if crate::engine::has(id) {
+                            return Ok(());
+                        }
                         if let Some(s) = s {
                             let (mut r, mut t) = (0i64, 0i64);
                             s.BytesReceived(&mut r)?;
@@ -300,6 +305,9 @@ pub fn install(wv: &WebView, proxy: EventLoopProxy<Ev>, tab: u32, organize: impl
                 let mut t2 = Default::default();
                 let _ = op.add_StateChanged(
                     &StateChangedEventHandler::create(Box::new(move |s, _| {
+                        if crate::engine::has(id) {
+                            return Ok(());
+                        }
                         if let Some(s) = s {
                             let mut st = Default::default();
                             s.State(&mut st)?;

@@ -157,6 +157,33 @@ pub fn stop(id: u32) {
     });
 }
 
+/// Live details for the download list: peers, seeders, speeds, state.
+pub fn live(id: u32) -> Option<serde_json::Value> {
+    let h = jobs(|j| j.get(&id).cloned())?;
+    let st = serde_json::to_value(h.stats()).ok()?;
+    let l = &st["live"];
+    let ps = &l["snapshot"]["peer_stats"];
+    let mbps = |v: &serde_json::Value| (v["mbps"].as_f64().unwrap_or(0.0) * 1024.0 * 1024.0) as u64;
+    let state = if st["finished"].as_bool().unwrap_or(false) {
+        "seeding"
+    } else if st["state"].as_str() == Some("paused") {
+        "paused"
+    } else if st["state"].as_str() == Some("initializing") || st["total_bytes"].as_u64().unwrap_or(0) == 0 {
+        "fetching details"
+    } else {
+        "downloading"
+    };
+    Some(serde_json::json!({
+        "peers": ps["live"].as_u64().unwrap_or(0),
+        "seeders": ps["live_seeders"].as_u64().unwrap_or(0),
+        "seen": ps["seen"].as_u64().unwrap_or(0),
+        "down": mbps(&l["download_speed"]),
+        "up": mbps(&l["upload_speed"]),
+        "uploaded": st["uploaded_bytes"].as_u64().unwrap_or(0),
+        "state": state,
+    }))
+}
+
 pub fn pause(id: u32) -> bool {
     let Some(h) = jobs(|j| j.get(&id).cloned()) else { return false };
     rt().spawn(async move {
