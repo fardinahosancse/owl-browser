@@ -2,7 +2,7 @@
 
 **Owl** is a small, fast and private desktop browser for Windows. It is written in Rust, renders with the system's Edge WebView2 engine, and wraps it in a Swiss-style interface with the address bar and tabs at the bottom.
 
-![Owl home page](https://raw.githubusercontent.com/fardinahosancse/owl-browser/main/assets/screenshots/home-navy.png)
+![Owl home page](https://raw.githubusercontent.com/fardinahosancse/owl-browser/main/assets/screenshots/calm.jpg)
 
 ## Start here
 

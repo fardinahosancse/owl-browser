@@ -179,6 +179,8 @@ static BLOCK: AtomicBool = AtomicBool::new(true);
 static HTTPS: AtomicBool = AtomicBool::new(false);
 static BLOCKED: AtomicU32 = AtomicU32::new(0);
 static BLOCKED_BASE: AtomicU64 = AtomicU64::new(0);
+/// Made-up live download details, filled only by the `_mock` test command (screenshots).
+static MOCK_LIVE: Mutex<Option<HashMap<u32, Value>>> = Mutex::new(None);
 /// Hosts the user chose to open over plain http this session.
 static ALLOW_HTTP: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
@@ -1313,7 +1315,7 @@ fn serve(path: &str, query: &str, ctx: &Ctx) -> (u16, &'static str, String) {
             .iter()
             .map(|x| {
                 let mut v = serde_json::to_value(x).unwrap_or(Value::Null);
-                let live = engine::live(x.id).or_else(|| torrent::live(x.id));
+                let live = engine::live(x.id).or_else(|| torrent::live(x.id)).or_else(|| MOCK_LIVE.lock().unwrap().as_ref().and_then(|m| m.get(&x.id).cloned()));
                 v["live"] = live.unwrap_or(Value::Null);
                 v
             })
@@ -1645,6 +1647,75 @@ impl App {
     }
 
     /// Once a second: decay stale download speeds, count time on the active site, save now and then.
+    /// Test command `_mock`: fills a throwaway profile with made-up downloads, tracker blocks and
+    /// home-page figures, so public screenshots show no real browsing. Reached only through
+    /// OWL_TEST_CMDS.
+    fn mock_data(&mut self) {
+        let t = now();
+        let root = r"C:\Users\you\Downloads";
+        let mk = |id: u32, name: &str, sub: &str, url: &str, status: &str, rec: i64, tot: i64, sp: f64, kind: &str, ago: u64| Dl {
+            id, name: name.into(), path: format!(r"{root}\{sub}\{name}"), url: url.into(), status: status.into(),
+            received: rec, total: tot, speed: sp, t: t - ago, kind: kind.into(),
+        };
+        const M: i64 = 1024 * 1024;
+        let items = vec![
+            mk(9001, "annual-report-2026.pdf", "Documents", "https://files.example.org/annual-report-2026.pdf", "done", 4 * M, 4 * M, 0.0, "", 7200),
+            mk(9002, "holiday-photos.zip", "Compressed", "https://cdn.example.net/holiday-photos.zip", "done", 812 * M, 812 * M, 0.0, "fast", 5400),
+            mk(9003, "lecture-04-signals.mp4", "Video", "https://media.example.edu/lecture-04-signals.mp4", "done", 356 * M, 356 * M, 0.0, "media", 3600),
+            mk(9004, "open-dataset-maps-v3.tar.gz", "Compressed", "https://data.example.org/open-dataset-maps-v3.tar.gz", "downloading", 2310 * M, 4870 * M, 21.4 * M as f64, "fast", 600),
+            mk(9005, "linux-distro-26.04-desktop-amd64.iso", "Programs", "magnet:?xt=urn:btih:example", "downloading", 3020 * M, 5940 * M, 9.8 * M as f64, "torrent", 400),
+            mk(9006, "symphony-no-9-public-domain.flac", "Music", "https://archive.example.org/symphony-no-9.flac", "downloading", 41 * M, 268 * M, 6.2 * M as f64, "fast", 120),
+            mk(9007, "design-assets-pack.zip", "Compressed", "https://cdn.example.net/design-assets-pack.zip", "paused", 120 * M, 690 * M, 0.0, "fast", 900),
+            mk(9008, "open-film-4k.mkv", "Video", "magnet:?xt=urn:btih:example2", "done", 2900 * M, 2900 * M, 0.0, "torrent", 86400),
+        ];
+        let mut live = HashMap::new();
+        live.insert(9004, json!({"parts": [100.0, 100.0, 71.0, 64.0, 58.0, 49.0, 33.0, 12.0], "conns": 6, "queued": false, "resumable": true}));
+        live.insert(9006, json!({"parts": [31.0, 18.0, 12.0, 9.0], "conns": 4, "queued": false, "resumable": true}));
+        live.insert(9005, json!({"peers": 48, "seeders": 31, "seen": 212, "down": (9.8 * M as f64) as u64, "up": 1_400_000u64, "uploaded": 412 * M, "state": "downloading"}));
+        live.insert(9008, json!({"peers": 6, "seeders": 0, "seen": 40, "down": 0, "up": 820_000u64, "uploaded": 1700 * M, "state": "seeding"}));
+        *MOCK_LIVE.lock().unwrap() = Some(live);
+        {
+            let mut s = self.ctx.store.lock().unwrap();
+            s.downloads = items;
+            let e = |url: &str, title: &str, ago: u64, group: &str| Entry { url: url.into(), title: title.into(), t: t - ago, icon: String::new(), group: group.into() };
+            s.history = vec![
+                e("https://news.example.com/world", "World news, live", 9000, ""), e("https://docs.example.org/guide/start", "Getting started guide", 7000, ""),
+                e("https://video.example.net/watch?v=owl", "Owls at night, a documentary", 5000, ""), e("https://recipes.example.org/soup", "Winter soup, three ways", 4000, ""),
+                e("https://maps.example.com/city", "City map", 3000, ""), e("https://mail.example.com/inbox", "Inbox", 2000, ""),
+                e("https://shop.example.com/cart", "Your basket", 1500, ""), e("https://wiki.example.org/Owl", "Owl, the bird", 600, ""),
+            ];
+            s.bookmarks = vec![
+                e("https://docs.example.org/guide/start", "Guide", 100, "Work"), e("https://mail.example.com/inbox", "Mail", 100, "Work"),
+                e("https://calendar.example.com", "Calendar", 100, "Work"), e("https://news.example.com/world", "News", 100, "Read"),
+                e("https://wiki.example.org/Owl", "Owl wiki", 100, "Read"), e("https://recipes.example.org/soup", "Recipes", 100, "Home"),
+            ];
+            let day = today();
+            s.daily.insert(day, 2 * 3600 + 17 * 60);
+            for (h, secs) in [("news.example.com", 4200u64), ("docs.example.org", 3100), ("video.example.net", 2500), ("shop.example.com", 900)] {
+                s.usage.insert(h.into(), secs);
+            }
+        }
+        let trackers: [(&str, &'static str, u32); 14] = [
+            ("https://www.googletagmanager.com/gtag/js", "script", 41), ("https://www.google-analytics.com/g/collect", "ping", 37),
+            ("https://securepubads.g.doubleclick.net/tag/js/gpt.js", "script", 29), ("https://connect.facebook.net/en_US/fbevents.js", "script", 22),
+            ("https://static.hotjar.com/c/hotjar.js", "script", 14), ("https://bat.bing.com/bat.js", "script", 12),
+            ("https://ads.pubmatic.com/AdServer/js/pwt.js", "script", 11), ("https://c.amazon-adsystem.com/aax2/apstag.js", "script", 10),
+            ("https://sb.scorecardresearch.com/beacon.js", "image", 9), ("https://cdn.taboola.com/libtrc/loader.js", "script", 8),
+            ("https://pixel.quantserve.com/pixel", "image", 7), ("https://analytics.tiktok.com/i18n/pixel/events.js", "script", 6),
+            ("https://script.crazyegg.com/pages/scripts/0.js", "script", 4), ("https://widgets.outbrain.com/outbrain.js", "script", 3),
+        ];
+        let pages = ["https://news.example.com/world", "https://recipes.example.org/soup", "https://shop.example.com/cart", "https://video.example.net/watch"];
+        let mut n = 0u32;
+        for (i, (u, k, c)) in trackers.iter().enumerate() {
+            for j in 0..*c {
+                owlkick::record(u, pages[(i + j as usize) % pages.len()], k);
+                n += 1;
+            }
+        }
+        BLOCKED.store(n, Relaxed);
+        BLOCKED_BASE.store(18_406, Relaxed);
+    }
+
     fn tick(&mut self) {
         self.ticks += 1;
         if let Some(e) = SAVE_FAILED.lock().unwrap().take() {
@@ -1679,6 +1750,8 @@ impl App {
         for c in due {
             if c["cmd"] == "_save_image" {
                 let _ = self.proxy.send_event(Ev::SaveImage(c["url"].as_str().unwrap_or("").into(), c["ext"].as_str().unwrap_or("png").into()));
+            } else if c["cmd"] == "_mock" {
+                self.mock_data();
             } else if c["cmd"] == "_end_session" {
                 let _ = self.proxy.send_event(Ev::EndSession);
             } else {

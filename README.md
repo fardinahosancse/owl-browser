@@ -21,6 +21,7 @@
 ## Contents
 
 - [Highlights](#highlights)
+- [Screenshots](#screenshots)
 - [Install](#install)
 - [Prerequisites](#prerequisites)
 - [Build from source](#build-from-source)
@@ -48,14 +49,48 @@
 
 ## Screenshots
 
+Captured full screen (1920 x 1032) from the current build, with a throwaway profile filled with
+made-up sample data: the sites are `example.com` addresses and the downloads are sample files.
+
 | | |
 |---|---|
-| ![Home page in the Navy theme: clock, search, quick access](assets/screenshots/home-navy.png) | ![Settings in the Light theme, grouped by Appearance and Security](assets/screenshots/settings-light.png) |
-| **Home**: clock, search and quick access (Navy theme). | **Settings**: grouped, with eight Swiss themes (Light shown). |
-| ![Centered in-app dialog that replaces system alert and prompt boxes](assets/screenshots/dialog.png) | ![First-run welcome screen: name, email and a new passphrase](assets/screenshots/welcome.png) |
-| **In-app dialogs** replace system alert and prompt boxes. | **First run**: create your profile and passphrase. |
+| ![Calm home page in the Light theme: clock, line of the day, recent pages and time per site](assets/screenshots/calm.jpg) | ![Classic home page in the Dark theme: big clock, search and eight quick-access sites](assets/screenshots/home-classic.jpg) |
+| **Calm home**: built from your own day (Light theme). | **Classic home**: clock, search, quick access under keys 1 to 8 (Dark). |
+| ![Download list with fast downloads split into parts and two torrents](assets/screenshots/downloads.jpg) | ![OwlKick activity page: blocked hosts, pages and kinds](assets/screenshots/owlkick.jpg) |
+| **Downloads**: segmented engine and BitTorrent in one list. | **OwlKick**: what the blocker stopped this session. |
+| ![Settings with a sidebar and the eight colour themes](assets/screenshots/settings.jpg) | ![Settings, Network: Secure DNS, Cloudflare WARP and proxy](assets/screenshots/network.jpg) |
+| **Settings**: nine groups in a sidebar, eight themes. | **Network**: Secure DNS over 1.1.1.1, WARP switch, proxy. |
+| ![Settings, Speed and data: the Data saver slider and presets](assets/screenshots/speed.jpg) | ![Owl with the toolbar at the top, showing the Owl website](assets/screenshots/top.jpg) |
+| **Data saver**: one slider, Light, Balanced and Ultra presets. | **Toolbar at the top**, if you prefer it there. |
+| ![Calm home page in the Navy theme](assets/screenshots/home-navy.jpg) | ![First-run welcome screen: name, email and a new passphrase](assets/screenshots/welcome.jpg) |
+| **Navy theme** on the calm home page. | **First run**: create your profile and passphrase. |
 
-All screenshots are captured from a fresh, throwaway profile.
+### How the main features work
+
+**Downloads.** Owl takes downloads over from the page engine. A one-byte request finds the size and
+whether the server accepts byte ranges; files of 2 MB or more are then split into up to eight parts
+that download at the same time, with pause, resume after a restart, retries with backoff, a queue
+and a speed cap. Magnet links and `.torrent` files go to a built-in BitTorrent client (librqbit)
+that starts only while a torrent is active, finds peers over DHT, opens no listening port and does
+not seed unless you turn seeding on.
+
+**Data saver.** One slider (Off, Light, Balanced, Ultra). It sends the Save-Data header, loads
+off-screen images later at low priority, downloads only the first passes of progressive JPEGs of
+1 MB or more, and re-encodes other images of 4 MB or more. Measured on a test page with six 2.4 to
+3.0 MB photos over an 8 Mbit/s link: 16.2 s and 17.1 MB with it off, 5.4 s and 6.2 MB on Ultra.
+Pages with small images gain little.
+
+**OwlKick.** The content blocker, built on adblock-rust (the engine Brave uses). It understands
+EasyList and uBlock-style rules, request types and third-party status, hides empty ad boxes, and
+keeps a local activity page that is cleared when Owl closes. A built-in tracker list works at once;
+EasyList and EasyPrivacy are optional and refresh weekly. One toolbar click turns it off per site.
+
+**Secure DNS (Cloudflare 1.1.1.1).** A proxy that only your PC can reach sends every site-name lookup
+to 1.1.1.1 over HTTPS, so your network cannot read which names you look up. It is not a VPN: sites
+still see your IP address. If Cloudflare WARP is installed, Settings can connect and disconnect it.
+
+**Themes.** System, Light, Dark, Black, Navy, Invert, Sand and Random, applied to the whole browser
+and its own pages, with a classic or a calm home page.
 
 ## Install
 
