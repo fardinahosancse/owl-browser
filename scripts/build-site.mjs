@@ -80,6 +80,7 @@ const put = (name, content) => {
 put("banner", banner);
 put("news", news);
 html = html.replace(/(<meta name="owl-version" content=")[^"]*(")/, `$1${version}$2`);
+html = html.replace(/(<!-- release:version -->)[^<]*(<!-- \/release:version -->)/g, `$1${esc(version)}$2`);
 writeFileSync(page, html);
 writeFileSync(join(root, "site", "release.json"), JSON.stringify({ version, date, url: releaseUrl, added, sections }, null, 2));
 console.log(`Landing page updated to Owl ${version} (${date}), ${added.length} highlights.`);

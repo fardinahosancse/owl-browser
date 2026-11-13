@@ -6,6 +6,8 @@ All notable changes to Owl are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-13
+
 ### Added
 - **Download manager**: add a download by pasting a link or magnet link; live per-part progress and connection count for fast downloads; Start now for queued downloads; filters (active, completed, torrents), file-type filter and search; speed limit and downloads-at-once controls on the page; Copy link and Open folder; totals for active downloads, speed, connections and torrent upload.
 - **Torrent rows**: their own icon and tag, state (fetching details, downloading, seeding), peers and seeders connected, upload speed and amount uploaded, Stop, Stop and delete, Stop seeding.
@@ -16,13 +18,44 @@ All notable changes to Owl are documented here. The format follows
 - **Calm home page** (Settings > Appearance): one screen built from your own day: a greeting, a large clock and a line showing how much of the day has passed, a plain sentence on time online, what OwlKick stopped and running downloads, the pages you were on with how long ago, where your time goes, and one useful hint. A soft light drifts across the page with the time of day (still with reduced motion).
 - With the toolbar at the top, the address bar row with the window buttons is now the topmost row.
 - **New clock**: Space Grotesk (SIL Open Font License, bundled; nothing is fetched at run time), a seconds line and the week number.
+- **About, Privacy and Terms**: owl://about (menu > About Owl) with the version, the creator and credits; owl://privacy and owl://terms show PRIVACY.md and TERMS.md, which list everything Owl stores and every connection it makes.
+- **Icons and tooltips**: every menu item and settings group has an icon; less obvious switches, download actions and settings groups explain themselves on hover. Unfinished features are marked Coming soon (choosing files in a torrent).
+- **Native window dragging**: the tab strip and logo act as the title bar, handled by the engine. Dragging starts at once, Windows snap layouts work, double-click maximizes.
+- **Landing page**: the Swiss redesign, with sections on the home themes, the download engine and BitTorrent, Data saver (with measured numbers), OwlKick and Secure DNS, and new full-screen screenshots. It deploys with every release and shows the latest version.
+
+### Security
+- **Passphrases**: existing 4-digit startup keys must be upgraded to a passphrase at unlock; new passphrases need 12 or more characters and are checked against common passwords.
+- **Profile sealing**: sealed profiles are streamed in authenticated chunks with an HMAC trailer, so a forged, swapped or cut file is refused, and there is no size cap that could leave a large profile unsealed. Preferences are sealed too and caches are wiped.
+- **Saved passwords**: capture and save use the address the page really shows, entries are bound to their site and user name, and passwords saved on https are never filled on http.
+- **Storage**: settings, vault and store writes are crash-safe and a failed write is reported. A passphrase change is journaled, so a crash mid-change cannot lose saved passwords.
+- **Sync**: an unencrypted file in the sync folder is refused when a sync passphrase is set.
+- **Proxy**: stored site icons are not fetched around a proxy; socks4 proxies (which leak DNS) are refused.
+- **Dependencies**: RUSTSEC-2026-0293 in ringbuf fixed with a vendored patch.
 
 ### Fixed
 - A fast download showed "failed" while still downloading, because the browser's cancelled copy reported an interruption.
 - Screen-reader-only labels were visible on some pages.
+- First-run setup failed after the 4-digit key upgrade was added.
+- A silent uninstall waited on the delete-your-data question; it now keeps the data without asking.
+- The settings sidebar marked the wrong group when opened at a section.
 
 ### Changed
 - Smoother toolbar: the bookmark bar is rebuilt only when bookmarks change, the loading bar no longer restarts on every update, and download rows update in place instead of redrawing the list.
+- Dropdowns on the download list and in settings are flat, in the style of the buttons next to them.
+- Data saver is a segmented Off / Light / Balanced / Ultra bar over a flat scale with a square thumb.
+- Tabs reorder by dragging with a live preview: the others slide out of the way.
+- Resizing the window resizes only the visible page, and pages and the toolbar take the theme's colour before they draw, so dark themes no longer flash white.
+- Forms have visible labels and errors are tied to their fields; page headings are smaller.
+- CI runs the unit tests, a smoke test that drives the real app (setup, fast download, Data saver, Save image as, the shutdown seal) and a silent install and uninstall.
+
+### Known issues
+- Releases are not code-signed yet, so Windows SmartScreen may warn on first download (#32). Verify the download with its build attestation or SHA256SUMS.
+- Choosing files inside a multi-file torrent is not available yet; all files download (#104).
+- Not every click path is covered by automated tests yet; the smoke test covers setup, downloads, Data saver, Save image and shutdown sealing (#107).
+- The installer's wizard pages and the missing-WebView2 path are tested by hand only; silent install and uninstall run in CI (#31).
+- Find in page has no match counter or previous and next buttons (#65, #83).
+- Lock-time restore brings back form fields and scroll position only (#29).
+- No macOS version yet (#91).
 
 ## [0.2.0] - 2026-11-13
 
@@ -121,7 +154,8 @@ First public release.
 - Command allow-list for web pages; native (non-forgeable) fullscreen, popup and dialog events.
 - Atomic settings and vault writes with backups and a recovery state.
 
-[Unreleased]: https://github.com/fardinahosancse/owl-browser/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/fardinahosancse/owl-browser/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/fardinahosancse/owl-browser/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.0...v0.1.1
