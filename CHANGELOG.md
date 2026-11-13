@@ -15,6 +15,7 @@ Alpha developer preview.
 ### Added
 - **Import and export** (Settings > Import and export): bookmarks straight from Chrome or Edge (last used profile, folders kept as groups), bookmarks from any browser's HTML export, passwords from Chrome's CSV export (encrypted with your passphrase on import); export bookmarks as HTML and passwords as Chrome-style CSV.
 - **Full page** link on every toolbar panel (OwlKick, Data saver, Secure DNS, site information).
+- **Page load animation**: pages no longer pop in. A page stays hidden until its content is ready, then eases in (fade, slight rise, soft focus); the address bar gives a short sweep when you press Enter. Reduced motion turns both off.
 
 ### Fixed
 - Site information shows who issued the certificate and until when; it showed only "verified by Windows".

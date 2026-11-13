@@ -196,7 +196,7 @@ body.modal #lwin{display:flex;z-index:210}body.modal #ldrag{display:block;z-inde
 #find input{flex:1;min-width:0;width:auto}
 .zr button.zv{width:auto;min-width:56px;background:none;font-size:14px}.zr button.zv:hover{background:var(--ink);color:var(--on)}
 button.chip{background:none;border:0;font-family:inherit;min-height:24px;padding:0 4px}#shield{cursor:default}
-#addr{position:relative}#addr::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:0;background:var(--red);opacity:0;transition:opacity .3s}#addr.ld::after{opacity:1;animation:adld 2.4s cubic-bezier(.1,.7,.2,1) forwards}#addr.ld::before{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent,var(--red),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:adsh 1.1s linear infinite;opacity:.55}@keyframes adld{from{width:0}to{width:85%}}@keyframes adsh{from{background-position:-40% 0}to{background-position:140% 0}}
+#addr{position:relative;overflow:hidden}#addr.go{animation:adgo .7s cubic-bezier(.2,.8,.2,1)}#addr.go #url{animation:urlgo .5s cubic-bezier(.2,.8,.2,1)}@keyframes adgo{0%{box-shadow:inset 0 0 0 2px var(--red)}100%{box-shadow:inset 0 0 0 0 transparent}}@keyframes urlgo{0%{transform:translateX(6px);opacity:.4}100%{transform:none;opacity:1}}#addr::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:0;background:var(--red);opacity:0;transition:opacity .3s}#addr.ld::after{opacity:1;animation:adld 2.4s cubic-bezier(.1,.7,.2,1) forwards}#addr.ld::before{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent,var(--red),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:adsh 1.1s linear infinite;opacity:.55}@keyframes adld{from{width:0}to{width:85%}}@keyframes adsh{from{background-position:-40% 0}to{background-position:140% 0}}
 #sec{cursor:pointer;border-radius:0;padding:0 2px}#sec:hover{color:var(--ink)}#sec.bad:hover{color:var(--red)}
 #sec{display:none;align-items:center;gap:5px;flex:none;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
 #sec.show{display:flex}#sec svg{width:14px;height:14px}#sec.bad{color:var(--red)}
@@ -511,7 +511,7 @@ function drawSugg(){
    const tt=el('div','tt');tt.appendChild(el('b','',r.title));tt.appendChild(el('s','',r.sub));d.appendChild(tt);d.appendChild(el('span','k',r.kind));
    d.onmousedown=e=>{e.preventDefault();pick(r.go)};ovl.appendChild(d)});
   ovl._rows=rows;url.setAttribute('aria-activedescendant','sg'+sel);overlay()}
-function pick(v){mode=null;finish();url.blur();send({cmd:'navigate',url:v});if(pend)drawSave();else if(nq.length)drawNote()}
+function pick(v){mode=null;finish();url.blur();const ad=$('addr');ad.classList.remove('go');void ad.offsetWidth;ad.classList.add('go');setTimeout(()=>ad.classList.remove('go'),700);send({cmd:'navigate',url:v});if(pend)drawSave();else if(nq.length)drawNote()}
 url.addEventListener('input',()=>{typed=url.value;sel=0;send({cmd:'suggest',q:typed});drawSugg()});
 url.addEventListener('keydown',e=>{
  if(e.key==='Enter'){e.preventDefault();const r=mode==='sugg'&&ovl._rows?ovl._rows[sel]:null;pick(r&&sel>0?r.go:url.value)}

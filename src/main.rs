@@ -50,7 +50,7 @@ const UI_BAR: f64 = 26.0;
 const UI_HTML: &str = include_str!("ui.html");
 /// Pages glide in instead of snapping on: the Web Animations API is used because a page's CSP
 /// cannot block it, and nothing is left behind on the page.
-const PAGE_IN_JS: &str = "(function(){if(window.top!==window)return;addEventListener('DOMContentLoaded',function(){try{if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;document.documentElement.animate([{opacity:.4,transform:'translateY(6px)'},{opacity:1,transform:'none'}],{duration:280,easing:'cubic-bezier(.2,.8,.2,1)'})}catch(e){}},{once:true})})();";
+const PAGE_IN_JS: &str = "(function(){if(window.top!==window)return;var d=document.documentElement,r;try{r=matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){}if(r||!d)return;d.style.setProperty('opacity','0','important');var shown=false;function go(){if(shown)return;shown=true;d.style.removeProperty('opacity');try{d.animate([{opacity:0,transform:'translateY(14px) scale(.992)',filter:'blur(3px)'},{opacity:1,transform:'none',filter:'none'}],{duration:460,easing:'cubic-bezier(.2,.8,.2,1)'})}catch(e){}}if(document.readyState!=='loading')go();else addEventListener('DOMContentLoaded',go,{once:true});setTimeout(go,1200)})();";
 /// The name of this release, shown in What's new.
 const RELEASE_NAME: &str = "Quickpatch";
 
