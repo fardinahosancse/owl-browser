@@ -37,3 +37,7 @@ strip = true
 
 [build-dependencies]
 embed-resource = "3.0.12"
+
+# ringbuf 0.4.8 (pulled in by librqbit-utp) with the RUSTSEC-2026-0293 fix backported from 0.5.2.
+[patch.crates-io]
+ringbuf = { path = "vendor/ringbuf" }
