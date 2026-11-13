@@ -224,6 +224,14 @@ fn warp_run(action: &str) -> String {
     }
 }
 
+/// A proxy Owl accepts: empty, or http, https or socks5 (socks4 resolves names locally and is refused).
+fn valid_proxy(p: &str) -> bool {
+    p.is_empty()
+        || (["http://", "https://", "socks5://"].iter().any(|x| p.starts_with(x))
+            && p.len() < 100
+            && p.split("://").nth(1).map_or(false, |r| !r.is_empty() && r.chars().all(|c| c.is_ascii_alphanumeric() || ".-:[]".contains(c))))
+}
+
 pub fn data_dir() -> PathBuf {
     PathBuf::from(std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".into())).join("Owl")
 }
@@ -769,22 +777,32 @@ struct Ctx {
 }
 /// Write a file so a crash or power cut can never leave it half-written: temp file, flushed to
 /// disk, then renamed over the original, keeping the previous version as .bak.
-fn write_atomic(path: &std::path::Path, data: &[u8]) {
+/// Set when a settings, vault or store write failed; the next tick tells the user once.
+static SAVE_FAILED: Mutex<Option<String>> = Mutex::new(None);
+/// Set when an unencrypted file in the sync folder was refused.
+static SYNC_PLAIN_REFUSED: AtomicBool = AtomicBool::new(false);
+
+/// Write a file so a crash can never leave it half written: write a temporary copy, flush it to
+/// disk, keep the previous version as .bak, then rename. Failures are returned and reported.
+fn write_atomic(path: &std::path::Path, data: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
     let tmp = path.with_extension("tmp");
-    let ok = (|| -> std::io::Result<()> {
+    let res = (|| -> std::io::Result<()> {
         let mut f = fs::File::create(&tmp)?;
         f.write_all(data)?;
-        f.sync_all()
+        f.sync_all()?;
+        drop(f);
+        if path.is_file() {
+            fs::copy(path, path.with_extension("bak"))?;
+        }
+        fs::rename(&tmp, path)
     })();
-    if ok.is_err() {
+    if let Err(e) = &res {
         let _ = fs::remove_file(&tmp);
-        return;
+        let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        *SAVE_FAILED.lock().unwrap() = Some(format!("{name}: {e}"));
     }
-    if path.is_file() {
-        let _ = fs::copy(path, path.with_extension("bak"));
-    }
-    let _ = fs::rename(&tmp, path);
+    res
 }
 /// Load JSON, falling back to the .bak. Returns (value, damaged) where damaged means a file
 /// exists but neither it nor its backup could be read.
@@ -867,14 +885,14 @@ impl Ctx {
                 return; // an encrypted file we cannot open: leave it untouched
             }
             if let Some((salt, key)) = *self.sync.lock().unwrap() {
-                let _ = fs::write(&path, crypt::seal(crypt::MAGIC_SYNC, &key, &salt, s.as_bytes()));
+                let _ = write_atomic(&path, &crypt::seal(crypt::MAGIC_SYNC, &key, &salt, s.as_bytes()));
                 return;
             }
             // no passphrase: never overwrite an existing encrypted file with plain text
             if fs::read(&path).map_or(false, |d| crypt::is_sealed(&d)) {
                 return;
             }
-            let _ = fs::write(path, s);
+            let _ = write_atomic(&path, s.as_bytes());
             return;
         }
         // local store: always sealed with a key derived from the startup key. Before the first
@@ -882,10 +900,7 @@ impl Ctx {
         let key = self.keys.lock().unwrap().as_ref().map(|k| k.store);
         if let Some(key) = key {
             let salt: [u8; 16] = crypt::random(16).try_into().unwrap();
-            let tmp = path.with_extension("tmp");
-            if fs::write(&tmp, crypt::seal(crypt::MAGIC_STORE, &key, &salt, s.as_bytes())).is_ok() {
-                let _ = fs::rename(&tmp, &path);
-            }
+            let _ = write_atomic(&path, &crypt::seal(crypt::MAGIC_STORE, &key, &salt, s.as_bytes()));
         }
     }
     /// Read the store (the synced file is opened with the sync passphrase, the local one with the
@@ -937,12 +952,14 @@ impl Ctx {
                 }
             }
             None => {
-                if synced {
-                    // plain synced file but a passphrase is set: fresh salt so the next save encrypts
-                    if let Some(pass) = sync_pass() {
-                        let salt: [u8; 16] = crypt::random(16).try_into().unwrap();
-                        *self.sync.lock().unwrap() = Some((salt, crypt::argon(&pass, &crypt::hex(&salt), 64 * 1024)));
-                    }
+                if synced && sync_pass().is_some() {
+                    // a passphrase is set, so a plain file in the sync folder was not written by Owl:
+                    // keep it aside, never load it, and never overwrite it
+                    let p = self.store_path();
+                    let _ = fs::copy(&p, p.with_extension("plain-refused"));
+                    self.sync_ro.store(true, Relaxed);
+                    SYNC_PLAIN_REFUSED.store(true, Relaxed);
+                    return None;
                 }
                 data
             }
@@ -1053,14 +1070,61 @@ impl Ctx {
             return; // private windows never change saved settings
         }
         let s = serde_json::to_string(&*self.cfg.lock().unwrap()).unwrap_or_default();
-        write_atomic(&self.dir.join("config.json"), s.as_bytes());
+        let _ = write_atomic(&self.dir.join("config.json"), s.as_bytes());
     }
     fn save_vault(&self) {
         if self.private {
             return;
         }
         let s = serde_json::to_string(&*self.vault.lock().unwrap()).unwrap_or_default();
-        write_atomic(&self.dir.join("vault.json"), s.as_bytes());
+        let _ = write_atomic(&self.dir.join("vault.json"), s.as_bytes());
+    }
+    /// Passphrase change, step 1: the vault encrypted for the new key goes to vault.next, so a crash
+    /// before the settings are written cannot leave passwords that no key opens.
+    fn stage_vault(&self, old: &[u8], new: &[u8]) -> bool {
+        let mut v = self.vault.lock().unwrap().clone();
+        for c in v.iter_mut() {
+            match vault::decrypt(&c.pass, &vault::cred_entropy(old, &c.host, &c.user, c.v)).and_then(|p| vault::encrypt(&p, &vault::cred_entropy(new, &c.host, &c.user, 1))) {
+                Some(e) => {
+                    c.pass = e;
+                    c.v = 1;
+                }
+                None => return false,
+            }
+        }
+        let s = serde_json::to_string(&v).unwrap_or_default();
+        write_atomic(&self.dir.join("vault.next"), s.as_bytes()).is_ok()
+    }
+    /// Passphrase change, step 3 (after the settings are on disk): the staged vault becomes current.
+    fn commit_vault(&self) {
+        let next = self.dir.join("vault.next");
+        if let (true, Ok(_)) = (next.is_file(), fs::copy(self.dir.join("vault.json"), self.dir.join("vault.bak"))) {
+            if fs::rename(&next, self.dir.join("vault.json")).is_ok() {
+                if let (Some(v), _) = load_json::<Vec<Cred>>(&self.dir.join("vault.json")) {
+                    *self.vault.lock().unwrap() = v;
+                }
+            }
+        } else if next.is_file() {
+            let _ = fs::rename(&next, self.dir.join("vault.json"));
+        }
+    }
+    /// At unlock: finish an interrupted passphrase change. A staged vault is adopted only if it
+    /// opens with the key that just unlocked Owl; otherwise it is dropped.
+    fn recover_vault_journal(&self) {
+        let next = self.dir.join("vault.next");
+        if !next.is_file() {
+            return;
+        }
+        let base = self.entropy();
+        let ok = match load_json::<Vec<Cred>>(&next) {
+            (Some(v), _) => v.first().map_or(true, |c| vault::decrypt(&c.pass, &vault::cred_entropy(&base, &c.host, &c.user, c.v)).is_some()),
+            _ => false,
+        };
+        if ok {
+            self.commit_vault();
+        } else {
+            let _ = fs::remove_file(&next);
+        }
     }
     fn verify_pin(&self, pin: &str) -> bool {
         let c = self.cfg.lock().unwrap();
@@ -1581,6 +1645,14 @@ impl App {
     /// Once a second: decay stale download speeds, count time on the active site, save now and then.
     fn tick(&mut self) {
         self.ticks += 1;
+        if let Some(e) = SAVE_FAILED.lock().unwrap().take() {
+            let n = json!({"id":"savefail","label":"Warning","text":format!("Owl could not save {e}. The previous version is kept. Check free disk space."),"actions":[{"t":"OK"}]});
+            let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+        }
+        if !self.locked && SYNC_PLAIN_REFUSED.swap(false, Relaxed) {
+            let n = json!({"id":"syncplain","label":"Sync","text":"An unencrypted file was found in your sync folder although a sync passphrase is set. Owl did not load it and kept it aside as owl-sync.plain-refused. Sync is read-only until the folder holds an encrypted file again.","actions":[{"t":"OK"}]});
+            let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+        }
         // tell the lock screen how sealing went, as soon as it is done
         if self.locked && self.sealer.as_ref().map_or(false, |h| h.is_finished()) {
             if let Some(h) = self.sealer.take() {
@@ -2265,6 +2337,7 @@ impl App {
                         }
                     }
                     *self.ctx.keys.lock().unwrap() = Some(k);
+                    self.ctx.recover_vault_journal();
                     self.ctx.upgrade_creds();
                     if reopen && !self.ctx.private {
                         if first && !self.ctx.synced() {
@@ -2359,9 +2432,13 @@ impl App {
                     let m = zeroize::Zeroizing::new(master_key(&salt, &new));
                     let old_priv = self.ctx.keys.lock().unwrap().as_ref().and_then(|k| k.privk);
                     let nk = keys_from(&m, old_priv);
-                    // re-encrypt saved passwords for the new key before the old one is forgotten
+                    // re-encrypt saved passwords for the new key before the old one is forgotten:
+                    // staged first, settings written, then committed, so no crash loses them
                     let old_ent = self.ctx.entropy();
-                    self.ctx.reseal_vault(&old_ent, &nk.vault);
+                    if !self.ctx.stage_vault(&old_ent, &nk.vault) {
+                        self.alert(id, "Your saved passwords could not be re-encrypted, so the key was not changed.");
+                        return;
+                    }
                     *self.ctx.keys.lock().unwrap() = Some(nk);
                     {
                         let mut c = self.ctx.cfg.lock().unwrap();
@@ -2378,6 +2455,7 @@ impl App {
                         }
                     }
                     self.ctx.save_cfg();
+                    self.ctx.commit_vault();
                     self.ctx.save(); // history and bookmarks are re-sealed with the new key
                     self.push();
                     if is_pin { "Key changed. A passphrase would be much stronger." } else { "Passphrase set." }
@@ -2454,10 +2532,7 @@ impl App {
             }
             "set_proxy" => {
                 let p = s("proxy").trim().to_string();
-                let ok = p.is_empty()
-                    || (["http://", "https://", "socks4://", "socks5://"].iter().any(|x| p.starts_with(x))
-                        && p.len() < 100
-                        && p.split("://").nth(1).map_or(false, |r| !r.is_empty() && r.chars().all(|c| c.is_ascii_alphanumeric() || ".-:[]".contains(c))));
+                let ok = valid_proxy(&p);
                 if ok {
                     self.ctx.cfg.lock().unwrap().proxy = p;
                     self.ctx.save_cfg();
@@ -3261,6 +3336,7 @@ impl App {
             }
             "suggest" => {
                 let q = s("q").to_lowercase();
+                let proxied = !self.ctx.cfg.lock().unwrap().proxy.is_empty();
                 let mut out: Vec<Value> = vec![];
                 let mut seen = std::collections::HashSet::new();
                 {
@@ -3271,7 +3347,8 @@ impl App {
                             break;
                         }
                         if (e.url.to_lowercase().contains(&q) || e.title.to_lowercase().contains(&q)) && seen.insert(e.url.clone()) {
-                            out.push(json!({"k":k,"url":e.url,"title":e.title,"icon":e.icon}));
+                            // with a proxy the chrome never loads stored icon addresses (they would bypass it)
+                            out.push(json!({"k":k,"url":e.url,"title":e.title,"icon":if proxied { "" } else { e.icon.as_str() }}));
                         }
                     }
                 }
@@ -3482,13 +3559,17 @@ fn main() {
     // settings and the vault are written atomically with a .bak; a file that exists but cannot be
     // read must never be mistaken for a fresh install while encrypted data exists
     let (cfg_loaded, cfg_bad) = load_json::<Config>(&dir.join("config.json"));
-    let cfg: Config = cfg_loaded.unwrap_or_default();
+    let mut cfg: Config = cfg_loaded.unwrap_or_default();
     let (vault_loaded, vault_bad) = load_json::<Vec<Cred>>(&dir.join("vault.json"));
     let recovery = !private
         && ((cfg_bad || vault_bad)
             || (cfg.seal_pub.is_empty() && cfg.pin_hash.is_empty() && profile::has_sealed(&dir) && !cfg_exists_ok(&dir)));
     BLOCK.store(cfg.block, Relaxed);
     native::PERM_BLOCK.store(cfg.perm_block, Relaxed);
+    // a proxy value edited into config.json is checked again; anything not accepted is ignored
+    if !valid_proxy(&cfg.proxy) {
+        cfg.proxy.clear();
+    }
     // secure DNS needs a loopback proxy; the fast download engine would bypass it, so it stays off
     let secure_dns = cfg.doh && cfg.proxy.is_empty() && doh::start().is_some();
     engine::DIRECT_OK.store(cfg.proxy.is_empty() && !secure_dns, Relaxed);
@@ -4034,5 +4115,35 @@ mod passphrase_tests {
         assert!(weak_passphrase("1234567890123").is_some());
         assert!(weak_passphrase("quiet owl reads maps").is_none());
         assert!(weak_passphrase(&"x".repeat(129)).is_some());
+    }
+}
+
+#[cfg(test)]
+mod storage_tests {
+    use super::*;
+
+    #[test]
+    fn atomic_write_keeps_a_backup_and_reports_errors() {
+        let d = std::env::temp_dir().join(format!("owl-atomic-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(&d).unwrap();
+        let p = d.join("config.json");
+        write_atomic(&p, b"one").unwrap();
+        write_atomic(&p, b"two").unwrap();
+        assert_eq!(fs::read(&p).unwrap(), b"two");
+        assert_eq!(fs::read(p.with_extension("bak")).unwrap(), b"one");
+        // a folder that does not exist cannot be written: the error is returned, not ignored
+        assert!(write_atomic(&d.join("missing").join("x.json"), b"x").is_err());
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn proxies() {
+        assert!(valid_proxy(""));
+        assert!(valid_proxy("socks5://127.0.0.1:9050"));
+        assert!(valid_proxy("http://proxy.example:8080"));
+        assert!(!valid_proxy("socks4://127.0.0.1:9050"));
+        assert!(!valid_proxy("socks5://evil\" --disable-web-security"));
+        assert!(!valid_proxy("ftp://x"));
     }
 }
