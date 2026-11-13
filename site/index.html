@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="owl-version" content="0.2.0">
+<title>Owl Browser: small, private, Swiss</title>
+<meta name="description" content="Owl is a small, private desktop browser for Windows. About 7 MB, encrypted when locked, with its own ad blocker and a fast download engine. Free and open source.">
+<link rel="icon" href="logo.svg">
+<style>
+@font-face{font-family:"Space Grotesk";src:url(space-grotesk.woff2) format("woff2");font-weight:300 700;font-display:swap}
+:root{
+  --bg:#fff;--ink:#111;--muted:#4f4f4f;--surface:#f2f2f0;--accent:#e30613;--on-accent:#fff;
+  --navy:#0b1a3a;--navy-ink:#eef3ff;--sand:#efe9dc;--black:#0d0d0d;
+  --m:clamp(16px,3.4vw,48px);
+  --f-text:"Helvetica Neue",Helvetica,Arial,sans-serif;--f-num:"Space Grotesk","Helvetica Neue",Arial,sans-serif;
+  --s1:clamp(88px,11.5vw,210px);--s2:clamp(40px,5vw,80px);--s3:clamp(24px,2.6vw,40px);--s4:18px;--s5:14px;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{background:var(--bg);color:var(--ink);font:400 var(--s4)/1.55 var(--f-text);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit}
+img{display:block;max-width:100%}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+::selection{background:var(--accent);color:var(--on-accent)}
+.vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 26px;background:var(--accent);color:var(--on-accent);font:700 var(--s5)/1 var(--f-text);letter-spacing:.02em;text-decoration:none;border:0;cursor:pointer;transition:transform .15s var(--ease),background .15s}
+.btn:hover{background:#c20510}.btn:active{transform:scale(.97)}
+.link{font-size:var(--s4);text-decoration:none;border-bottom:2px solid currentColor;padding-bottom:2px;transition:color .15s,border-color .15s}
+.link:hover{color:var(--accent)}
+
+/* ---------- hero: the name with the browser set into its word space ---------- */
+.hero{min-height:100svh;display:grid;grid-template-rows:auto 1fr auto;padding:24px var(--m) 32px}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:24px}
+.nav .wm{font:700 15px/1 var(--f-text);text-decoration:none;letter-spacing:-.01em}
+.nav ul{list-style:none;display:flex;gap:clamp(16px,3vw,48px);font-size:var(--s5)}
+.nav a{text-decoration:none;transition:color .15s}.nav ul a:hover{color:var(--accent)}
+.hcore{display:flex;align-items:center}
+h1.name{display:inline-flex;align-items:baseline;flex-wrap:nowrap;gap:.18em;font:700 var(--s1)/1 var(--f-text);letter-spacing:-.045em;white-space:nowrap;width:100%;justify-content:space-between}
+h1.name .frame{display:block;height:.74em;width:2.1em;overflow:hidden;align-self:baseline;transform:translateY(.02em);background:var(--navy)}
+h1.name .frame img{width:100%;height:100%;object-fit:cover;object-position:6% 22%;transform:scale(1.12);animation:settle 1.1s .15s var(--ease) forwards}
+.hfoot{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;align-items:end}
+.hfoot p{grid-column:6/10;font-size:var(--s4);max-width:44ch}
+.hfoot .act{grid-column:10/13;display:flex;flex-direction:column;align-items:flex-end;gap:14px}
+.hfoot .act small{font-size:var(--s5);color:var(--muted)}
+@keyframes settle{to{transform:none}}
+.shutter{clip-path:inset(0 100% 0 0);animation:shut 1.1s .05s var(--ease) forwards}
+@keyframes shut{to{clip-path:inset(0 0 0 0)}}
+
+/* ---------- features: specimens on colour tiles ---------- */
+section{position:relative}
+.feat{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;padding:clamp(120px,14vw,200px) var(--m) 0}
+.feat .intro{grid-column:1/4;align-self:start;padding-right:16px}
+.feat h2{font:700 var(--s2)/1 var(--f-text);letter-spacing:-.035em;margin-bottom:22px}
+.feat .intro p{max-width:30ch}
+.tiles{grid-column:4/13;display:grid;grid-template-columns:repeat(4,1fr);gap:28px 10px}
+.feat>*,.tiles>*{min-width:0}
+.tile{grid-column:span 1}.tile.wide{grid-column:span 2}
+.tile .pic{aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.tile.wide .pic{aspect-ratio:8/5}
+.tile .pic img{width:86%;height:auto;max-height:84%;object-fit:contain;transition:transform .6s var(--ease)}
+.tile.wide .pic img{width:88%}
+.tile:hover .pic img{transform:scale(1.03)}
+.t-red{background:var(--accent)}.t-navy{background:var(--navy)}.t-sand{background:var(--sand)}
+.tile h3{font:700 var(--s4)/1.3 var(--f-text);margin-top:14px;letter-spacing:-.01em}
+.tile p{font-size:16px;color:var(--muted);margin-top:4px;max-width:34ch}
+
+/* ---------- showcase: an address you can type ---------- */
+.try{padding:clamp(120px,14vw,200px) var(--m) 0;display:grid;grid-template-columns:repeat(12,1fr);column-gap:16px}
+.try>*{min-width:0}.try>h2,.try>.line{grid-column:1/-1}.try .ans{grid-column:1/8}.try .ex{grid-column:9/13;flex-direction:column;align-items:flex-start;gap:14px;margin-top:44px}
+.try h2{font:500 var(--s3)/1.1 var(--f-text);letter-spacing:-.02em;margin-bottom:18px;color:var(--muted)}
+.try .line{display:flex;align-items:center;background:var(--surface);padding:0 .25em}
+.try input{flex:1;min-width:0;border:0;outline:0;background:none;color:var(--ink);font:700 clamp(40px,7.4vw,124px)/1.2 var(--f-text);letter-spacing:-.04em;padding:.08em 0;caret-color:var(--accent)}
+.try .line:focus-within{background:#e8e8e4}
+.ans{margin-top:44px;display:grid;gap:0}
+.ans .r{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;padding:14px 16px}.ans .r:nth-child(odd){background:var(--surface)}
+.ans .r b{font:700 var(--s5)/1.5 var(--f-text)}
+.ans .r span{font-size:var(--s4);overflow-wrap:anywhere}
+.ans .r.bad span{color:var(--accent);font-weight:700}
+.ex{display:flex;gap:24px;flex-wrap:wrap;align-items:center;margin-top:40px;font-size:var(--s4)}
+.ex button{background:none;border:0;font:inherit;color:var(--ink);border-bottom:2px solid var(--ink);padding:4px 0;cursor:pointer;transition:color .15s,border-color .15s}
+.ex button:hover{color:var(--accent);border-color:var(--accent)}
+
+/* ---------- how it works: drag through the lock ---------- */
+.lock{display:grid;grid-template-columns:1fr 1fr;min-height:76svh;margin-top:clamp(72px,7vw,112px)}.lock>*{min-width:0}
+.lock .l{background:var(--black);color:#fff;padding:clamp(40px,5vw,72px) var(--m);position:relative}
+.lock .l h2{font:700 var(--s2)/1 var(--f-text);letter-spacing:-.035em;max-width:11ch;transition:opacity .2s}
+.lock .l p{margin-top:28px;max-width:38ch;color:#d4d4d4;transition:opacity .2s}
+.lock .r{background:var(--sand);display:flex;align-items:center;justify-content:center;padding:48px var(--m)}
+.files{width:min(100%,460px);background:#fff;color:#111;font:400 14px/1.4 var(--f-text);transition:opacity .2s}
+.files .top{display:flex;justify-content:space-between;padding:12px 16px;background:#111;color:#fff;font-weight:700;font-size:13px}
+.files .row{display:grid;grid-template-columns:minmax(0,1fr) 92px 80px;gap:10px;padding:11px 16px;background:#fff}
+.files .row:nth-child(odd){background:#f7f6f2}
+.files .row span:nth-child(2),.files .row span:nth-child(3){font-variant-numeric:tabular-nums;color:#555;text-align:right}
+.files .row.sealed{color:var(--accent);font-weight:700}
+.files .row.gone{opacity:.32;text-decoration:line-through}
+.files .row .st{font-weight:700}
+.files .foot{padding:12px 16px;font-size:13px;color:#555;background:#efece4}
+.slider{padding:28px var(--m) 32px;background:var(--surface)}
+.lockwrap{position:relative}
+.lockwrap .slider{z-index:2}
+.track{position:relative;height:32px;display:flex;align-items:center}.track i{position:absolute;left:0;right:0;top:12px;height:8px;background:#5a5a5a}.track b{position:absolute;left:0;top:12px;height:8px;width:var(--p,0%);background:var(--accent);transition:width .2s}
+.slider input{position:relative;width:100%;appearance:none;-webkit-appearance:none;height:32px;background:none;outline-offset:8px;cursor:pointer;margin:0}
+.slider input::-webkit-slider-thumb{-webkit-appearance:none;width:32px;height:32px;background:var(--accent);border:0;transition:transform .12s}
+.slider input:active::-webkit-slider-thumb{transform:scale(1.15)}
+.slider input::-moz-range-thumb{width:32px;height:32px;background:var(--accent);border:0;border-radius:0}
+.stops{display:grid;grid-template-columns:repeat(4,1fr);margin-top:14px;font-size:16px}
+.stops span{color:#9a9a9a;transition:color .2s}.stops span.on{color:#fff;font-weight:700}
+.stops span:nth-child(2){text-align:center}.stops span:nth-child(3){text-align:center}.stops span:nth-child(4){text-align:right}
+.lockwrap .stops span{color:var(--muted)}.lockwrap .stops span.on{color:var(--ink)}
+
+/* ---------- figures inside a sentence ---------- */
+.figs{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;align-items:center;background:var(--navy);color:var(--navy-ink);padding:clamp(96px,10vw,160px) var(--m)}
+.figs .big4{grid-column:1/7;display:grid;grid-template-columns:1fr 1fr;gap:28px 24px}.figs .big4 b{display:block;font:600 var(--s2)/.9 var(--f-num);letter-spacing:-.04em;color:#fff}.figs .big4 span{display:block;margin-top:8px;font-size:16px;color:#b9c6e6}
+.figs p{max-width:30ch;grid-column:8/13;font:400 var(--s3)/1.25 var(--f-text);letter-spacing:-.015em;color:#c9d3ec}
+.figs p b{color:#fff;font-weight:700}
+
+/* ---------- questions with answers beside ---------- */
+.faq{display:grid;grid-template-columns:repeat(12,1fr);row-gap:clamp(56px,6vw,84px);column-gap:16px;padding:0 var(--m) clamp(120px,14vw,200px)}
+.faq h2,.faq h3{grid-column:1/7;font:500 var(--s3)/1.1 var(--f-text);letter-spacing:-.02em}
+.faq h2{color:#6b6b6b}
+.faq .a{grid-column:8/13;max-width:42ch}
+.faq .gap{grid-column:8/13}
+.faq code{font:500 var(--s5)/1.5 ui-monospace,Consolas,monospace;background:var(--surface);padding:2px 6px;overflow-wrap:anywhere}
+.faq .a a{text-decoration-thickness:2px;text-underline-offset:3px}
+
+/* ---------- close: inverted ---------- */
+.close{background:var(--ink);color:#fff;min-height:92svh;padding:clamp(48px,6vw,96px) var(--m) 40px;display:grid;grid-template-rows:1fr auto}
+.close h2{font:700 var(--s1)/.9 var(--f-text);letter-spacing:-.045em}
+.close .base{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;align-items:end}
+.close .base p{max-width:48ch;grid-column:1/6;font-size:var(--s4);color:#d8d8d8}
+.close .base .btn{grid-column:10/13;justify-self:end;min-height:56px}
+
+/* ---------- footer: invitation over the cropped name ---------- */
+footer{background:var(--accent);color:#fff;min-height:100svh;overflow:hidden;position:relative;padding:clamp(48px,6vw,96px) var(--m) 0;display:grid;grid-template-rows:auto 1fr auto}
+footer .up{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+footer h2{grid-column:1/8;font:700 clamp(40px,5vw,84px)/1 var(--f-text);letter-spacing:-.035em;max-width:12ch}
+footer .up .btn{background:#fff;color:var(--accent);margin-top:28px}
+footer .up .btn:hover{background:#111;color:#fff}
+footer .inv{grid-column:1/8}
+footer ul{grid-column:10/13;list-style:none;display:grid;gap:10px;font-size:var(--s4);align-content:start}
+footer ul a{text-decoration:none;border-bottom:2px solid rgba(255,255,255,.5);transition:border-color .15s}footer ul a:hover{border-color:#fff}
+footer .legal{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:var(--s5);padding-bottom:12px;align-self:end}
+footer .legal a{text-decoration:underline;text-underline-offset:2px}
+footer .big{font:700 clamp(160px,30vw,520px)/.8 var(--f-text);letter-spacing:-.06em;white-space:nowrap;transform:translateY(22%);margin-left:-.04em;user-select:none}
+
+
+/* ---------- latest version banner (filled in by scripts/build-site.mjs) ---------- */
+.tick{display:block;background:var(--ink);color:#fff;text-decoration:none;white-space:nowrap;font-size:var(--s5);line-height:40px;height:40px;padding:0 var(--m)}.tk-clip{display:block;overflow:hidden}
+.tk-in{display:inline-flex;animation:tick 48s linear infinite}
+.tk-in>span{padding-right:3em}.tk-in i{font-style:normal;color:var(--accent);margin:0 .7em}.tk-in b{color:#fff;text-decoration:underline;text-underline-offset:3px}
+.tick:hover .tk-in,.tick:focus-visible .tk-in{animation-play-state:paused}
+@keyframes tick{to{transform:translateX(-50%)}}
+/* ---------- new in this version ---------- */
+.news{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;padding:clamp(120px,14vw,200px) var(--m)}
+.news .nh{grid-column:1/5;align-self:start;position:sticky;top:32px}
+.news h2{font:700 var(--s2)/1 var(--f-text);letter-spacing:-.035em;margin-bottom:20px}
+.news .nh p{margin-bottom:22px;max-width:32ch}
+.nl{grid-column:6/13;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:36px 32px}
+.nl>*{min-width:0}
+.nl h3{font:700 var(--s4)/1.3 var(--f-text);margin-bottom:6px}
+.nl p{font-size:16px;color:var(--muted)}
+@media(max-width:820px){.news{grid-template-columns:1fr}.news .nh,.nl{grid-column:1/-1}.news .nh{position:static}.nl{grid-template-columns:1fr;margin-top:24px}}
+@media(prefers-reduced-motion:reduce){.tk-in{animation:none}}
+/* ---------- entrances ---------- */
+.rv{opacity:0;transform:translateY(24px);transition:opacity .8s var(--ease),transform .8s var(--ease)}
+.rv.in{opacity:1;transform:none}
+.no-js .rv{opacity:1;transform:none}
+
+/* ---------- phone ---------- */
+@media(max-width:820px){
+  .nav ul li:not(:last-child){display:none}
+  h1.name{flex-direction:column;align-items:center;gap:14px;font-size:19vw;line-height:.9;white-space:normal}
+  h1.name .frame{width:100%;height:auto;aspect-ratio:3/2;font-size:16px}
+  .hfoot{grid-template-columns:1fr}.hfoot p,.hfoot .act{grid-column:1/-1}.hfoot .act{align-items:stretch}.hfoot .btn{width:100%}
+  .feat{grid-template-columns:1fr;padding-top:120px}.feat .intro,.tiles{grid-column:1/-1}
+  .tiles{grid-template-columns:1fr 1fr;gap:24px 8px;margin-top:32px}.tile.wide{grid-column:1/-1;order:-1}
+  .tile h3{font-size:17px}.tile p{font-size:15px}
+  .try{grid-template-columns:1fr}.try .ans,.try .ex{grid-column:1/-1}.try .ex{flex-direction:row;flex-wrap:wrap;gap:8px}.try input{font-size:11vw}.ans .r{grid-template-columns:1fr;gap:2px}
+  .ex button{background:var(--surface);border:0;min-height:44px;padding:0 14px}
+  .lock{grid-template-columns:1fr}.lock .r{order:-1;padding:32px 16px}.lock .l{padding:40px 20px}.lock .l h2{font-size:9vw}
+  .faq .gap{display:none}.figs{grid-template-columns:1fr}.figs .big4,.figs p{grid-column:1/-1}.figs p{font-size:22px}
+  .faq{grid-template-columns:1fr;row-gap:12px}.faq h2,.faq h3,.faq .a,.faq .gap{grid-column:1/-1}.faq .a{margin-bottom:44px}.faq h2,.faq h3{font-size:24px}
+  .close{min-height:auto;padding-bottom:96px}.close h2{margin-bottom:56px}footer{min-height:auto}footer .legal{margin-top:72px}
+  .close .base{grid-template-columns:1fr}.close .base p,.close .base .btn{grid-column:1/-1}.close .base .btn{width:100%}.close h2{font-size:15vw}
+  footer .up{grid-template-columns:1fr}footer h2,footer .inv,footer ul{grid-column:1/-1}footer ul{display:flex;flex-wrap:wrap;gap:14px 20px;margin-top:28px;font-size:15px}
+  footer .big{font-size:34vw}footer .legal{font-size:13px}
+}
+@media(prefers-reduced-motion:reduce){
+  .rv{opacity:1;transform:none;transition:none}.shutter{clip-path:none;animation:none}h1.name .frame img{animation:none;transform:none}
+  .tile .pic img,.btn{transition:none}
+}
+</style>
+</head>
+<body class="no-js">
+<!-- release:banner -->
+<a class="tick" href="https://github.com/fardinahosancse/owl-browser/releases/tag/v0.2.0" aria-label="Owl 0.2.0, released 13 November 2026. Read the release notes."><span class="tk-clip"><span class="tk-in"><span>Owl 0.2.0 is out <i>/</i> 13 November 2026 <i>/</i> OwlKick Engine <i>/</i> Fast download engine <i>/</i> BitTorrent <i>/</i> Data saver <i>/</i> Video and audio download button <i>/</i> Save image as <i>/</i> Secure DNS (Cloudflare 1.1.1.1) <i>/</i> Cloudflare WARP switch <i>/</i> <b>Release notes</b></span><span aria-hidden="true">Owl 0.2.0 is out <i>/</i> 13 November 2026 <i>/</i> OwlKick Engine <i>/</i> Fast download engine <i>/</i> BitTorrent <i>/</i> Data saver <i>/</i> Video and audio download button <i>/</i> Save image as <i>/</i> Secure DNS (Cloudflare 1.1.1.1) <i>/</i> Cloudflare WARP switch <i>/</i> <b>Release notes</b></span></span></span></a>
+<!-- /release:banner -->
+<header class="hero" id="top">
+  <nav class="nav" aria-label="Main">
+    <a class="wm" href="#top">Owl</a>
+    <ul>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#try">Try it</a></li>
+      <li><a href="#security">Security</a></li>
+      <li><a href="#new">What's new</a></li>
+      <li><a href="#faq">Questions</a></li>
+      <li><a href="https://github.com/fardinahosancse/owl-browser/releases/latest">Download</a></li>
+    </ul>
+  </nav>
+  <div class="hcore">
+    <h1 class="name"><span>Owl</span><span class="frame shutter" aria-hidden="true"><img src="img/home-navy.jpg" width="1280" height="800" alt=""></span><span>Browser</span></h1>
+  </div>
+  <div class="hfoot">
+    <p>A small, private browser for Windows. One file of about 7 MB that seals your data when it locks, blocks trackers with its own engine and downloads over eight connections.</p>
+    <div class="act"><a class="btn" href="https://github.com/fardinahosancse/owl-browser/releases/latest">Download for Windows</a><small>Free and open source. Windows 10 and 11.</small></div>
+  </div>
+</header>
+
+<main>
+<section class="feat" id="features" aria-labelledby="h-feat">
+  <div class="intro rv"><h2 id="h-feat">All built in</h2><p>Everything here ships inside Owl. No extension, no account, no cloud service in the middle.</p></div>
+  <div class="tiles">
+    <figure class="tile rv"><div class="pic t-red"><img src="img/owlkick.jpg" width="1280" height="801" alt="OwlKick activity page showing four blocked trackers: DoubleClick, Google Analytics, Google Tag Manager and Hotjar" loading="lazy"></div><h3>OwlKick blocks trackers</h3><p>Built on adblock-rust, the engine Brave uses. See every request it stopped.</p></figure>
+    <figure class="tile wide rv"><div class="pic t-navy"><img src="img/home-navy.jpg" width="1280" height="800" alt="Owl home page in the Navy theme with a clock, search box and quick access" loading="lazy"></div><h3>The page gets every pixel</h3><p>Tabs and the address bar live in one strip at the bottom of the window, or at the top if you prefer.</p></figure>
+    <figure class="tile rv"><div class="pic t-sand"><img src="img/downloads.jpg" width="1280" height="801" alt="Owl download list with a file downloading over eight parts at 2.1 MB per second" loading="lazy"></div><h3>Downloads in eight lanes</h3><p>Large files split into parts, with pause, resume, a queue and a speed limit. Torrents too, only on demand.</p></figure>
+    <figure class="tile rv"><div class="pic t-sand"><img src="img/settings.jpg" width="1280" height="801" alt="Owl settings with a sidebar of sections and eight colour themes" loading="lazy"></div><h3>Settings you can find</h3><p>Nine plain groups with a sidebar, and eight Swiss themes that apply at once.</p></figure>
+    <figure class="tile rv"><div class="pic t-navy"><img src="img/top.jpg" width="1280" height="801" alt="Owl in the dark theme with the address bar and tabs at the top of the window" loading="lazy"></div><h3>Toolbar on top, if you like</h3><p>One setting moves the address bar and tabs to the top. Window buttons stay on the top row.</p></figure>
+    <figure class="tile rv"><div class="pic t-red"><img src="img/welcome.jpg" width="1280" height="800" alt="Owl first run screen asking for a name, email and a new passphrase" loading="lazy"></div><h3>Your passphrase, your keys</h3><p>A passphrase you choose at first run protects passwords, history, bookmarks and cookies.</p></figure>
+  </div>
+</section>
+
+<section class="try" id="try" aria-labelledby="h-try">
+  <h2 id="h-try" class="rv">Type an address. See what Owl does with it.</h2>
+  <div class="line rv" data-ui><label class="vh" for="addr">Address or search</label><input id="addr" value="news.example.com" autocomplete="off" spellcheck="false"></div>
+  <div class="ans" id="ans" aria-live="polite" data-ui>
+    <div class="r"><b>Opens</b><span id="a1">https://news.example.com</span></div>
+    <div class="r"><b>OwlKick</b><span id="a2">Allowed. Trackers on the page are checked one by one.</span></div>
+    <div class="r"><b>Lookup</b><span id="a3">Through your network's DNS, or privately through 1.1.1.1 with Secure DNS on.</span></div>
+  </div>
+  <div class="ex rv" role="group" aria-label="Examples"><span>Try</span><button type="button" data-v="doubleclick.net">doubleclick.net</button><button type="button" data-v="swiss typography">swiss typography</button><button type="button" data-v="http://example.org">http://example.org</button><button type="button" data-v="magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c&amp;dn=Big+Buck+Bunny">a magnet link</button></div>
+</section>
+
+<section class="lockwrap" id="security" aria-labelledby="h-lock">
+  <div class="lock">
+    <div class="l"><h2 id="h-lock">You browse.</h2><p id="lockp">While Owl is open and unlocked, it works like any browser. Your cookies and logins sit in its profile folder.</p></div>
+    <div class="r">
+      <div class="files" id="files" data-ui aria-label="Owl data folder">
+        <div class="top"><span>%LOCALAPPDATA%\Owl</span><span id="fstate">Unlocked</span></div>
+        <div class="row" data-f="cookies"><span>profile\Cookies</span><span>412 KB</span><span class="st">readable</span></div>
+        <div class="row" data-f="logins"><span>profile\Login Data</span><span>96 KB</span><span class="st">readable</span></div>
+        <div class="row" data-f="storage"><span>profile\Local Storage</span><span>1.8 MB</span><span class="st">readable</span></div>
+        <div class="row" data-f="sealed"><span>profile\sealed.owl</span><span>-</span><span class="st">none</span></div>
+        <div class="row"><span>store.json</span><span>214 KB</span><span class="st">encrypted</span></div>
+        <div class="row"><span>vault.json</span><span>8 KB</span><span class="st">encrypted</span></div>
+        <div class="foot" id="ffoot">History, bookmarks and passwords are always encrypted on disk.</div>
+      </div>
+    </div>
+  </div>
+  <div class="slider">
+    <label class="vh" for="stage">Stage of locking</label>
+    <div class="track" id="track"><i></i><b></b><input type="range" id="stage" min="0" max="3" step="1" value="0" aria-valuetext="Browse"></div>
+    <div class="stops" aria-hidden="true"><span class="on">Browse</span><span>Lock</span><span>Sealed</span><span>Unlock</span></div>
+  </div>
+</section>
+
+<section class="figs" aria-labelledby="h-figs">
+  <h2 id="h-figs" class="vh">Owl in numbers</h2>
+  <div class="big4 rv"><div><b>7&nbsp;MB</b><span>the whole browser, one file</span></div><div><b>64&nbsp;MiB</b><span>of Argon2id behind every key</span></div><div><b>8</b><span>connections per download</span></div><div><b>0</b><span>bytes of telemetry</span></div></div>
+  <p class="rv">One small file that talks to the internet only when <b>you ask it to</b>.</p>
+</section>
+
+<!-- release:news -->
+<section class="news" id="new" aria-labelledby="h-new">
+  <div class="nh rv"><h2 id="h-new">New in 0.2.0</h2><p>Released 13 November 2026. Also 2 changed, 3 fixed. 8 known issues are listed in the notes.</p><a class="link" href="https://github.com/fardinahosancse/owl-browser/releases/tag/v0.2.0">Full release notes</a></div>
+  <ul class="nl">
+    <li class="rv"><h3>OwlKick Engine</h3><p>Content blocking now runs on the adblock-rust engine that Brave uses (MPL-2.0; Owl is not made or endorsed by Brave). It understands EasyList and uBlock-style rules, matches by request type and third-party status, and hides page clutter. Owl's built-in...</p></li>
+    <li class="rv"><h3>Fast download engine</h3><p>Files of 2 MB or more from servers that support ranges download over up to 8 connections, with pause, resume, retry with backoff, a speed limit, a &quot;downloads at once&quot; queue, and resume after Owl restarts (press Retry; cookies are kept encrypted for your...</p></li>
+    <li class="rv"><h3>BitTorrent</h3><p>Magnet links (on pages, typed in the address bar, or passed by a second launch) and .torrent files open in a built-in client (librqbit, Apache-2.0) and appear in the download list. The torrent engine runs only while a torrent is active, then shuts down...</p></li>
+    <li class="rv"><h3>Data saver</h3><p>(Settings &gt; Privacy, slider 0-99 with Off, Light, Balanced and Ultra presets): sends the Save-Data header so cooperating sites send lighter pages and images; loads below-the-fold images lazily with low priority; fetches only the first part of big...</p></li>
+    <li class="rv"><h3>Video and audio download button</h3><p>When a page plays a plain video or audio file, a toolbar button lists it and downloads it with the fast engine. Streaming playlists (HLS, DASH) and YouTube are not offered.</p></li>
+    <li class="rv"><h3>Save image as</h3><p>Right-click an image to save it as PNG, JPEG, BMP, WebP or GIF. Works for blob: images and same-site cookie-protected images by asking the page to fetch them.</p></li>
+    <li class="rv"><h3>Secure DNS (Cloudflare 1.1.1.1)</h3><p>Owl runs a loopback-only proxy that looks up site names over HTTPS. Checked with Cloudflare's test page (DoH: Yes). It is not a VPN and does not hide your IP address. If 1.1.1.1 is blocked, pages will not load.</p></li>
+    <li class="rv"><h3>Cloudflare WARP switch</h3><p>Connect, disconnect and check an installed WARP client (a real VPN) from Settings. Owl does not bundle WARP.</p></li>
+    <li class="rv"><h3>Site permissions page</h3><p>(Settings &gt; Site permissions): review and reset what you allowed or blocked for sites.</p></li>
+  </ul>
+</section>
+<!-- /release:news -->
+
+<section class="faq" id="faq" aria-labelledby="h-faq">
+  <h2 id="h-faq">Questions</h2><div class="gap"></div>
+  <h3 class="rv">Is Owl its own engine?</h3>
+  <p class="a rv">No. Pages render with Microsoft Edge WebView2, the engine already on Windows, so sites work as they do in Edge and engine security fixes arrive with Windows updates. Owl is the browser around it, written in Rust.</p>
+  <h3 class="rv">Does it send anything home?</h3>
+  <p class="a rv">No account, no telemetry, no analytics. Two things reach the internet only when you ask: the optional daily update check and the EasyList download for OwlKick.</p>
+  <h3 class="rv">What if I forget my passphrase?</h3>
+  <p class="a rv">There is no reset, because your data is encrypted with it. You can start over by deleting the Owl folder, which erases history, bookmarks and saved passwords.</p>
+  <h3 class="rv">Has it been audited?</h3>
+  <p class="a rv">Not by a professional firm. It is a small open-source project, and the security notes say plainly what it does and does not protect against. Reports go through GitHub's private vulnerability reporting.</p>
+  <h3 class="rv">How do I know a download is real?</h3>
+  <p class="a rv">Every release carries a build attestation from GitHub Actions and SHA-256 checksums. Check the installer with <code>gh attestation verify Owl-Setup-0.2.0.exe --repo fardinahosancse/owl-browser</code>.</p>
+  <h3 class="rv">Is there a Mac version?</h3>
+  <p class="a rv">Not yet. Owl runs on Windows 10 and 11. A macOS port is planned and tracked as an open issue on GitHub.</p>
+</section>
+
+<section class="close" aria-labelledby="h-close">
+  <h2 id="h-close" class="rv">Give the page every pixel.</h2>
+  <div class="base"><p class="rv">Install takes a minute and needs no administrator rights. Your data stays in one folder on your PC.</p><a class="btn rv" href="https://github.com/fardinahosancse/owl-browser/releases/latest">Download Owl</a></div>
+</section>
+</main>
+
+<footer aria-labelledby="h-foot">
+  <div class="up">
+    <div class="inv"><h2 id="h-foot">Read the code, all of it.</h2><a class="btn" href="https://github.com/fardinahosancse/owl-browser">Open on GitHub</a></div>
+    <ul aria-label="Project links">
+      <li><a href="https://github.com/fardinahosancse/owl-browser/releases">Releases</a></li>
+      <li><a href="https://github.com/fardinahosancse/owl-browser/issues">Issues</a></li>
+      <li><a href="https://github.com/fardinahosancse/owl-browser/blob/main/SECURITY.md">Security</a></li>
+      <li><a href="https://github.com/fardinahosancse/owl-browser/blob/main/CHANGELOG.md">Changelog</a></li>
+    </ul>
+  </div>
+  <div></div>
+  <div>
+    <div class="legal"><span>MIT licence · Space Grotesk under the SIL Open Font License · Icons from Lucide</span><span>Owl is not made or endorsed by Microsoft, Brave or Cloudflare.</span></div>
+    <div class="big" aria-hidden="true">Owl.</div>
+  </div>
+</footer>
+
+<script>
+document.body.classList.remove('no-js');
+// entrances: each part rises once as its section arrives
+(function(){const els=[...document.querySelectorAll('.rv')];
+ if(!('IntersectionObserver' in window)){els.forEach(e=>e.classList.add('in'));return}
+ const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){const sib=[...e.target.parentNode.children].filter(x=>x.classList.contains('rv'));e.target.style.transitionDelay=Math.min(sib.indexOf(e.target),6)*70+'ms';e.target.classList.add('in');io.unobserve(e.target)}}),{rootMargin:'0px 0px -8% 0px'});
+ els.forEach(e=>io.observe(e))})();
+
+// the address bar demo uses Owl's own rules: address or search, https, the built-in tracker list
+(function(){
+ const HOSTS=["doubleclick.net", "googlesyndication.com", "googleadservices.com", "google-analytics.com", "googletagmanager.com", "googletagservices.com", "adservice.google.com", "app-measurement.com", "adnxs.com", "adsrvr.org", "advertising.com", "amazon-adsystem.com", "taboola.com", "outbrain.com", "criteo.com", "criteo.net", "scorecardresearch.com", "quantserve.com", "hotjar.com", "mixpanel.com", "segment.io", "segment.com", "fullstory.com", "mouseflow.com", "crazyegg.com", "optimizely.com", "bluekai.com", "demdex.net", "krxd.net", "rubiconproject.com", "pubmatic.com", "openx.net", "casalemedia.com", "moatads.com", "adform.net", "smartadserver.com", "2mdn.net", "serving-sys.com", "yieldmo.com", "chartbeat.com", "ads-twitter.com", "ads.twitter.com", "analytics.twitter.com", "analytics.tiktok.com", "ads.linkedin.com", "bat.bing.com", "clarity.ms", "ct.pinterest.com", "tr.snapchat.com", "adsymptotic.com", "tapad.com", "bidswitch.net", "everesttech.net", "mathtag.com", "turn.com", "yadro.ru", "mc.yandex.ru", "adroll.com", "zedo.com", "sharethrough.com", "inmobi.com", "pagead2.googlesyndication.com", "stats.g.doubleclick.net", "hs-analytics.net", "ads.yahoo.com", "analytics.yahoo.com", "log.pinterest.com", "px.ads.linkedin.com", "snap.licdn.com", "ads.tiktok.com", "business-api.tiktok.com", "bttrack.com", "id5-sync.com", "liveramp.com", "rlcdn.com", "lijit.com", "33across.com", "indexww.com", "contextweb.com", "sitescout.com", "adcolony.com", "applovin.com", "unity3d.com/ads", "ads.mopub.com", "branch.io", "adjust.com", "appsflyer.com", "newrelic.com", "nr-data.net", "heap.io", "heapanalytics.com", "amplitude.com", "luckyorange.com", "inspectlet.com", "smartlook.com", "statcounter.com", "histats.com", "addthis.com", "sharethis.com"];
+ const $=i=>document.getElementById(i),inp=$('addr');
+ const hostOf=u=>{try{return new URL(u).hostname.replace(/^www\./,'')}catch(e){return ''}};
+ const blocked=h=>HOSTS.find(d=>h===d||h.endsWith('.'+d));
+ function show(){const v=inp.value.trim();let go='',kick='',dns='';
+  if(!v){$('a1').textContent='Type something above.';$('a2').textContent='';$('a3').textContent='';return}
+  if(/^magnet:\?/i.test(v)){go='Owl\'s own torrent client, as an entry in the download list';kick='Not a web page, nothing to block.';dns='The torrent engine starts now and shuts down when the last torrent ends.'}
+  else{let url;
+   if(/^[a-z][a-z0-9+.-]*:\/\//i.test(v))url=v;else if(!/\s/.test(v)&&/\./.test(v))url='https://'+v;else url=null;
+   if(!url){go='A private search on DuckDuckGo for "'+v+'"';kick='Trackers on the results page are checked one by one.';dns='Only duckduckgo.com is looked up.'}
+   else{const h=hostOf(url);const http=/^http:\/\//i.test(url);
+    go=(http?'With HTTPS-only on, '+url.replace(/^http:/i,'https:')+' first, and a warning before plain http':url);
+    const b=blocked(h);
+    if(b){kick='Blocked. '+b+' is on Owl\'s built-in tracker list, so this request never leaves your PC.';$('a2').parentNode.classList.add('bad')}
+    else{kick='Allowed. Trackers on the page are checked one by one.';$('a2').parentNode.classList.remove('bad')}
+    dns=b?'Nothing is looked up for a blocked host.':h+' is looked up through your network, or privately through 1.1.1.1 with Secure DNS on.'}}
+  if(!/^magnet|^[a-z][a-z0-9+.-]*:\/\/|\./i.test(v)||/\s/.test(v))$('a2').parentNode.classList.remove('bad');
+  $('a1').textContent=go;$('a2').textContent=kick;$('a3').textContent=dns}
+ inp.addEventListener('input',show);
+ document.querySelectorAll('.ex button').forEach(b=>b.onclick=()=>{inp.value=b.dataset.v;show();inp.focus()});
+ show();
+})();
+
+// the lock slider walks through what really happens to the profile folder
+(function(){
+ const S=[
+  {h:'You browse.',p:'While Owl is open and unlocked, it works like any browser. Your cookies and logins sit in its profile folder.',st:'Unlocked',f:{cookies:['412 KB','readable',''],logins:['96 KB','readable',''],storage:['1.8 MB','readable',''],sealed:['-','none','']},foot:'History, bookmarks and passwords are always encrypted on disk.'},
+  {h:'You lock it.',p:'Press Ctrl+Shift+L, lock Windows or walk away until auto-lock. Owl closes every page and remembers your tabs.',st:'Locking',f:{cookies:['412 KB','closing','gone'],logins:['96 KB','closing','gone'],storage:['1.8 MB','closing','gone'],sealed:['-','writing','']},foot:'Typed text and scroll position are saved so they come back.'},
+  {h:'It is sealed.',p:'Cookies, logins and site storage move into one file encrypted to a public key. Owl can do this at any moment, even at shutdown, without asking for your passphrase.',st:'Sealed',f:{cookies:['-','moved','gone'],logins:['-','moved','gone'],storage:['-','moved','gone'],sealed:['2.3 MB','sealed','sealed']},foot:'Only your passphrase can unwrap the private key that opens sealed.owl.'},
+  {h:'You unlock it.',p:'Unlocking runs Argon2id with 64 MiB of memory, unwraps the key, restores the files and reopens your tabs where you left them.',st:'Unlocked',f:{cookies:['412 KB','restored',''],logins:['96 KB','restored',''],storage:['1.8 MB','restored',''],sealed:['-','none','']},foot:'Wrong guesses lock you out for longer each time.'}];
+ const names=['Browse','Lock','Sealed','Unlock'];const r=document.getElementById('stage');const stops=[...document.querySelectorAll('.stops span')];
+ const h=document.getElementById('h-lock'),p=document.getElementById('lockp'),files=document.getElementById('files');
+ function set(i){const s=S[i];document.getElementById('track').style.setProperty('--p',(i/3*100)+'%');r.setAttribute('aria-valuetext',names[i]);
+  stops.forEach((x,k)=>x.classList.toggle('on',k===i));
+  [h,p,files].forEach(e=>e.style.opacity=.15);
+  setTimeout(()=>{h.textContent=s.h;p.textContent=s.p;document.getElementById('fstate').textContent=s.st;document.getElementById('ffoot').textContent=s.foot;
+   for(const k in s.f){const row=files.querySelector('[data-f="'+k+'"]');const [sz,st,cls]=s.f[k];row.children[1].textContent=sz;row.children[2].textContent=st;row.classList.toggle('gone',cls==='gone');row.classList.toggle('sealed',cls==='sealed')}
+   [h,p,files].forEach(e=>e.style.opacity=1)},200)}
+ r.addEventListener('input',()=>set(+r.value));set(0);
+})();
+</script>
+</body>
+</html>

@@ -253,6 +253,22 @@ Known problems are tracked in [Issues](https://github.com/fardinahosancse/owl-br
 each with a priority label (`P0-critical` to `P3-low`). Issues closed as completed are listed
 under **Resolved issues** in the next release's notes automatically.
 
+## Landing page
+
+The project site lives in [`site/`](site/) as plain HTML with no framework. `node scripts/build-site.mjs` reads the newest
+released version from `CHANGELOG.md` and writes it into the page: the scrolling banner at the top and the "New in" section.
+
+It is deployed with [Vercel](https://vercel.com) using [`vercel.json`](vercel.json):
+
+1. In Vercel, choose **Add New > Project** and import the `owl-browser` GitHub repository.
+2. Leave the root directory as the repository root and the framework preset as **Other**. `vercel.json` sets the build
+   command (`node scripts/build-site.mjs`) and the output folder (`site`).
+3. Deploy. From then on every push to `main` deploys automatically, but only when `site/`, `CHANGELOG.md`,
+   `scripts/build-site.mjs` or `vercel.json` changed (the `ignoreCommand` skips other pushes).
+
+So releasing a version (a new `## [x.y.z]` section in `CHANGELOG.md`) updates the banner and the "New in" section
+on the live site with no other step.
+
 ## Contributing
 
 Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
