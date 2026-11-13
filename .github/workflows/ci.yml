@@ -33,6 +33,15 @@ jobs:
       - name: Build release
         run: cargo build --release --locked
 
+      - name: Unit tests
+        run: cargo test --release --locked
+
+      # drives the real executable: first-run setup, a fast download with checksum, Data saver,
+      # Save image as, and the seal that runs when Windows shuts down
+      - name: Smoke test (real app)
+        shell: pwsh
+        run: scripts/smoke-test.ps1 -Exe target\release\owl.exe -Seconds 90
+
       - name: Report size
         shell: pwsh
         run: |
@@ -47,7 +56,7 @@ jobs:
           retention-days: 14
 
   installer:
-    name: Installer script compiles
+    name: Installer builds, installs and uninstalls
     runs-on: windows-latest
     needs: build
     steps:
@@ -70,6 +79,25 @@ jobs:
           $env:OWL_VERSION = "0.0.0-ci"
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\owl.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # silent per-user install, check the files, shortcut entry and uninstaller, then uninstall
+      - name: Install and uninstall silently
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem installer\Output\Owl-Setup-*.exe | Select-Object -First 1
+          $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/NORESTART" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "setup exited with $($p.ExitCode)" }
+          $dir = Join-Path $env:LOCALAPPDATA "Programs\Owl"
+          if (-not (Test-Path (Join-Path $dir "Owl.exe"))) { throw "Owl.exe was not installed in $dir" }
+          $un = Get-ChildItem $dir -Filter "unins*.exe" | Select-Object -First 1
+          if (-not $un) { throw "no uninstaller was installed" }
+          $key = Get-ChildItem HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall | Where-Object { $_.PSChildName -like "*7C3B6F52*" }
+          if (-not $key) { throw "no Apps and features entry was registered" }
+          $p = Start-Process $un.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "uninstall exited with $($p.ExitCode)" }
+          Start-Sleep 5
+          if (Test-Path (Join-Path $dir "Owl.exe")) { throw "Owl.exe is still there after uninstall" }
+          "Silent install and uninstall passed" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
   secrets:
     name: Secret scan

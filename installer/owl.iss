@@ -104,7 +104,8 @@ begin
   if CurUninstallStep = usPostUninstall then
   begin
     DataDir := ExpandConstant('{localappdata}\Owl');
-    if DirExists(DataDir) then
+    // a silent uninstall (/VERYSILENT) keeps the data: never delete it without asking
+    if DirExists(DataDir) and not UninstallSilent then
       if MsgBox('Also delete your Owl data (history, bookmarks, saved passwords, cookies and settings)?' + #13#10 +
                 'This cannot be undone. Choose No to keep it for a future install.',
                 mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
