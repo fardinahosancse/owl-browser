@@ -64,6 +64,8 @@ made-up sample data: the sites are `example.com` addresses and the downloads are
 | **Data saver**: one slider, Light, Balanced and Ultra presets. | **Toolbar at the top**, if you prefer it there. |
 | ![Calm home page in the Navy theme](assets/screenshots/home-navy.jpg) | ![First-run welcome screen: name, email and a new passphrase](assets/screenshots/welcome.jpg) |
 | **Navy theme** on the calm home page. | **First run**: create your profile and passphrase. |
+| ![The Owl menu with icons, open over a page](assets/screenshots/menu.jpg) | ![About Owl: version, creator and credits](assets/screenshots/about.jpg) |
+| **Menu**: icons, shortcuts and switches with tooltips. | **About**: version, creator, credits, privacy and terms. |
 
 ### How the main features work
 

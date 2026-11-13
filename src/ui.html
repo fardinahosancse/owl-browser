@@ -101,6 +101,7 @@ body.bm #marks{display:flex}
 #ovl.anim #menu>div{animation:rise .3s cubic-bezier(.2,.8,.2,1) both}
 #ovl.anim #menu>div:nth-child(2){animation-delay:.05s}#ovl.anim #menu>div:nth-child(3){animation-delay:.1s}#ovl.anim #menu>div:nth-child(4){animation-delay:.15s}
 #menu h4{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding-bottom:8px;border-bottom:2px solid var(--ink);margin-bottom:2px}
+.mi .ml{display:inline-flex;align-items:center;gap:10px}.mi .ml svg{width:15px;height:15px;flex:none;opacity:.7}.mi:hover .ml svg,.mi.on .ml svg{opacity:1}
 .mi{display:flex;justify-content:space-between;align-items:center;width:100%;height:32px;font-size:14px;font-weight:500;border-bottom:1px solid var(--line);text-align:left;padding-right:6px;transition:background .12s,color .12s,padding .12s}
 .mi small{font-size:11px;color:var(--mute);font-weight:700;letter-spacing:.06em}.mi:hover small{color:var(--mute-on)}
 .mi:hover{background:var(--ink);color:var(--on);padding-left:8px}
@@ -290,6 +291,15 @@ const P={
  pin:'<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
  copy:'<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
  lock:'<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',up:'<path d="m18 15-6-6-6 6"/>',down:'<path d="m6 9 6 6 6-6"/>',
+ clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+ gear:'<path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>',
+ info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+ find:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+ print:'<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>',
+ full:'<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
+ code:'<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+ bmk:'<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
+ tab:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/>',
  xs:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/><rect x="2" y="2" width="4" height="4"/>'};
 const ic=(n)=>'<svg viewBox="0 0 24 24">'+P[n]+'</svg>';
 document.querySelectorAll('[data-i]').forEach(b=>b.insertAdjacentHTML('afterbegin',ic(b.dataset.i)));
@@ -473,7 +483,9 @@ url.addEventListener('keydown',e=>{
 url.addEventListener('focus',()=>{if(!skipSel)url.select()});
 url.addEventListener('blur',()=>{if(mode==='sugg')setTimeout(()=>{if(document.activeElement!==url)closeOvl()},250)});
 /* ---------- menu ---------- */
-function item(label,hint,fn,on){const b=el('button','mi'+(on?' on':''));b.appendChild(el('span','',label));
+const MI={'New tab':'tab','Private window':'mask','History':'clock','Bookmarks':'star','Downloads':'dl','Passwords':'key','Settings':'gear','About Owl':'info','Find in page':'find','Print':'print','Full screen':'full','Developer tools':'code','Lock browser':'lock','Bookmark bar':'bmk','Block trackers':'kick','HTTPS-only':'dnsi','Offer to save passwords':'key'};
+const MT={'Private window':'A separate window that saves no history, cookies or downloads list','Lock browser':'Close every page and encrypt your data until you type your passphrase','HTTPS-only':'Refuse plain http:// pages unless you confirm','Block trackers':'OwlKick: block ads and trackers on every site','Offer to save passwords':'Ask to save a password after you sign in'};
+function item(label,hint,fn,on){const b=el('button','mi'+(on?' on':''));const lb=el('span','ml');if(MI[label])lb.insertAdjacentHTML('afterbegin',ic(MI[label]));lb.appendChild(document.createTextNode(label));b.appendChild(lb);if(MT[label])b.title=MT[label];
  if(on!==undefined){b.setAttribute('role','switch');b.setAttribute('aria-checked',on?'true':'false');b.appendChild(el('span','sw'))}else if(hint)b.appendChild(el('small','',hint));b.onclick=()=>{fn()};return b}
 function col(title){const d=el('div');d.appendChild(el('h4','',title));return d}
 const go=u=>()=>{closeOvl();send({cmd:'navigate',url:u})};

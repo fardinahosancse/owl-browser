@@ -1752,6 +1752,8 @@ impl App {
         for c in due {
             if c["cmd"] == "_save_image" {
                 let _ = self.proxy.send_event(Ev::SaveImage(c["url"].as_str().unwrap_or("").into(), c["ext"].as_str().unwrap_or("png").into()));
+            } else if c["cmd"] == "_menu" {
+                let _ = self.ui.evaluate_script("document.getElementById('mn').click()");
             } else if c["cmd"] == "_mock" {
                 self.mock_data();
             } else if c["cmd"] == "_end_session" {

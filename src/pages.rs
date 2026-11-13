@@ -44,6 +44,7 @@ input::placeholder{color:var(--mute);opacity:1}
 select{-webkit-appearance:none;appearance:none;font:700 11px "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.12em;text-transform:uppercase;min-height:38px;padding:0 36px 0 14px;border:1px solid var(--ink);border-radius:0;color:var(--ink);cursor:pointer;outline:0;background:var(--bg) no-repeat;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 19px) 52%,calc(100% - 14px) 52%;background-size:5px 5px;transition:background-color .15s,color .15s,box-shadow .15s}select:hover{background-color:var(--ink);color:var(--on)}select:focus-visible{box-shadow:0 0 0 2px var(--red)}option{background:var(--bg);color:var(--ink);font:500 14px "Helvetica Neue",Helvetica,Arial,sans-serif;text-transform:none;letter-spacing:0}
 /* Data saver: segmented presets over a flat scale with a square thumb */
 .sv{display:grid;gap:12px;width:380px;max-width:100%}.sv .seg{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--ink)}.sv .seg button{background:var(--bg);color:var(--ink);justify-content:center;padding:0 6px;min-height:36px;border-right:1px solid var(--ink)}.sv .seg button:last-child{border-right:0}.sv .seg button:hover{background:var(--ink);color:var(--on)}.sv .seg button.on{background:var(--red);color:var(--onred)}.sv .rr{display:grid;grid-template-columns:1fr 70px;gap:16px;align-items:center}.sv output{font:700 30px/1 "Space Grotesk","Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:-.03em;text-align:right;font-variant-numeric:tabular-nums}.sv .sc{position:relative;height:26px}.sv .sc::before{content:"";position:absolute;left:0;right:0;top:12px;height:2px;background:var(--ink)}.sv .sc::after{content:"";position:absolute;left:0;top:10px;height:6px;width:var(--v,0%);background:var(--red)}.sv .sc i{position:absolute;top:4px;width:1px;height:18px;background:var(--ink)}.set input.sw{-webkit-appearance:none;appearance:none;position:absolute;inset:0;width:100%;height:26px;margin:0;padding:0;border:0;background:transparent;z-index:1;cursor:pointer;box-shadow:none}input.sw::-webkit-slider-runnable-track{height:26px;background:transparent}input.sw::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:26px;border:0;border-radius:0;background:var(--ink);transition:background .15s,transform .12s}input.sw:hover::-webkit-slider-thumb,input.sw:active::-webkit-slider-thumb{background:var(--red)}input.sw:active::-webkit-slider-thumb{transform:scaleX(1.4)}input.sw:focus-visible::-webkit-slider-thumb{background:var(--red);box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--red)}.sv .lbl{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.soon{display:inline-block;vertical-align:2px;margin-left:8px;padding:2px 6px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--red);color:var(--red)}
 .pill{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
 code{font-size:13px;background:var(--soft);padding:2px 6px}
 .themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:14px;margin:4px 0 34px}
@@ -626,7 +627,8 @@ const EXT={Video:['mp4','mkv','avi','mov','webm','wmv','m4v'],Music:['mp3','wav'
 function cat(d){if(d.kind==='torrent')return 'Torrent';const e=(d.name.split('.').pop()||'').toLowerCase();for(const k in EXT)if(EXT[k].includes(e))return k;return 'Other'}
 const P={Torrent:'<path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/>',Video:'<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',Music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',Documents:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 13H8"/><path d="M16 17H8"/>',Images:'<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',Archives:'<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',Programs:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',Other:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>'};
 function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
-function btn(label,cmd,d){const b=el('button','ghost',label);b.onclick=()=>{if(cmd==='copy'){try{navigator.clipboard.writeText(d.url)}catch(e){}b.textContent='Copied';setTimeout(()=>b.textContent=label,1200);return}send({cmd,id:d.id});setTimeout(poll,150)};return b}
+const TIP={'Stop and delete':'Stop the torrent and delete what was downloaded','Stop seeding':'Stop uploading this finished torrent to other peers','Force start':'Start now, even if the downloads-at-once limit is reached','Retry':'Resume from where it stopped; finished parts are kept','Show':'Show the file in its folder','Copy link':'Copy the address this file came from','Remove':'Remove from the list; the file stays on disk','Cancel':'Stop and delete the partial file'};
+function btn(label,cmd,d){const b=el('button','ghost',label);if(TIP[label])b.title=TIP[label];b.onclick=()=>{if(cmd==='copy'){try{navigator.clipboard.writeText(d.url)}catch(e){}b.textContent='Copied';setTimeout(()=>b.textContent=label,1200);return}send({cmd,id:d.id});setTimeout(poll,150)};return b}
 function row(d){const L=d.live||{},tor=d.kind==='torrent',k=cat(d);const r=el('div','dr '+d.status+(tor?' torrent':''));
  const ic=el('div','ic');ic.setAttribute('aria-hidden','true');ic.innerHTML='<svg viewBox="0 0 24 24">'+(P[k]||P.Other)+'</svg>';r.appendChild(ic);
  const mid=el('div');const nm=el('div','nm');const tg=el('span','tag'+(tor?' t':''),tor?'Torrent':d.kind==='fast'?'Fast':d.kind==='media'?'Media':k);nm.appendChild(tg);nm.appendChild(document.createTextNode(d.name));nm.title=d.url||d.name;mid.appendChild(nm);
@@ -770,8 +772,8 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
 </script>"#;
     let css = "<style>.sg{display:grid;grid-template-columns:210px minmax(0,1fr);gap:48px;align-items:start}\
 .snav{position:sticky;top:20px;display:flex;flex-direction:column;border-top:2px solid var(--ink)}\
-.snav a{display:block;padding:9px 0 9px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:500;color:var(--ink);text-decoration:none;border-left:3px solid transparent;transition:border-color .15s,background .15s}\
-.snav a:hover{background:var(--soft)}.snav a.on{border-left-color:var(--red);font-weight:700}\
+.snav a{display:flex;align-items:center;gap:10px;padding:9px 0 9px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:500;color:var(--ink);text-decoration:none;border-left:3px solid transparent;transition:border-color .15s,background .15s}\
+.snav a:hover{background:var(--soft)}.snav a.on{border-left-color:var(--red);font-weight:700}.snav svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.75}.snav a.on svg{opacity:1;stroke:var(--red)}\
 .sgp{scroll-margin-top:16px;margin-bottom:40px}.sgp>.gh:first-child{margin-top:0}\
 @media(max-width:900px){.sg{grid-template-columns:1fr;gap:16px}.snav{position:sticky;top:0;z-index:2;background:var(--bg);flex-direction:row;overflow-x:auto;border-top:0;border-bottom:2px solid var(--ink)}.snav a{white-space:nowrap;border-left:0;border-bottom:3px solid transparent;padding:10px 12px}.snav a.on{border-bottom-color:var(--red)}}</style>";
 
@@ -829,7 +831,7 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
         ("downloads", "Downloads", format!(
             "<div class=set><div><b>Download speed limit</b><p>Caps the total speed of Owl's fast download engine. Useful on shared connections.</p></div>{}</div>\
 <div class=set><div><b>Downloads at once</b><p>More fast downloads wait in a queue until one finishes. You can start a queued one at once from the download list.</p></div>{}</div>{}{}\
-<div class=set><div><b>Download list</b><p>Add links, watch parts and connections, and manage torrents.</p></div><a class=btn href=\"owl://downloads\">Open downloads</a></div>",
+<div class=set><div><b>Choose files in a torrent <span class=soon>Coming soon</span></b><p>Pick which files of a multi-file torrent to download. Today Owl downloads all of them.</p></div><button class=ghost disabled title=\"Not available yet\">Choose</button></div>\n<div class=set><div><b>Download list</b><p>Add links, watch parts and connections, and manage torrents.</p></div><a class=btn href=\"owl://downloads\">Open downloads</a></div>",
             sel("dl_limit", "Download speed limit", c.dl_limit, &[(0, "Unlimited"), (512, "512 KB/s"), (1024, "1 MB/s"), (2048, "2 MB/s"), (5120, "5 MB/s"), (10240, "10 MB/s"), (20480, "20 MB/s")]),
             sel("dl_active", "Downloads at once", c.dl_active, &[(1, "1"), (2, "2"), (3, "3"), (5, "5"), (8, "8")]),
             tog("organize", c.organize, "Sort downloads into folders", "Documents, Images, Video, Music, Archives and Programs inside your Downloads folder."),
@@ -854,7 +856,27 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
             esc(prof.0), esc(prof.1), esc(dir), esc(&ex)
         )),
     ];
-    let nav: String = groups.iter().map(|(id, t, _)| format!("<a href=\"#{id}\">{t}</a>")).collect();
+    let side = |id: &str| -> (&str, &str) {
+        match id {
+        "appearance" => (r#"<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>"#, "Theme, home page style, toolbar position, bookmark bar"),
+        "security" => (r#"<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>"#, "Startup key, auto-lock, saved passwords"),
+        "privacy" => (r#"<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>"#, "Tracking protection, fingerprinting, permissions"),
+        "owlkick" => (r#"<circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/>"#, "The content blocker and its filter lists"),
+        "network" => (r#"<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>"#, "Secure DNS, Cloudflare WARP, proxy"),
+        "speed" => (r#"<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>"#, "Data saver"),
+        "downloads" => (r#"<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>"#, "Speed limit, queue, folders, torrents"),
+        "sync" => (r#"<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>"#, "Keep bookmarks and history in a synced folder"),
+        "advanced" => (r#"<path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>"#, "Your profile, time tracking, restart, about"),
+        _ => ("", ""),
+        }
+    };
+    let nav: String = groups
+        .iter()
+        .map(|(id, t, _)| {
+            let (i, tip) = side(id);
+            format!("<a href=\"#{id}\" title=\"{tip}\"><svg viewBox=\"0 0 24 24\" aria-hidden=true>{i}</svg><span>{t}</span></a>")
+        })
+        .collect();
     let body: String = groups.iter().map(|(id, t, h)| format!("<section class=sgp id={id} aria-labelledby=h-{id}><h2 class=gh id=h-{id}>{t}</h2>{h}</section>")).collect();
     list_page("Settings", &format!("<div class=sg><nav class=snav aria-label=\"Settings sections\">{nav}</nav><div>{body}</div></div>{js}"), "", css, theme)
 }
