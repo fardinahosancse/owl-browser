@@ -565,16 +565,16 @@ const THEME_CARDS: &[(&str, &str, &str, &str, &str)] = &[
 
 pub fn settings(c: &Config, exts: &[String], dir: &str, prof: (&str, &str), theme: &str) -> String {
     // a switch: the state is exposed to assistive technology and shown as On / Off
-    let tog = |i: usize, key: &str, on: bool, title: &str, desc: &str| {
+    let tog = |key: &str, on: bool, title: &str, desc: &str| {
         format!(
-            "<div class=set style=\"--i:{i}\"><div><b id=l-{key}>{title}</b><p>{desc}</p></div><button class=\"tg ghost{}\" role=switch aria-checked={on} aria-labelledby=l-{key} data-act=tog data-key=\"{key}\">{}</button></div>",
+            "<div class=set><div><b id=l-{key}>{title}</b><p>{desc}</p></div><button class=\"tg ghost{}\" role=switch aria-checked={on} aria-labelledby=l-{key} data-act=tog data-key=\"{key}\">{}</button></div>",
             if on { " on" } else { "" }, if on { "On" } else { "Off" }
         )
     };
-    let opts: String = [(0u32, "Never"), (5, "5 minutes"), (15, "15 minutes"), (30, "30 minutes"), (60, "1 hour")]
-        .iter()
-        .map(|(v, l)| format!("<option value={v}{}>{l}</option>", if c.autolock == *v { " selected" } else { "" }))
-        .collect();
+    let sel = |key: &str, label: &str, cur: u32, opts: &[(u32, &str)]| {
+        let o: String = opts.iter().map(|(v, l)| format!("<option value={v}{}>{l}</option>", if cur == *v { " selected" } else { "" })).collect();
+        format!("<select class=pk data-sel={key} aria-label=\"{label}\">{o}</select>")
+    };
     let mut cards = String::new();
     for (i, (id, label, bg, ink, acc)) in THEME_CARDS.iter().enumerate() {
         let on = c.theme == *id;
@@ -584,77 +584,105 @@ pub fn settings(c: &Config, exts: &[String], dir: &str, prof: (&str, &str), them
         );
     }
     let ex = if exts.is_empty() { "none".to_string() } else { exts.join(", ") };
-    let theme_js = r#"<script>
+    let js = r#"<script>
 document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,live=!['system','random'].includes(t);
  document.querySelectorAll('.th').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});
  if(live)document.documentElement.dataset.theme=t;
  ipc.postMessage(JSON.stringify({cmd:'set',key:'theme',val:t}));
  if(!live)setTimeout(()=>location.reload(),300)});
+(function(){const links=[...document.querySelectorAll('.snav a')];const secs=links.map(a=>document.getElementById(a.getAttribute('href').slice(1)));
+ const mark=id=>links.forEach(a=>{const on=a.getAttribute('href')==='#'+id;a.classList.toggle('on',on);if(on)a.setAttribute('aria-current','true');else a.removeAttribute('aria-current')});
+ links.forEach(a=>a.onclick=e=>{e.preventDefault();const t=document.getElementById(a.getAttribute('href').slice(1));if(t){t.scrollIntoView({block:'start'});mark(t.id);history.replaceState(null,'','#'+t.id)}});
+ const io=new IntersectionObserver(es=>{const v=es.filter(e=>e.isIntersecting).sort((a,b)=>a.boundingClientRect.top-b.boundingClientRect.top)[0];if(v)mark(v.target.id)},{rootMargin:'-10% 0px -70% 0px'});
+ secs.forEach(s=>s&&io.observe(s));if(location.hash)mark(location.hash.slice(1));else if(secs[0])mark(secs[0].id)})();
 </script>"#;
-    let appearance = format!("<h2 class=gh>Appearance <span>Swiss palettes. Applies instantly.</span></h2><div class=themes role=group aria-label=\"Theme\">{cards}</div>{}", tog(8, "bar", c.bookmark_bar, "Bookmark bar", "Show bookmarks above the tabs (Ctrl+B)."));
-    let security = format!(
-        "<h2 class=gh>Security</h2>\
-<div class=set><div><b>Startup key</b><p><b>Use a passphrase of 10 or more characters.</b> It protects your saved passwords, history, bookmarks and cookies. A 4-digit key can be guessed offline.</p>\
+    let css = "<style>.sg{display:grid;grid-template-columns:210px minmax(0,1fr);gap:48px;align-items:start}\
+.snav{position:sticky;top:20px;display:flex;flex-direction:column;border-top:2px solid var(--ink)}\
+.snav a{display:block;padding:9px 0 9px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:500;color:var(--ink);text-decoration:none;border-left:3px solid transparent;transition:border-color .15s,background .15s}\
+.snav a:hover{background:var(--soft)}.snav a.on{border-left-color:var(--red);font-weight:700}\
+.sgp{scroll-margin-top:16px;margin-bottom:40px}.sgp>.gh:first-child{margin-top:0}\
+@media(max-width:900px){.sg{grid-template-columns:1fr;gap:16px}.snav{position:sticky;top:0;z-index:2;background:var(--bg);flex-direction:row;overflow-x:auto;border-top:0;border-bottom:2px solid var(--ink)}.snav a{white-space:nowrap;border-left:0;border-bottom:3px solid transparent;padding:10px 12px}.snav a.on{border-bottom-color:var(--red)}}</style>";
+
+    let groups: Vec<(&str, &str, String)> = vec![
+        ("appearance", "Appearance", format!(
+            "<div class=themes role=group aria-label=\"Theme\">{cards}</div>{}{}",
+            tog("bar_top", c.bar_top, "Toolbar at the top", "Moves the address bar and tabs to the top of the window instead of the bottom."),
+            tog("bar", c.bookmark_bar, "Bookmark bar", "Show bookmarks next to the tabs (Ctrl+B).")
+        )),
+        ("security", "Security", format!(
+            "<div class=set><div><b>Startup key</b><p><b>Use a passphrase of 10 or more characters.</b> It protects your saved passwords, history, bookmarks and cookies. A 4-digit key can be guessed offline.</p>\
 <details><summary>How it works</summary><p>The key is stretched with Argon2id and wrong guesses lock you out for longer each time. Data is sealed when Owl locks or closes cleanly; if Owl is killed it stays readable until the next lock or start. The default key before setup is 1966.</p></details></div>\
 <div class=ctl><input class=pk type=password id=op maxlength=128 autocomplete=off aria-label=\"Current key\" placeholder=\"Current key\"><input class=pk type=password id=np maxlength=128 autocomplete=off aria-label=\"New key or passphrase\" placeholder=\"New key or passphrase\"><button data-act=setpin>Change</button></div></div>\
-<div class=set><div><b>Auto-lock</b><p>After this long without use, Owl locks, closes every page and encrypts your data on disk. Playing media and downloads count as use. Unlocking reopens your tabs.</p></div><select class=pk data-sel=autolock aria-label=\"Auto-lock after\">{opts}</select></div>{}{}",
-        tog(15, "lock_win", c.lock_on_winlock, "Lock when Windows locks or sleeps", "Locks Owl and encrypts your data when you lock the PC (Win+L), sleep or shut down. Typed text and scroll position are restored on unlock."),
-        tog(12, "pw_save", c.pw_save, "Offer to save passwords", "Ask to save a password after you sign in to a site.")
-    );
-    let privacy = format!(
-        "<h2 class=gh>Privacy</h2>{}{}{}{}{}{}{}{}{}{}\
-<div class=set><div><b>Proxy or VPN</b><p>Send all page traffic through a proxy to hide your IP address, for example <code>socks5://127.0.0.1:9050</code> (Tor). WebRTC is forced through it too. Empty means direct.</p></div>\
+<div class=set><div><b>Auto-lock</b><p>After this long without use, Owl locks, closes every page and encrypts your data on disk. Playing media and downloads count as use. Unlocking reopens your tabs.</p></div>{}</div>{}{}{}\
+<div class=set><div><b>Site permissions</b><p>Review and reset the camera, microphone, location and other permissions you gave sites.</p></div><a class=btn href=\"owl://permissions\">Review</a></div>",
+            sel("autolock", "Auto-lock after", c.autolock, &[(0, "Never"), (5, "5 minutes"), (15, "15 minutes"), (30, "30 minutes"), (60, "1 hour")]),
+            tog("lock_win", c.lock_on_winlock, "Lock when Windows locks or sleeps", "Locks Owl and encrypts your data when you lock the PC (Win+L), sleep or shut down. Typed text and scroll position are restored on unlock."),
+            tog("pw_save", c.pw_save, "Offer to save passwords", "Ask to save a password after you sign in to a site."),
+            tog("perm_block", c.perm_block, "Block camera, microphone, location and notifications", "Refuses these requests without asking. Sensors, local fonts and MIDI system access are always refused. Turn this off to be asked per site.")
+        )),
+        ("privacy", "Privacy", format!(
+            "{}{}{}{}{}",
+            tog("https_only", c.https_only, "HTTPS-only mode", "Upgrades http:// pages to https:// and warns before using plain http."),
+            tog("track_strict", c.track_strict, "Strict tracking prevention", "Blocks third-party trackers and their stored cookies more aggressively. Some embedded logins and videos may stop working. Applies to new pages."),
+            tog("fp", c.fp, "Fingerprint protection", "Adds invisible noise to canvas and audio reads, hides the exact GPU model and rounds hardware hints. Applies to new pages."),
+            tog("fp_strict", c.fp_strict, "Strict fingerprint protection", "Also reports the same screen size, language and plugin list to every site. Sites may show English or odd layouts."),
+            tog("update_check", c.update_check, "Check for new versions", "Asks GitHub once a day whether a newer Owl exists. Nothing is downloaded or installed, and no identifier is sent. Skipped when a proxy is set.")
+        )),
+        ("owlkick", "OwlKick blocking", format!(
+            "{}\
+<div class=set><div><b>Activity</b><p>See what OwlKick blocked: counts, the hosts it stopped most and the latest requests.</p></div><a class=btn href=\"owl://owlkick\">Open activity</a></div>\
+<div class=set><div><b>Filter lists</b><p>OwlKick is built on adblock-rust, the engine Brave uses (MPL-2.0; not made or endorsed by Brave). It always uses Owl's built-in tracker list. Download EasyList and EasyPrivacy for much wider coverage and clutter hiding; once downloaded they refresh weekly. Lists on disk: {}.</p></div><button class=ghost data-act=kickupd>Update lists</button></div>\
+<div class=set><div><b>Off for these sites</b><p>Comma-separated sites where blocking and clutter hiding are switched off, for example a bank or a site that breaks.</p></div><div class=ctl><input class=pk id=ko maxlength=800 aria-label=\"Sites where OwlKick is off\" placeholder=\"example.com, shop.example.org\" value=\"{}\"><button class=ghost data-act=setko>Save</button></div></div>",
+            tog("block", c.block, "Block trackers and ads", "OwlKick blocks requests to ads, analytics and trackers, and hides page clutter."),
+            crate::owlkick::list_count(),
+            esc(&c.kick_off.join(", "))
+        )),
+        ("network", "Network", format!(
+            "{}\
+<div class=set><div><b>Cloudflare WARP (installed client)</b><p>WARP is a real VPN from Cloudflare. Owl cannot include it, but if you installed the free client it can switch it on and off here. While it is on, all your traffic goes through Cloudflare.</p></div><div class=ctl><button class=ghost data-act=warp data-w=connect>Connect</button><button class=ghost data-act=warp data-w=disconnect>Disconnect</button><button class=ghost data-act=warp data-w=status>Status</button></div></div>\
+<div class=set><div><b>Proxy or VPN</b><p>Send all page traffic through a proxy to hide your IP address, for example <code>socks5://127.0.0.1:9050</code> (Tor). WebRTC is forced through it too. Empty means direct. Restart to apply.</p></div>\
 <div class=ctl><input class=pk id=px maxlength=100 aria-label=\"Proxy address\" placeholder=\"socks5://127.0.0.1:9050\" value=\"{}\"><button class=ghost data-act=setproxy>Save</button></div></div>",
-        tog(9, "block", c.block, "Block trackers and ads", "Blocks requests to known ad, analytics and tracking hosts."),
-        tog(10, "https_only", c.https_only, "HTTPS-only mode", "Upgrades http:// pages to https:// and warns before using plain http."),
-        tog(13, "fp", c.fp, "Fingerprint protection", "Adds invisible noise to canvas and audio reads, hides the exact GPU model and rounds hardware hints. Applies to new pages."),
-        tog(18, "update_check", c.update_check, "Check for new versions", "Asks GitHub once a day whether a newer Owl exists. Nothing is downloaded or installed, and no identifier is sent. Skipped when a proxy is set."),
-        format!("<div class=set><div><b>Data saver</b><p>Asks sites for lighter pages (Save-Data), loads off-screen images later, and cuts very large images down: big progressive JPEGs are only partly downloaded, other huge images are shrunk. Higher means smaller images and lower quality; Off at 0. Small images are never touched. The image shrinking is off while a proxy or secure DNS is on, but the lighter-pages request and lazy loading still apply. Applies to new pages.</p><p><button class=\"ghost sm\" data-act=cmpset data-v=0>Off</button> <button class=\"ghost sm\" data-act=cmpset data-v=25>Light</button> <button class=\"ghost sm\" data-act=cmpset data-v=50>Balanced</button> <button class=\"ghost sm\" data-act=cmpset data-v=85>Ultra</button></p></div><div class=ctl><input type=range class=pk min=0 max=99 value={v} data-sel=compress data-out=cmpv aria-label=\"Image compression strength\" aria-describedby=cmpv style=\"width:200px\"><output id=cmpv>{vt}</output></div></div>", v = c.compress, vt = if c.compress == 0 { "Off".to_string() } else { c.compress.to_string() }),
-        tog(20, "torrent_seed", c.torrent_seed, "Keep seeding finished torrents", "Off by default: the torrent engine shuts down as soon as a download ends. When on, finished torrents keep uploading to peers Owl is connected to until you remove them from the download list. Owl opens no listening port."),
-        tog(19, "doh", c.doh, "Secure DNS (Cloudflare 1.1.1.1)", "Looks up site names over HTTPS at 1.1.1.1 so your network cannot see which sites you open. This is not a VPN: your IP address is unchanged. If 1.1.1.1 is blocked, pages will not load; turn this off. Needs a restart. Not used while a proxy is set."),
-        tog(17, "track_strict", c.track_strict, "Strict tracking prevention", "Blocks third-party trackers and their stored cookies more aggressively. Some embedded logins and videos may stop working. Applies to new pages."),
-        tog(16, "perm_block", c.perm_block, "Block camera, microphone, location and notifications", "Refuses these requests without asking. Sensors, local fonts and MIDI system access are always refused. Turn this off to be asked per site."),
-        tog(14, "fp_strict", c.fp_strict, "Strict fingerprint protection", "Also reports the same screen size, language and plugin list to every site. Sites may show English or odd layouts."),
-        esc(&c.proxy)
-    );
-    let data = format!(
-        "<h2 class=gh>Downloads and data</h2>{}{}\
-<div class=set><div><b>Time tracking</b><p>Minutes per site are kept on this PC for the home page. Clear them any time.</p></div><button class=ghost data-act=clearusage>Clear</button></div>",
-        {
-            let lim = [(0u32, "Unlimited"), (512, "512 KB/s"), (1024, "1 MB/s"), (2048, "2 MB/s"), (5120, "5 MB/s"), (10240, "10 MB/s"), (20480, "20 MB/s")]
-                .iter()
-                .map(|(v, l)| format!("<option value={v}{}>{l}</option>", if c.dl_limit == *v { " selected" } else { "" }))
-                .collect::<String>();
-            let act = [1u32, 2, 3, 5, 8]
-                .iter()
-                .map(|v| format!("<option value={v}{}>{v}</option>", if c.dl_active == *v { " selected" } else { "" }))
-                .collect::<String>();
-            format!("<div class=set><div><b>Download speed limit</b><p>Caps the total speed of Owl's fast download engine. Useful on shared connections.</p></div><select class=pk data-sel=dl_limit aria-label=\"Download speed limit\">{lim}</select></div><div class=set><div><b>Downloads at once</b><p>More fast downloads wait in a queue until one finishes.</p></div><select class=pk data-sel=dl_active aria-label=\"Downloads at once\">{act}</select></div>")
-        },
-        tog(11, "organize", c.organize, "Sort downloads into folders", "Documents, Images, Video, Music, Archives and Programs inside your Downloads folder.")
-    );
-    let sync = format!(
-        "<h2 class=gh>Sync</h2>\
-<div class=set><div><b>Sync folder</b><p>Keep bookmarks, history and open tabs in a folder synced by OneDrive, Dropbox or Syncthing. Set the passphrase below first. Restart Owl after changing.</p></div>\
+            tog("doh", c.doh, "Secure DNS (Cloudflare 1.1.1.1)", "Looks up site names over HTTPS at 1.1.1.1 so your network cannot see which sites you open. This is not a VPN: your IP address is unchanged. If 1.1.1.1 is blocked, pages will not load. Needs a restart. Not used while a proxy is set."),
+            esc(&c.proxy)
+        )),
+        ("speed", "Speed and data", format!(
+            "<div class=set><div><b>Data saver</b><p>Asks sites for lighter pages (Save-Data), loads off-screen images later, and cuts very large images down: big progressive JPEGs are only partly downloaded, other huge images are shrunk. Higher means smaller images and lower quality; Off at 0. Small images are never touched. The image part is off while a proxy or secure DNS is on. Applies to new pages.</p>\
+<p><button class=\"ghost sm\" data-act=cmpset data-v=0>Off</button> <button class=\"ghost sm\" data-act=cmpset data-v=25>Light</button> <button class=\"ghost sm\" data-act=cmpset data-v=50>Balanced</button> <button class=\"ghost sm\" data-act=cmpset data-v=85>Ultra</button></p></div>\
+<div class=ctl><input type=range class=pk min=0 max=99 value={v} data-sel=compress data-out=cmpv aria-label=\"Data saver strength\" aria-describedby=cmpv style=\"width:200px\"><output id=cmpv>{vt}</output></div></div>",
+            v = c.compress,
+            vt = if c.compress == 0 { "Off".to_string() } else { c.compress.to_string() }
+        )),
+        ("downloads", "Downloads", format!(
+            "<div class=set><div><b>Download speed limit</b><p>Caps the total speed of Owl's fast download engine. Useful on shared connections.</p></div>{}</div>\
+<div class=set><div><b>Downloads at once</b><p>More fast downloads wait in a queue until one finishes. You can start a queued one at once from the download list.</p></div>{}</div>{}{}\
+<div class=set><div><b>Download list</b><p>Add links, watch parts and connections, and manage torrents.</p></div><a class=btn href=\"owl://downloads\">Open downloads</a></div>",
+            sel("dl_limit", "Download speed limit", c.dl_limit, &[(0, "Unlimited"), (512, "512 KB/s"), (1024, "1 MB/s"), (2048, "2 MB/s"), (5120, "5 MB/s"), (10240, "10 MB/s"), (20480, "20 MB/s")]),
+            sel("dl_active", "Downloads at once", c.dl_active, &[(1, "1"), (2, "2"), (3, "3"), (5, "5"), (8, "8")]),
+            tog("organize", c.organize, "Sort downloads into folders", "Documents, Images, Video, Music, Archives and Programs inside your Downloads folder."),
+            tog("torrent_seed", c.torrent_seed, "Keep seeding finished torrents", "Off by default: the torrent engine shuts down as soon as a download ends. When on, finished torrents keep uploading to peers Owl is connected to until you stop them. Owl opens no listening port.")
+        )),
+        ("sync", "Sync", format!(
+            "<div class=set><div><b>Sync folder</b><p>Keep bookmarks, history and open tabs in a folder synced by OneDrive, Dropbox or Syncthing. Set the passphrase below first. Restart Owl after changing.</p></div>\
 <div class=ctl><input class=pk id=sy aria-label=\"Sync folder\" value=\"{}\" placeholder=\"C:\\Users\\you\\OneDrive\\Owl\"><button data-act=setsync>Save</button></div></div>\
 <div class=set><div><b>Sync passphrase</b><p>Encrypts the sync file (ChaCha20-Poly1305). {} Use the same passphrase on each PC. Restart Owl to apply.</p></div>\
 <div class=ctl><input class=pk id=sp type=password autocomplete=off aria-label=\"Sync passphrase\" placeholder=\"Passphrase\"><button data-act=setsyncpass>Save</button></div></div>",
-        esc(&c.sync_dir),
-        if c.sync_key.is_empty() { "Not set yet." } else { "A passphrase is set." }
-    );
-    let advanced = format!(
-        "<h2 class=gh>Profile and advanced</h2>\
-<div class=set><div><b>Site permissions</b><p>Review and reset the camera, microphone, location and other permissions you gave sites.</p></div><a class=btn href=\"owl://permissions\">Review</a></div>\
-<div class=set><div><b>Your profile</b><p>Set at first run. Kept in the encrypted store on this PC and used only for the home-page greeting.</p></div>\
+            esc(&c.sync_dir),
+            if c.sync_key.is_empty() { "Not set yet." } else { "A passphrase is set." }
+        )),
+        ("advanced", "Profile and advanced", format!(
+            "<div class=set><div><b>Your profile</b><p>Set at first run. Kept in the encrypted store on this PC and used only for the home-page greeting.</p></div>\
 <div class=ctl><input class=pk id=pn maxlength=60 aria-label=\"Name\" placeholder=Name value=\"{}\"><input class=pk id=pe maxlength=120 aria-label=\"Email\" placeholder=Email value=\"{}\"><button class=ghost data-act=setprofile>Save</button></div></div>\
 <div class=set><div><b>Extensions (user scripts)</b><p>Put .js files in <code>{}\\extensions</code>. They run on every web page. Loaded: {}</p></div><button class=ghost data-act=opendata>Open Owl folder</button></div>\
-<div class=set><div><b>OwlKick Engine filter lists</b><p>Blocking runs on OwlKick, built on the adblock-rust engine used by Brave (MPL-2.0; not made or endorsed by Brave). It always blocks Owl's built-in tracker list. Download EasyList and EasyPrivacy for much wider coverage, then block cosmetic clutter too. Lists on disk: {kl}.</p></div><button class=ghost data-act=kickupd>Update lists</button></div>\n<div class=set><div><b>Cloudflare WARP (installed client)</b><p>WARP is a real VPN from Cloudflare. Owl cannot include it, but if you installed the free client it can switch it on and off here. While it is on, all your traffic goes through Cloudflare.</p></div><div class=ctl><button class=ghost data-act=warp data-w=connect>Connect</button><button class=ghost data-act=warp data-w=disconnect>Disconnect</button><button class=ghost data-act=warp data-w=status>Status</button></div></div>\
-<div class=set><div><b>OwlKick off for these sites</b><p>Comma-separated sites where blocking and clutter hiding are switched off, for example a bank or a site that breaks.</p></div><div class=ctl><input class=pk id=ko maxlength=800 aria-label=\"Sites where OwlKick is off\" placeholder=\"example.com, shop.example.org\" value=\"{ko}\"><button class=ghost data-act=setko>Save</button></div></div>\
-<div class=set><div><b>Check for updates now</b><p>Asks GitHub for the latest release. Owl never updates itself.</p></div><button class=ghost data-act=updcheck>Check now</button></div>\n<div class=set><div><b>Restart Owl</b><p>Some settings (proxy, sync) apply after a restart.</p></div><button class=ghost data-act=restart>Restart now</button></div>\
+<div class=set><div><b>Time tracking</b><p>Minutes per site are kept on this PC for the home page. Clear them any time.</p></div><button class=ghost data-act=clearusage>Clear</button></div>\
+<div class=set><div><b>Check for updates now</b><p>Asks GitHub for the latest release. Owl never updates itself.</p></div><button class=ghost data-act=updcheck>Check now</button></div>\
+<div class=set><div><b>Restart Owl</b><p>Some settings (proxy, secure DNS, sync) apply after a restart.</p></div><button class=ghost data-act=restart>Restart now</button></div>\
 <div class=set><div><b>About and credits</b><p>Icons are from Lucide (ISC licence). The page engine is Microsoft Edge WebView2.</p></div><a class=btn href=\"owl://about\">About Owl</a></div>",
-        esc(prof.0), esc(prof.1), esc(dir), esc(&ex), kl = crate::owlkick::list_count(), ko = esc(&c.kick_off.join(", "))
-    );
-    list_page("Settings", &format!("{appearance}{security}{privacy}{data}{sync}{advanced}{theme_js}"), "", "", theme)
+            esc(prof.0), esc(prof.1), esc(dir), esc(&ex)
+        )),
+    ];
+    let nav: String = groups.iter().map(|(id, t, _)| format!("<a href=\"#{id}\">{t}</a>")).collect();
+    let body: String = groups.iter().map(|(id, t, h)| format!("<section class=sgp id={id} aria-labelledby=h-{id}><h2 class=gh id=h-{id}>{t}</h2>{h}</section>")).collect();
+    list_page("Settings", &format!("<div class=sg><nav class=snav aria-label=\"Settings sections\">{nav}</nav><div>{body}</div></div>{js}"), "", css, theme)
 }
 
 pub fn httpsfail(url: &str, theme: &str) -> String {
@@ -704,4 +732,48 @@ pub fn about(theme: &str) -> String {
         hdr("About")
     );
     page("About", &body, "", theme, "landing")
+}
+
+pub fn owlkick(theme: &str) -> String {
+    let css = r#"<style>
+.kst{display:grid;grid-template-columns:repeat(4,1fr);border-top:2px solid var(--ink);margin-bottom:36px}
+.kst div{padding:14px 16px 16px 0;border-right:1px solid var(--line)}.kst div+div{padding-left:16px}.kst div:last-child{border-right:0}
+.kst b{display:block;font-size:clamp(28px,4vw,48px);font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
+.kst span{display:block;margin-top:6px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.kg{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-bottom:36px}
+.kh{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding-bottom:10px;border-bottom:2px solid var(--ink);margin-bottom:4px;display:flex;justify-content:space-between}
+.kb{display:grid;grid-template-columns:minmax(0,1fr) 56px;gap:4px 12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.kb .h{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kb .c{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.kb .bar{grid-column:1/-1;height:3px}
+.kr{display:grid;grid-template-columns:72px minmax(0,1fr) 90px minmax(0,1fr);gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;align-items:center}
+.kr span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kr .t,.kr .k{color:var(--mute);font-variant-numeric:tabular-nums;font-size:12px}
+.kr .k{text-transform:uppercase;letter-spacing:.08em;font-size:10px;font-weight:700}
+.ktb{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;align-items:center}.ktb .sp{flex:1}.ktb .st{font-size:13px;color:var(--mute)}
+@media(max-width:900px){.kst{grid-template-columns:repeat(2,1fr)}.kg{grid-template-columns:1fr}.kr{grid-template-columns:60px minmax(0,1fr)}.kr .k,.kr .p{display:none}}
+</style>"#;
+    let body = r#"<div class=ktb><span class=st id=kon></span><span class=sp></span><button class=ghost id=kupd>Update lists</button><a class=btn href="owl://settings#owlkick">OwlKick settings</a></div>
+<div class=kst aria-live=polite><div><b id=k1>0</b><span>Blocked this session</span></div><div><b id=k2>0</b><span>Blocked all time</span></div><div><b id=k3>0</b><span>Filter lists</span></div><div><b id=k4>-</b><span>Lists updated</span></div></div>
+<div class=kg><div><div class=kh>Most blocked hosts <span>session</span></div><div id=kh></div></div><div><div class=kh>Pages with most blocking <span>session</span></div><div id=kp></div><div class=kh style="margin-top:28px">By kind</div><div id=kk></div></div></div>
+<div class=kh>Latest blocked requests <span id=kc></span></div><div id=kl></div>
+<script>
+(function(){const send=o=>ipc.postMessage(JSON.stringify(o));
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function bars(id,list,empty){const L=document.getElementById(id);L.textContent='';if(!list.length){L.appendChild(el('div','empty',empty));return}
+ const max=Math.max(...list.map(x=>+x.n||0),1);list.forEach(x=>{const r=el('div','kb');r.appendChild(el('span','h',String(x.h||'')));r.appendChild(el('span','c',String(+x.n||0)));const b=el('div','bar');const i=el('i');i.style.width=((+x.n||0)*100/max)+'%';b.appendChild(i);r.appendChild(b);L.appendChild(r)})}
+const ago=t=>{const s=Math.max(0,Math.floor(Date.now()/1000)-(+t||0));return s<60?s+'s ago':s<3600?Math.floor(s/60)+'m ago':Math.floor(s/3600)+'h ago'};
+let sig='';
+async function poll(){try{const j=await (await fetch('/owlkick.json',{cache:'no-store'})).json();
+ document.getElementById('k1').textContent=(+j.session||0).toLocaleString();document.getElementById('k2').textContent=(+j.total||0).toLocaleString();
+ document.getElementById('k3').textContent=String(+j.lists||0);document.getElementById('k4').textContent=j.age==null?'never':(+j.age===0?'today':j.age+' d ago');
+ document.getElementById('kon').textContent=j.on?'OwlKick is on'+(Array.isArray(j.off)&&j.off.length?' · off on '+j.off.length+' site'+(j.off.length>1?'s':''):''):'OwlKick is off. Turn it on in settings.';
+ const k=JSON.stringify([j.recent&&j.recent.slice(0,40),j.hosts,j.pages,j.kinds]);if(k===sig)return;sig=k;
+ bars('kh',j.hosts||[],'Nothing blocked yet in this session.');bars('kp',j.pages||[],'No pages yet.');
+ bars('kk',Object.entries(j.kinds||{}).map(([h,n])=>({h,n})).sort((a,b)=>b.n-a.n),'No requests yet.');
+ const L=document.getElementById('kl');L.textContent='';const rec=(j.recent||[]).slice(0,60);document.getElementById('kc').textContent=rec.length?'newest first':'';
+ if(!rec.length){L.appendChild(el('div','empty','Blocked requests show up here as you browse.'));return}
+ rec.forEach(x=>{const r=el('div','kr');r.appendChild(el('span','t',ago(x.t)));r.appendChild(el('span','h',String(x.h||'')));r.appendChild(el('span','k',String(x.k||'')));r.appendChild(el('span','p',x.p?'on '+x.p:''));L.appendChild(r)})}catch(e){}}
+document.getElementById('kupd').onclick=()=>{send({cmd:'filters_update'});document.getElementById('kupd').textContent='Updating...'};
+poll();setInterval(poll,2000)})();
+</script>"#;
+    list_page("OwlKick", body, "<p class=lead style=\"max-width:62ch;margin-bottom:24px\">What Owl's content blocker stopped while you browsed. Nothing here leaves this PC, and it is cleared when Owl closes.</p>", css, theme)
 }

@@ -249,7 +249,11 @@ fn owlkick_blocks(url: &str, source: &str, ctx: i32) -> bool {
         14 => "ping",
         _ => "other",
     };
-    owlkick::should_block(url, source, kind, BLOCKED_HOSTS, BLOCKED_PATHS)
+    let b = owlkick::should_block(url, source, kind, BLOCKED_HOSTS, BLOCKED_PATHS);
+    if b {
+        owlkick::record(url, source, kind);
+    }
+    b
 }
 
 fn is_blocked(url: &str) -> bool {
@@ -518,6 +522,12 @@ pub struct Config {
     /// refuse camera, microphone, location and notification requests without asking
     #[serde(default)]
     pub perm_block: bool,
+    /// toolbar (address bar and tabs) at the top of the window
+    #[serde(default)]
+    pub bar_top: bool,
+    /// last Data saver strength, restored by the toolbar toggle
+    #[serde(default)]
+    pub compress_last: u32,
     /// keep seeding finished torrents until they are removed from the list
     #[serde(default)]
     pub torrent_seed: bool,
@@ -594,7 +604,7 @@ impl Default for Config {
             block: true, https_only: false, sync_dir: String::new(), theme: sys(), bookmark_bar: false,
             pin_hash: String::new(), pin_salt: String::new(), organize: true, pw_save: true, pw_never: vec![],
             strikes: 0, fails: 0, locked_until: 0, sync_key: String::new(), pin_mode: pin_mode(), kdf: 0, fp: true,
-            fp_strict: false, perm_block: false, torrent_seed: false, kick_off: vec![], compress: 0, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
+            fp_strict: false, perm_block: false, bar_top: false, compress_last: 0, torrent_seed: false, kick_off: vec![], compress: 0, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
             seal_pub: String::new(), seal_priv: String::new(), lock_on_winlock: true,
         }
     }
@@ -1143,6 +1153,17 @@ fn serve(path: &str, query: &str, ctx: &Ctx) -> (u16, &'static str, String) {
         let u = query.split('&').find_map(|p| p.strip_prefix("u=")).map(pct_decode).unwrap_or_default();
         return (200, html, pages::httpsfail(&u, &th));
     }
+    if path == "/owlkick.json" {
+        let cfg = ctx.cfg.lock().unwrap();
+        let mut r = owlkick::report();
+        r["session"] = json!(BLOCKED.load(Relaxed));
+        r["total"] = json!(BLOCKED_BASE.load(Relaxed) + BLOCKED.load(Relaxed) as u64);
+        r["lists"] = json!(owlkick::list_count());
+        r["age"] = json!(owlkick::lists_age_days());
+        r["on"] = json!(cfg.block);
+        r["off"] = json!(cfg.kick_off);
+        return (200, "application/json", r.to_string());
+    }
     if path == "/downloads.json" {
         let mut d = ctx.store.lock().unwrap().downloads.clone();
         d.reverse();
@@ -1183,6 +1204,7 @@ fn serve(path: &str, query: &str, ctx: &Ctx) -> (u16, &'static str, String) {
         }
         "/about" => (200, html, pages::about(&th)),
         "/permissions" => (200, html, pages::permissions(&th)),
+        "/owlkick" => (200, html, pages::owlkick(&th)),
         _ => (404, html, pages::notfound(path, &th)),
     }
 }
@@ -1281,12 +1303,14 @@ impl App {
         let ui_h = (base + self.extra).min(s.height);
         let page_h = if self.fs { s.height } else { (s.height - base).max(1.0) };
         let _ = self.ui.set_visible(!self.fs);
-        let _ = self.ui.set_bounds(r((s.height - ui_h).max(0.0), ui_h));
+        let top = self.ctx.cfg.lock().unwrap().bar_top;
+        let page_y = if top && !self.fs { base } else { 0.0 };
+        let _ = self.ui.set_bounds(r(if top { 0.0 } else { (s.height - ui_h).max(0.0) }, ui_h));
         for t in &self.tabs {
-            let _ = t.wv.set_bounds(r(0.0, page_h));
+            let _ = t.wv.set_bounds(r(page_y, page_h));
             let _ = t.wv.set_visible(t.id == self.active);
         }
-        self.layout_media(s.width, page_h);
+        self.layout_media(s.width, page_y, page_h);
         // the overlay may never be taller than the window: it scrolls instead
         let _ = self.ui.evaluate_script(&format!("owl.maxo({})", (s.height - base - 16.0).max(120.0) as i64));
         if self.extra > 0.0 {
@@ -1301,7 +1325,7 @@ impl App {
     }
 
     /// The now-playing widget floats at the bottom-right of the page area, on any tab but the one playing.
-    fn layout_media(&self, w: f64, page_h: f64) {
+    fn layout_media(&self, w: f64, page_y: f64, page_h: f64) {
         let Some(mw) = &self.mw else { return };
         if !self.media_visible() || page_h < 160.0 {
             let _ = mw.set_visible(false);
@@ -1310,7 +1334,7 @@ impl App {
         }
         let (ww, hh) = if self.mcollapsed { (84.0, 84.0) } else { (340.0, 84.0) };
         let _ = mw.set_bounds(Rect {
-            position: LogicalPosition::new((w - ww - 16.0).max(0.0), (page_h - hh - 16.0).max(0.0)).into(),
+            position: LogicalPosition::new((w - ww - 16.0).max(0.0), page_y + (page_h - hh - 16.0).max(0.0)).into(),
             size: LogicalSize::new(ww, hh).into(),
         });
         let _ = mw.set_visible(true);
@@ -1475,6 +1499,11 @@ impl App {
     fn tick(&mut self) {
         self.ticks += 1;
         // test hook: OWL_TEST_ADD=<url> adds a download at start-up (used to screenshot the download list)
+        if self.ticks == 6 {
+            if let Ok(u) = std::env::var("OWL_TEST_NAV") {
+                self.command(json!({"cmd": "navigate", "url": u}), true, 0);
+            }
+        }
         if self.ticks == 3 {
             if let Ok(u) = std::env::var("OWL_TEST_ADD") {
                 self.command(json!({"cmd": "dl_add", "url": u}), true, 0);
@@ -1678,7 +1707,7 @@ impl App {
         let nav = a.map(|t| can_nav(&t.wv)).unwrap_or((false, false));
         let cfg = {
             let c = self.ctx.cfg.lock().unwrap();
-            json!({"block":c.block,"https":c.https_only,"theme":c.theme,"eff":theme_attr(),"bar":c.bookmark_bar,"pw_save":c.pw_save,"lockmode":c.pin_mode,"setup":c.pin_hash.is_empty() && !self.ctx.private && !self.ctx.recovery,"recovery":self.ctx.recovery})
+            json!({"block":c.block,"https":c.https_only,"theme":c.theme,"eff":theme_attr(),"bar":c.bookmark_bar,"pw_save":c.pw_save,"lockmode":c.pin_mode,"setup":c.pin_hash.is_empty() && !self.ctx.private && !self.ctx.recovery,"recovery":self.ctx.recovery,"top":c.bar_top,"saver":c.compress,"doh":c.doh,"doh_on":doh::active(),"proxied":!c.proxy.is_empty()})
         };
         let today_secs = self.ctx.store.lock().unwrap().daily.get(&today()).copied().unwrap_or(0);
         // with a proxy set the chrome never loads page-chosen icon addresses (they would bypass it)
@@ -2404,6 +2433,42 @@ impl App {
                 }
             }
             "dl_seedstop" => torrent::stop(did),
+            "quick_saver" => {
+                let n = {
+                    let mut c = self.ctx.cfg.lock().unwrap();
+                    if c.compress > 0 {
+                        c.compress_last = c.compress;
+                        c.compress = 0;
+                    } else {
+                        c.compress = if c.compress_last > 0 { c.compress_last } else { 50 };
+                    }
+                    c.compress
+                };
+                imgcomp::STRENGTH.store(n, Relaxed);
+                self.ctx.save_cfg();
+                let text = if n > 0 { format!("Data saver is on (strength {n}). It applies to pages you open or reload now.") } else { "Data saver is off.".to_string() };
+                let note = json!({"id":"quick","label":"Data saver","text":text,"actions":[{"t":"Reload page","cmd":"key","args":{"k":"reload"}},{"t":"OK","pri":true}]});
+                let _ = self.ui.evaluate_script(&format!("owl.notice({note})"));
+                self.push();
+            }
+            "quick_dns" => {
+                let on = {
+                    let mut c = self.ctx.cfg.lock().unwrap();
+                    c.doh = !c.doh;
+                    c.doh
+                };
+                self.ctx.save_cfg();
+                let text = if !self.ctx.cfg.lock().unwrap().proxy.is_empty() {
+                    "Secure DNS is saved, but it is not used while a proxy is set.".to_string()
+                } else if on == doh::active() {
+                    format!("Secure DNS is {}.", if on { "on" } else { "off" })
+                } else {
+                    format!("Secure DNS will be {} after a restart.", if on { "on" } else { "off" })
+                };
+                let note = json!({"id":"quick","label":"Secure DNS","text":text,"actions":[{"t":"Later"},{"t":"Restart now","cmd":"restart","pri":true}]});
+                let _ = self.ui.evaluate_script(&format!("owl.notice({note})"));
+                self.push();
+            }
             "dl_force" => {
                 if engine::force(did, self.proxy.clone()) {
                     self.dl_mut(did, |d| d.status = "downloading".into());
@@ -2941,6 +3006,7 @@ impl App {
                             HTTPS.store(on, Relaxed)
                         }
                         "bar" => c.bookmark_bar = on,
+                        "bar_top" => c.bar_top = on,
                         "organize" => c.organize = on,
                         "fp" => c.fp = on,
                         "fp_strict" => c.fp_strict = on,

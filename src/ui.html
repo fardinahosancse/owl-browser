@@ -206,6 +206,17 @@ button.m{border:0;background:none;color:inherit;font:inherit;font-size:12px}
 #rcv button:hover{background:var(--red);color:var(--onred)}#rcv button.g2{background:var(--soft);color:var(--ink)}
 body.recov #dots,body.recov #pad,body.recov #pf,body.recov #sf,body.recov #lmsg{display:none}body.recov #rcv{display:flex}
 #mdb[hidden]{display:none}
+#quick{display:flex;align-items:stretch;flex:none;margin:0 2px}
+.q{padding:0 9px;font:700 10px "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);background:none;border:0;position:relative;cursor:pointer;transition:color .14s,background .14s;white-space:nowrap}
+.q:hover{background:var(--ink);color:var(--on)}
+.q[aria-pressed=true]{color:var(--red)}.q[aria-pressed=true]:hover{color:var(--on)}
+.q[aria-pressed=true]::after{content:"";position:absolute;left:9px;right:9px;bottom:7px;height:2px;background:currentColor}
+.q.wait::after{opacity:.4}
+#qkick #shield{display:inline;color:inherit;font:inherit;letter-spacing:inherit;animation:none}
+body.top{flex-direction:column-reverse}
+body.top #bar{border-top:0;border-bottom:1px solid var(--ink)}
+body.top #ovl{border-top:0;border-bottom:2px solid var(--ink)}
+@media(max-width:1100px){#qdns{display:none}}@media(max-width:900px){#quick{display:none}}
 @media(max-width:900px){#home,#inc,#pw{display:none}.chip{display:none!important}body.finding #addr{display:none}body.finding #find{flex:1;width:auto}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @media(max-width:900px){#menu{grid-template-columns:repeat(2,1fr)}#lock{grid-template-columns:1fr}#lock .l{display:none}#lock .r{margin:auto}#ctx .ch{display:none}}
@@ -229,7 +240,8 @@ body.recov #dots,body.recov #pad,body.recov #pf,body.recov #sf,body.recov #lmsg{
  <div id="tool">
   <button class="b" id="back" data-i="back" title="Back (Alt+Left)" aria-label="Back"></button>
   <button class="b" id="fwd" data-i="fwd" title="Forward (Alt+Right)" aria-label="Forward"></button>
-  <div id="addr"><span id="sec"></span><input id="url" spellcheck="false" autocomplete="off" aria-label="Address" placeholder="Search or enter address" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ovl"><button type="button" class="chip" id="zc" title="Reset zoom" aria-label="Reset zoom"></button><span class="chip" id="shield"></span></div>
+  <div id="addr"><span id="sec"></span><input id="url" spellcheck="false" autocomplete="off" aria-label="Address" placeholder="Search or enter address" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ovl"><button type="button" class="chip" id="zc" title="Reset zoom" aria-label="Reset zoom"></button></div>
+  <div id="quick" role="group" aria-label="Quick settings"><button type="button" class="q" id="qsav" aria-pressed="false" title="Data saver">Saver</button><button type="button" class="q" id="qdns" aria-pressed="false" title="Secure DNS">DNS</button><button type="button" class="q" id="qkick" title="OwlKick activity"><span id="shield">Kick</span></button></div>
   <div id="find" role="search"><input id="fi" placeholder="Find in page" aria-label="Find in page" spellcheck="false"><button type="button" id="fprev" data-i="up" title="Previous match (Shift+Enter)" aria-label="Previous match"></button><button type="button" id="fnext" data-i="down" title="Next match (Enter)" aria-label="Next match"></button><button type="button" id="fclose" data-i="x" title="Close (Esc)" aria-label="Close find"></button></div>
   <button class="b" id="rel" data-i="rel" title="Reload (Ctrl+R)" aria-label="Reload"></button>
   <button class="b" id="mdb" data-i="vid" title="Download video or audio from this page" aria-label="Download video or audio from this page" hidden></button>
@@ -366,7 +378,10 @@ window.owl={
    const l=$('load');l.className='';l.style.width='0';if(a.loading){void l.offsetWidth;l.className='go'}else{l.style.width='100%';setTimeout(()=>{if(!l.className)l.style.width='0'},250)}}
   if(!!s.bookmarked!==prevBm){prevBm=!!s.bookmarked;$('star').classList.remove('pop');void $('star').offsetWidth;$('star').classList.add('pop')}
   $('star').classList.toggle('on',!!s.bookmarked);
-  $('shield').textContent=s.blocked+' blocked';$('shield').classList.toggle('show',s.blocked>0);
+  $('shield').textContent=s.blocked>0?'Kick '+s.blocked:'Kick';$('qkick').title='OwlKick: '+(c.block?s.blocked+' blocked on this page session':'off')+'. Open activity';$('qkick').classList.toggle('off',!c.block);
+  document.body.classList.toggle('top',!!c.top);
+  const sv=$('qsav');sv.setAttribute('aria-pressed',(+c.saver||0)>0);sv.title=(+c.saver||0)>0?'Data saver on (strength '+c.saver+'). Click to turn off':'Data saver off. Click to turn on';
+  const dn=$('qdns');dn.setAttribute('aria-pressed',!!c.doh);dn.classList.toggle('wait',!!c.doh!==!!c.doh_on&&!c.proxied);dn.title='Secure DNS '+(c.doh?'on':'off')+(c.proxied?' (not used with a proxy)':!!c.doh!==!!c.doh_on?' after restart':'')+'. Click to switch';
   $('mdb').hidden=!(s.media>0);
   const d=s.dl||{active:0},db=$('dlb');
   db.classList.toggle('act',d.active>0);$('dls').textContent=d.active>0?spd(d.speed||0):'';$('dlp').style.width=d.active>0?d.pct+'%':'0';
@@ -509,6 +524,9 @@ $('rel').onclick=()=>{const a=S.tabs.find(t=>t.id===S.active);if(a&&a.loading)re
 $('home').onclick=()=>send({cmd:'navigate',url:'owl://newtab'});
 $('dlb').onclick=()=>send({cmd:'navigate',url:'owl://downloads'});
 $('mdb').onclick=()=>send({cmd:'media_list'});
+$('qsav').onclick=()=>send({cmd:'quick_saver'});
+$('qdns').onclick=()=>send({cmd:'quick_dns'});
+$('qkick').onclick=()=>send({cmd:'navigate',url:'owl://owlkick'});
 $('inc').onclick=()=>send({cmd:'private'});
 $('pw').onclick=()=>send({cmd:'navigate',url:'owl://passwords'});
 $('zc').onclick=()=>send({cmd:'zoom',d:0});

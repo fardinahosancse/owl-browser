@@ -89,6 +89,59 @@ pub fn lists_age_days() -> Option<u64> {
     Some(std::time::SystemTime::now().duration_since(newest).map(|d| d.as_secs() / 86_400).unwrap_or(0))
 }
 
+/// What OwlKick blocked this session, for the activity page.
+struct Log {
+    recent: std::collections::VecDeque<(u64, String, String, &'static str)>,
+    hosts: std::collections::HashMap<String, u32>,
+    pages: std::collections::HashMap<String, u32>,
+    kinds: std::collections::HashMap<&'static str, u32>,
+}
+static LOG: Mutex<Option<Log>> = Mutex::new(None);
+
+fn host(u: &str) -> String {
+    let h = u.split("://").nth(1).unwrap_or("").split(['/', '?', '#']).next().unwrap_or("");
+    let h = h.rsplit('@').next().unwrap_or(h);
+    h.split(':').next().unwrap_or("").trim_start_matches("www.").to_lowercase()
+}
+
+/// Remember one blocked request (address, the page that asked for it, request kind).
+pub fn record(url: &str, page: &str, kind: &'static str) {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let mut g = LOG.lock().unwrap();
+    let l = g.get_or_insert_with(|| Log { recent: Default::default(), hosts: Default::default(), pages: Default::default(), kinds: Default::default() });
+    let (h, p) = (host(url), host(page));
+    if l.hosts.len() > 3000 {
+        l.hosts.clear();
+    }
+    if l.pages.len() > 1000 {
+        l.pages.clear();
+    }
+    *l.hosts.entry(h.clone()).or_default() += 1;
+    if !p.is_empty() {
+        *l.pages.entry(p.clone()).or_default() += 1;
+    }
+    *l.kinds.entry(kind).or_default() += 1;
+    l.recent.push_front((now, h, p, kind));
+    l.recent.truncate(150);
+}
+
+/// Session summary for the activity page.
+pub fn report() -> serde_json::Value {
+    let g = LOG.lock().unwrap();
+    let Some(l) = g.as_ref() else { return serde_json::json!({"recent": [], "hosts": [], "pages": [], "kinds": {}}) };
+    let top = |m: &std::collections::HashMap<String, u32>, n: usize| {
+        let mut v: Vec<(&String, &u32)> = m.iter().collect();
+        v.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+        v.into_iter().take(n).map(|(k, c)| serde_json::json!({"h": k, "n": c})).collect::<Vec<_>>()
+    };
+    serde_json::json!({
+        "recent": l.recent.iter().map(|(t, h, p, k)| serde_json::json!({"t": t, "h": h, "p": p, "k": k})).collect::<Vec<_>>(),
+        "hosts": top(&l.hosts, 15),
+        "pages": top(&l.pages, 10),
+        "kinds": l.kinds,
+    })
+}
+
 /// Number of lists currently on disk.
 pub fn list_count() -> usize {
     std::fs::read_dir(dir()).map(|r| r.flatten().filter(|e| e.path().extension().map_or(false, |x| x == "txt")).count()).unwrap_or(0)
