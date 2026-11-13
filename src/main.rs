@@ -1380,6 +1380,8 @@ struct App {
     upg: HashMap<u32, String>,
     /// the verified 4-digit key, held only while the user chooses a passphrase
     upgrade_old: Option<zeroize::Zeroizing<String>>,
+    /// commands queued by the OWL_TEST_CMDS test hook
+    test_cmds: Option<Vec<(u64, Value)>>,
     last_key: Instant,
     /// downloads waiting for the user's answer
     dl_ask: Vec<(u32, Instant)>,
@@ -1662,6 +1664,25 @@ impl App {
                     Err(_) => (false, "Warning: sealing stopped unexpectedly. Your data is intact; Owl tries again at the next lock.".to_string()),
                 };
                 let _ = self.ui.evaluate_script(&format!("owl.sealState({},{ok})", serde_json::to_string(&msg).unwrap()));
+            }
+        }
+        // test hook: OWL_TEST_CMDS='[[tick, {command}], ...]' runs commands as the browser UI would send
+        // them (scripts/smoke-test.ps1 drives the real app this way). Without the variable nothing happens.
+        if self.ticks == 1 && self.test_cmds.is_none() {
+            self.test_cmds = std::env::var("OWL_TEST_CMDS").ok().and_then(|s| serde_json::from_str::<Vec<(u64, Value)>>(&s).ok());
+        }
+        let due: Vec<Value> = self.test_cmds.as_mut().map(|v| {
+            let (now, later): (Vec<_>, Vec<_>) = v.drain(..).partition(|(t, _)| *t <= self.ticks);
+            *v = later;
+            now.into_iter().map(|(_, c)| c).collect()
+        }).unwrap_or_default();
+        for c in due {
+            if c["cmd"] == "_save_image" {
+                let _ = self.proxy.send_event(Ev::SaveImage(c["url"].as_str().unwrap_or("").into(), c["ext"].as_str().unwrap_or("png").into()));
+            } else if c["cmd"] == "_end_session" {
+                let _ = self.proxy.send_event(Ev::EndSession);
+            } else {
+                self.command(c, true, self.active);
             }
         }
         // test hook: OWL_TEST_ADD=<url> adds a download at start-up (used to screenshot the download list)
@@ -2356,7 +2377,10 @@ impl App {
                     }
                     self.last_active = Instant::now();
                     self.locked = false;
-                    if self.ctx.cfg.lock().unwrap().pin_mode == "pin" && !self.ctx.private {
+                    // first-run setup unlocks with the default key on its way to the new passphrase: only
+                    // a real, existing 4-digit key is upgraded here
+                    let real_pin = { let c = self.ctx.cfg.lock().unwrap(); c.pin_mode == "pin" && !c.pin_hash.is_empty() };
+                    if real_pin && !self.ctx.private && !v["internal"].as_bool().unwrap_or(false) {
                         // a 4-digit key can be guessed offline in minutes: choose a passphrase first
                         self.upgrade_old = Some(zeroize::Zeroizing::new(pin.clone()));
                         self.modal = true;
@@ -3657,7 +3681,7 @@ fn main() {
         locked: !private, fails: 0, lock_until: None, pending: None, speeds: HashMap::new(),
         last_push: Instant::now(), proxy, ctx, ticks: 0, media: None, mw: None, mcollapsed: false,
         mshown: std::cell::Cell::new(false),
-        upg: HashMap::new(), upgrade_old: None, last_key: Instant::now(), dl_ask: vec![], seen_media: HashMap::new(), recent_dl: vec![], engine_watch: false,
+        upg: HashMap::new(), upgrade_old: None, test_cmds: None, last_key: Instant::now(), dl_ask: vec![], seen_media: HashMap::new(), recent_dl: vec![], engine_watch: false,
         sealer: None, sealed_at_lock: false, last_active: Instant::now(),
         snap_wait: None, unclean, block_reason: false, restore2: vec![],
         dlg_queue: Default::default(), dlg_active: None, modal: false, no_dialog: Default::default(),

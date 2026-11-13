@@ -207,10 +207,11 @@ button.m{border:0;background:none;color:inherit;font:inherit;font-size:12px}
 body.recov #dots,body.recov #pad,body.recov #pf,body.recov #sf,body.recov #lmsg{display:none}body.recov #rcv{display:flex}
 #mdb[hidden]{display:none}
 #quick{display:flex;align-items:stretch;flex:none;margin:0 2px}
-.q{padding:0 9px;font:700 10px "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);background:none;border:0;position:relative;cursor:pointer;transition:color .14s,background .14s;white-space:nowrap}
+.q{display:inline-flex;align-items:center;gap:6px;padding:0 9px;font:700 10px "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);background:none;border:0;position:relative;cursor:pointer;transition:color .14s,background .14s;white-space:nowrap}
 .q:hover{background:var(--ink);color:var(--on)}
 .q[aria-pressed=true]{color:var(--red)}.q[aria-pressed=true]:hover{color:var(--on)}
-.q[aria-pressed=true]::after{content:"";position:absolute;left:9px;right:9px;bottom:7px;height:2px;background:currentColor}
+.q svg{width:15px;height:15px;flex:none}
+.q[aria-pressed=true]::after{content:"";position:absolute;left:9px;right:9px;bottom:6px;height:2px;background:currentColor}
 .q.wait::after{opacity:.4}
 #qkick #shield{display:inline;color:inherit;font:inherit;letter-spacing:inherit;animation:none}
 body.top{flex-direction:column-reverse}
@@ -249,7 +250,7 @@ body.top #tool{order:1;border-bottom:1px solid var(--line)}body.top #top{order:2
   <button class="b" id="back" data-i="back" title="Back (Alt+Left)" aria-label="Back"></button>
   <button class="b" id="fwd" data-i="fwd" title="Forward (Alt+Right)" aria-label="Forward"></button>
   <div id="addr"><span id="sec"></span><input id="url" spellcheck="false" autocomplete="off" aria-label="Address" placeholder="Search or enter address" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ovl"><button type="button" class="chip" id="zc" title="Reset zoom" aria-label="Reset zoom"></button></div>
-  <div id="quick" role="group" aria-label="Quick settings"><button type="button" class="q" id="qsav" aria-pressed="false" title="Data saver">Saver</button><button type="button" class="q" id="qdns" aria-pressed="false" title="Secure DNS">DNS</button><button type="button" class="q" id="qkick" title="OwlKick activity"><span id="shield">Kick</span></button></div>
+  <div id="quick" role="group" aria-label="Quick settings"><button type="button" class="q" id="qsav" data-i="gauge" aria-pressed="false" title="Data saver"><span>Saver</span></button><button type="button" class="q" id="qdns" data-i="dnsi" aria-pressed="false" title="Secure DNS"><span>DNS</span></button><button type="button" class="q" id="qkick" data-i="kick" title="OwlKick activity"><span id="shield">Kick</span></button></div>
   <div id="find" role="search"><input id="fi" placeholder="Find in page" aria-label="Find in page" spellcheck="false"><button type="button" id="fprev" data-i="up" title="Previous match (Shift+Enter)" aria-label="Previous match"></button><button type="button" id="fnext" data-i="down" title="Next match (Enter)" aria-label="Next match"></button><button type="button" id="fclose" data-i="x" title="Close (Esc)" aria-label="Close find"></button></div>
   <button class="b" id="rel" data-i="rel" title="Reload (Ctrl+R)" aria-label="Reload"></button>
   <button class="b" id="mdb" data-i="vid" title="Download video or audio from this page" aria-label="Download video or audio from this page" hidden></button>
@@ -275,6 +276,9 @@ const P={
  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
  star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
  menu:'<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
+ gauge:'<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
+ dnsi:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+ kick:'<circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/>',
  vid:'<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
  dl:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
  home:'<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
