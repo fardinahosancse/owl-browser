@@ -969,6 +969,37 @@ impl Ctx {
     fn dec(&self, h: &str) -> Option<String> {
         vault::decrypt(h, &self.entropy())
     }
+    /// Decrypt a saved password with the secret bound to its host and user.
+    fn dec_cred(&self, c: &Cred) -> Option<String> {
+        vault::decrypt(&c.pass, &vault::cred_entropy(&self.entropy(), &c.host, &c.user, c.v))
+    }
+    /// Encrypt a new saved password (version 1: bound to host and user).
+    fn enc_cred(&self, host: &str, user: &str, plain: &str) -> Option<String> {
+        vault::encrypt(plain, &vault::cred_entropy(&self.entropy(), host, user, 1))
+    }
+    /// Move entries from older builds to per-entry secrets (needs the vault secret).
+    fn upgrade_creds(&self) {
+        let base = self.entropy();
+        if base.is_empty() {
+            return;
+        }
+        let mut changed = false;
+        {
+            let mut v = self.vault.lock().unwrap();
+            for c in v.iter_mut().filter(|c| c.v == 0) {
+                if let Some(p) = vault::decrypt(&c.pass, &base) {
+                    if let Some(e) = vault::encrypt(&p, &vault::cred_entropy(&base, &c.host, &c.user, 1)) {
+                        c.pass = e;
+                        c.v = 1;
+                        changed = true;
+                    }
+                }
+            }
+        }
+        if changed {
+            self.save_vault();
+        }
+    }
     fn pub_key(&self) -> Option<[u8; 32]> {
         crypt::unhex(&self.cfg.lock().unwrap().seal_pub)?.try_into().ok()
     }
@@ -1007,9 +1038,10 @@ impl Ctx {
         {
             let mut v = self.vault.lock().unwrap();
             for c in v.iter_mut() {
-                if let Some(p) = vault::decrypt(&c.pass, old) {
-                    if let Some(e) = vault::encrypt(&p, new) {
+                if let Some(p) = vault::decrypt(&c.pass, &vault::cred_entropy(old, &c.host, &c.user, c.v)) {
+                    if let Some(e) = vault::encrypt(&p, &vault::cred_entropy(new, &c.host, &c.user, 1)) {
                         c.pass = e;
+                        c.v = 1;
                     }
                 }
             }
@@ -1270,7 +1302,7 @@ struct App {
     locked: bool,
     fails: u32,
     lock_until: Option<Instant>,
-    pending: Option<(String, String, String)>,
+    pending: Option<(String, String, String, String, u32)>,
     speeds: HashMap<u32, (Instant, i64, f64)>,
     last_push: Instant,
     proxy: EventLoopProxy<Ev>,
@@ -2233,6 +2265,7 @@ impl App {
                         }
                     }
                     *self.ctx.keys.lock().unwrap() = Some(k);
+                    self.ctx.upgrade_creds();
                     if reopen && !self.ctx.private {
                         if first && !self.ctx.synced() {
                             open_store(&self.ctx);
@@ -2435,11 +2468,13 @@ impl App {
             }
             // ----- passwords -----
             "pw_query" => {
-                let url = self.tabs.iter().find(|t| t.id == id).map(|t| t.url.clone()).unwrap_or_default();
+                // the address the engine really shows, not the one a navigation started with
+                let url = self.tabs.iter().find(|t| t.id == id).and_then(|t| t.wv.url().ok()).unwrap_or_default();
                 let h = host_of(&url);
-                let cred = self.ctx.vault.lock().unwrap().iter().filter(|c| c.host == h).max_by_key(|c| c.t).cloned();
+                let https = url.starts_with("https://");
+                let cred = self.ctx.vault.lock().unwrap().iter().filter(|c| c.host == h && (https || c.scheme != "https")).max_by_key(|c| c.t).cloned();
                 if let Some(c) = cred {
-                    if let Some(p) = self.ctx.dec(&c.pass) {
+                    if let Some(p) = self.ctx.dec_cred(&c) {
                         let js = format!(
                             "window.__owlFill&&window.__owlFill({},{},{})",
                             serde_json::to_string(&c.user).unwrap(),
@@ -2452,8 +2487,15 @@ impl App {
             }
             "pw_capture" => {
                 let (user, pass) = (s("user"), s("pass"));
-                let url = self.tabs.iter().find(|t| t.id == id).map(|t| t.url.clone()).unwrap_or_default();
+                // read the committed address from the engine; a cancelled navigation or a download
+                // must not decide which site the password belongs to
+                let url = self.tabs.iter().find(|t| t.id == id).and_then(|t| t.wv.url().ok()).unwrap_or_default();
                 let h = host_of(&url);
+                let tracked = self.tabs.iter().find(|t| t.id == id).map(|t| host_of(&t.url)).unwrap_or_default();
+                if h != tracked || user.chars().count() > 256 || pass.chars().count() > 512 {
+                    return;
+                }
+                let scheme = if url.starts_with("https://") { "https" } else { "http" }.to_string();
                 let (on, never) = {
                     let c = self.ctx.cfg.lock().unwrap();
                     (c.pw_save, c.pw_never.contains(&h))
@@ -2461,26 +2503,31 @@ impl App {
                 if self.ctx.private || !on || never || h.is_empty() || pass.is_empty() || url.starts_with("owl://") {
                     return;
                 }
-                let same = self.ctx.vault.lock().unwrap().iter().any(|c| c.host == h && c.user == user && self.ctx.dec(&c.pass).as_deref() == Some(&pass));
+                let same = self.ctx.vault.lock().unwrap().iter().any(|c| c.host == h && c.user == user && self.ctx.dec_cred(c).as_deref() == Some(&pass));
                 if same {
                     return;
                 }
-                self.pending = Some((h.clone(), user.clone(), pass));
+                self.pending = Some((h.clone(), user.clone(), pass, scheme, id));
                 let _ = self.ui.evaluate_script(&format!("owl.savePrompt({})", json!({"host":h,"user":user})));
             }
             "pw_save" => {
-                if let Some((h, u, p)) = self.pending.take() {
-                    if let Some(enc) = self.ctx.enc(&p) {
+                if let Some((h, u, p, scheme, tab)) = self.pending.take() {
+                    // the page that asked must still be on the same site when Save is pressed
+                    let now_host = self.tabs.iter().find(|t| t.id == tab).and_then(|t| t.wv.url().ok()).map(|u| host_of(&u)).unwrap_or_default();
+                    if now_host != h {
+                        return;
+                    }
+                    if let Some(enc) = self.ctx.enc_cred(&h, &u, &p) {
                         let mut vlt = self.ctx.vault.lock().unwrap();
                         vlt.retain(|c| !(c.host == h && c.user == u));
-                        vlt.push(Cred { host: h, user: u, pass: enc, t: now() });
+                        vlt.push(Cred { host: h, user: u, pass: enc, t: now(), v: 1, scheme });
                         drop(vlt);
                         self.ctx.save_vault();
                     }
                 }
             }
             "pw_never" => {
-                if let Some((h, _, _)) = self.pending.take() {
+                if let Some((h, _, _, _, _)) = self.pending.take() {
                     self.ctx.cfg.lock().unwrap().pw_never.push(h);
                     self.ctx.save_cfg();
                 }
@@ -2496,7 +2543,7 @@ impl App {
                     self.alert(id, "Wrong key.");
                     return;
                 }
-                let pw = self.ctx.vault.lock().unwrap().get(i).and_then(|c| self.ctx.dec(&c.pass));
+                let pw = self.ctx.vault.lock().unwrap().get(i).and_then(|c| self.ctx.dec_cred(c));
                 if let Some(pw) = pw {
                     self.eval_tab(id, &format!("revealed({i},{})", serde_json::to_string(&pw).unwrap()));
                 }
@@ -2841,10 +2888,10 @@ impl App {
                     self.alert(id, "Wrong key. The saved password was not replaced.");
                     return;
                 }
-                if let Some(enc) = self.ctx.enc(&pass) {
+                if let Some(enc) = self.ctx.enc_cred(&h, &user, &pass) {
                     let mut vlt = self.ctx.vault.lock().unwrap();
                     vlt.retain(|c| !(c.host == h && c.user == user));
-                    vlt.push(Cred { host: h, user, pass: enc, t: now() });
+                    vlt.push(Cred { host: h, user, pass: enc, t: now(), v: 1, scheme: String::new() });
                     drop(vlt);
                     self.ctx.save_vault();
                 }

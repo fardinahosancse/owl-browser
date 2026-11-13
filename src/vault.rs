@@ -14,6 +14,26 @@ pub struct Cred {
     pub pass: String, // hex(DPAPI(password, entropy))
     #[serde(default)]
     pub t: u64,
+    /// 0: encrypted with the shared vault secret (older builds); 1: the secret also binds host and user
+    #[serde(default)]
+    pub v: u32,
+    /// "https", "http" or "" when unknown (added by hand)
+    #[serde(default)]
+    pub scheme: String,
+}
+
+/// The encryption secret for one entry: version 1 mixes in the host and the user name, so an entry
+/// moved to another site or account in vault.json no longer decrypts.
+pub fn cred_entropy(base: &[u8], host: &str, user: &str, v: u32) -> Vec<u8> {
+    if v == 0 {
+        return base.to_vec();
+    }
+    let mut e = base.to_vec();
+    e.extend_from_slice(b"|cred1|");
+    e.extend_from_slice(host.as_bytes());
+    e.push(0);
+    e.extend_from_slice(user.as_bytes());
+    e
 }
 
 fn blob_to_vec(b: &CRYPT_INTEGER_BLOB) -> Vec<u8> {
@@ -51,4 +71,23 @@ fn try_decrypt(data: &[u8], entropy: &[u8]) -> Option<String> {
 pub fn decrypt(h: &str, entropy: &[u8]) -> Option<String> {
     let data = unhex(h)?;
     try_decrypt(&data, entropy).or_else(|| if entropy.is_empty() { None } else { try_decrypt(&data, &[]) })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn entries_are_bound_to_host_and_user() {
+        let base = b"vault-secret".to_vec();
+        let e = cred_entropy(&base, "bank.example", "alex", 1);
+        let blob = encrypt("hunter2-long-pass", &e).unwrap();
+        assert_eq!(decrypt(&blob, &e).as_deref(), Some("hunter2-long-pass"));
+        // the same blob moved to another site or user in vault.json does not open
+        assert!(decrypt(&blob, &cred_entropy(&base, "evil.example", "alex", 1)).is_none());
+        assert!(decrypt(&blob, &cred_entropy(&base, "bank.example", "mallory", 1)).is_none());
+        // older entries keep working with the shared secret
+        let old = encrypt("old", &base).unwrap();
+        assert_eq!(decrypt(&old, &cred_entropy(&base, "x", "y", 0)).as_deref(), Some("old"));
+    }
 }
