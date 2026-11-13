@@ -221,6 +221,11 @@ body.top #tool{order:1;border-bottom:1px solid var(--line)}body.top #top{order:2
 @media(max-width:900px){#home,#inc,#pw{display:none}.chip{display:none!important}body.finding #addr{display:none}body.finding #find{flex:1;width:auto}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @media(max-width:900px){#menu{grid-template-columns:repeat(2,1fr)}#lock{grid-template-columns:1fr}#lock .l{display:none}#lock .r{margin:auto}#ctx .ch{display:none}}
+
+.fl{display:block;font-size:12px;font-weight:700;letter-spacing:.02em;margin:12px 0 5px;color:var(--ink)}
+.fh{display:block;font-size:12px;color:var(--mute);margin:5px 0 2px}
+#lock input[aria-invalid=true]{box-shadow:inset 0 0 0 2px var(--red)}
+#lmsg.ok{color:var(--ink)}
 </style></head><body>
 <div id="mdl"><div class="mc" role="dialog" aria-modal="true" aria-labelledby="mh" aria-describedby="mt"><button class="mx" id="mx" aria-label="Close" title="Close (Esc)" data-i="x"></button><div class="mh" id="mh"></div><div class="mt" id="mt"></div><input id="mi" autocomplete="off" spellcheck="false" aria-label="Answer"><div class="mb"><button class="lnk" id="mshow" style="display:none" type="button">Show</button><button class="lnk" id="mblk">Stop this page showing dialogs</button><span class="sp"></span><button id="mcn">Cancel</button><button class="pri" id="mok">OK</button></div></div></div>
 <div id="ldrag"></div>
@@ -228,9 +233,11 @@ body.top #tool{order:1;border-bottom:1px solid var(--line)}body.top #top{order:2
 <div id="lock">
  <div class="l"><div class="hint">Owl<span>Ultra-light browser</span></div><div class="w">Owl.</div><div class="hint"><i id="lh" style="font-style:normal">Locked</i><span id="ls">Enter your key to open the browser.</span></div></div>
  <div class="r"><div id="rcv" role="alert"><h3>Settings need attention</h3><p>Owl&#39;s settings file is damaged or missing, so your encrypted data cannot be opened safely. Nothing was changed or deleted.</p><p>Restore <b>config.json</b> from <b>config.bak</b> in your Owl folder, then start Owl again.</p><div class="rb"><button id="rcvo" type="button">Open Owl folder</button><button id="rcvq" type="button" class="g2">Quit</button></div></div><div id="dots" role="img" aria-label="0 of 4 digits entered"><i></i><i></i><i></i><i></i></div><form id="sf" autocomplete="off"><h3>Welcome to Owl</h3><p>Set up your browser. Your name and email stay on this PC, inside the encrypted store, and are never sent anywhere. The password replaces the default key and protects your saved passwords, history and cookies.</p>
-  <input id="sn" placeholder="Your name" aria-label="Your name" maxlength="60" autocomplete="off"><input id="se" type="email" placeholder="Email address" aria-label="Email address" maxlength="120" autocomplete="off">
-  <input id="sp1" type="password" placeholder="New passphrase (12+ characters)" aria-label="New password" maxlength="128" autocomplete="off"><input id="sp2" type="password" placeholder="Repeat password" aria-label="Repeat password" maxlength="128" autocomplete="off"><button type="submit">Create and open</button></form>
- <form id="pf" autocomplete="off"><input id="pw1" type="password" placeholder="Passphrase" aria-label="Passphrase" autocomplete="off"><button type="submit">Unlock</button></form><div id="lmsg" role="alert" aria-live="assertive"></div>
+  <label class="fl" for="sn">Your name</label><input id="sn" maxlength="60" autocomplete="off" aria-describedby="lmsg">
+  <label class="fl" for="se">Email address</label><input id="se" type="email" maxlength="120" autocomplete="off" aria-describedby="lmsg">
+  <label class="fl" for="sp1">New passphrase</label><input id="sp1" type="password" maxlength="128" autocomplete="off" aria-describedby="sp1h lmsg"><span class="fh" id="sp1h">At least 12 characters. A few words you will remember works well.</span>
+  <label class="fl" for="sp2">Repeat the passphrase</label><input id="sp2" type="password" maxlength="128" autocomplete="off" aria-describedby="lmsg"><button type="submit">Create and open</button></form>
+ <form id="pf" autocomplete="off"><label class="fl" for="pw1">Passphrase</label><input id="pw1" type="password" autocomplete="off" aria-describedby="lmsg"><button type="submit">Unlock</button></form><div id="lmsg" role="alert" aria-live="assertive"></div>
   <div id="pad"></div></div>
 </div>
 <div id="ovl"></div>
@@ -420,7 +427,7 @@ window.owl={
    if(a!==b){note='The two passphrases did not match.';continue}
    send({cmd:'upgrade_pin',new:a});return}})()},
  sealState(m,ok){const l=$('lmsg');l.textContent=m;l.classList.toggle('ok',!!ok);if(ok)setTimeout(()=>{if(l.textContent===m)l.textContent=''},6000)},
- lockFail(m){const d=$('dots');d.classList.add('bad');$('lmsg').textContent=m;pin='';$('pw1').value='';setTimeout(()=>{d.classList.remove('bad');drawDots();if(document.body.classList.contains('passmode'))$('pw1').focus()},350)}
+ lockFail(m){const d=$('dots');d.classList.add('bad');$('lmsg').textContent=m;if(document.body.classList.contains('passmode'))$('pw1').setAttribute('aria-invalid','true');pin='';$('pw1').value='';setTimeout(()=>{d.classList.remove('bad');drawDots();if(document.body.classList.contains('passmode'))$('pw1').focus()},350)}
 };
 /* ---------- tab context menu ---------- */
 function drawCtx(open=true){const t=S.tabs.find(x=>x.id===ctxId);if(!t){closeOvl();return}
@@ -522,11 +529,13 @@ function press(k){if(!document.body.classList.contains('locked'))return;$('lmsg'
   drawDots();if(pin.length===4){const p=pin;send({cmd:'unlock',pin:p})}}
 ['1','2','3','4','5','6','7','8','9','C','0','<'].forEach(k=>{const b=el('button',k==='C'||k==='<'?'z':'',k==='C'?'Clear':k==='<'?'Back':k);b.onclick=()=>{if(k==='C'){pin='';drawDots()}else press(k)};$('pad').appendChild(b)});
 $('sf').onsubmit=e=>{e.preventDefault();const n=$('sn').value.trim(),m=$('se').value.trim(),a=$('sp1').value,b=$('sp2').value,l=$('lmsg');
-  if(!n)return l.textContent='Enter your name.';
-  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m))return l.textContent='Enter a valid email address.';
-  if(a.length<12)return l.textContent='Choose a passphrase of at least 12 characters.';
-  if(a!==b)return l.textContent='The two passwords do not match.';
-  l.textContent='';send({cmd:'setup',name:n,email:m,pass:a})};
+  // the first field with a problem is marked invalid, named in the message and focused
+  const bad=(id,msg)=>{['sn','se','sp1','sp2'].forEach(x=>$(x).removeAttribute('aria-invalid'));$(id).setAttribute('aria-invalid','true');l.textContent=msg;$(id).focus()};
+  if(!n)return bad('sn','Enter your name.');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m))return bad('se','Enter a valid email address, for example name@example.com.');
+  if(a.length<12)return bad('sp1','Choose a passphrase of at least 12 characters.');
+  if(a!==b)return bad('sp2','The two passphrases do not match.');
+  ['sn','se','sp1','sp2'].forEach(x=>$(x).removeAttribute('aria-invalid'));l.textContent='';send({cmd:'setup',name:n,email:m,pass:a})};
 addEventListener('keydown',e=>{const B=document.body.classList;if(!B.contains('locked')||B.contains('passmode')||B.contains('setupmode'))return;if(/^\d$/.test(e.key))press(e.key);else if(e.key==='Backspace')press('<')},true);
 $('rcvo').onclick=()=>send({cmd:'open_data'});$('rcvq').onclick=()=>send({cmd:'win_close'});
 $('pf').onsubmit=e=>{e.preventDefault();const v=$('pw1').value;if(v){$('lmsg').textContent='';send({cmd:'unlock',pin:v})}};

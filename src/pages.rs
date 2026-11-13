@@ -11,7 +11,7 @@ a{color:inherit;text-decoration:none}
 .grid{display:grid;grid-template-columns:repeat(12,1fr);column-gap:24px}
 header{border-top:6px solid var(--ink);padding:10px 0 0;display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:28px}
 header i{font-style:normal;color:var(--red)}
-h1{font-size:clamp(44px,6vw,88px);line-height:.92;letter-spacing:-.04em;font-weight:700;margin-bottom:24px;animation:rise .7s cubic-bezier(.2,.7,.2,1) both}
+h1{font-size:clamp(36px,4.2vw,60px);line-height:.95;letter-spacing:-.035em;font-weight:700;margin-bottom:18px;animation:rise .7s cubic-bezier(.2,.7,.2,1) both}
 h1 em{font-style:normal;color:var(--red)}
 h2{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding-top:10px;border-top:2px solid var(--ink);margin-bottom:12px;display:flex;justify-content:space-between}
 h2 span{color:var(--mute)}
@@ -35,6 +35,7 @@ details summary{cursor:pointer;color:var(--mute);font-size:13px;margin-top:6px;t
 button[disabled]{opacity:.45;cursor:default}button[disabled]:hover{background:var(--ink);color:var(--on)}button.ghost[disabled]:hover{background:var(--soft);color:var(--ink)}
 .set{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;padding:18px 0;border-top:1px solid var(--line);animation:rise .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*35ms)}
 .set p{color:var(--mute);font-size:14px;margin-top:4px}
+.cf{display:inline-flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:var(--ink)}.cf span{letter-spacing:.02em}
 .set input,.af input,.pf{font:500 14px "Helvetica Neue",Helvetica,Arial,sans-serif;padding:10px;border:1px solid var(--ink);background:var(--bg);color:var(--ink);width:380px;max-width:100%;outline:0;transition:box-shadow .15s}
 .set input:focus,.af input:focus,.pf:focus{box-shadow:0 0 0 2px var(--red)}
 input::placeholder{color:var(--mute);opacity:1}
@@ -622,7 +623,7 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
         ("security", "Security", format!(
             "<div class=set><div><b>Startup key</b><p><b>Use a passphrase of 12 or more characters.</b> It protects your saved passwords, history, bookmarks and cookies. A 4-digit key can be guessed offline.</p>\
 <details><summary>How it works</summary><p>The key is stretched with Argon2id and wrong guesses lock you out for longer each time. Data is sealed when Owl locks or closes cleanly; if Owl is killed it stays readable until the next lock or start. The default key before setup is 1966.</p></details></div>\
-<div class=ctl><input class=pk type=password id=op maxlength=128 autocomplete=off aria-label=\"Current key\" placeholder=\"Current key\"><input class=pk type=password id=np maxlength=128 autocomplete=off aria-label=\"New key or passphrase\" placeholder=\"New key or passphrase\"><button data-act=setpin>Change</button></div></div>\
+<div class=ctl><label class=cf><span>Current key</span><input class=pk type=password id=op maxlength=128 autocomplete=off aria-label=\"Current key\" placeholder=\"Current key\"></label><label class=cf><span>New key or passphrase</span><input class=pk type=password id=np maxlength=128 autocomplete=off aria-label=\"New key or passphrase\" placeholder=\"New key or passphrase\"></label><button data-act=setpin>Change</button></div></div>\
 <div class=set><div><b>Auto-lock</b><p>After this long without use, Owl locks, closes every page and encrypts your data on disk. Playing media and downloads count as use. Unlocking reopens your tabs.</p></div>{}</div>{}{}{}\
 <div class=set><div><b>Site permissions</b><p>Review and reset the camera, microphone, location and other permissions you gave sites.</p></div><a class=btn href=\"owl://permissions\">Review</a></div>",
             sel("autolock", "Auto-lock after", c.autolock, &[(0, "Never"), (5, "5 minutes"), (15, "15 minutes"), (30, "30 minutes"), (60, "1 hour")]),
@@ -642,7 +643,7 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
             "{}\
 <div class=set><div><b>Activity</b><p>See what OwlKick blocked: counts, the hosts it stopped most and the latest requests.</p></div><a class=btn href=\"owl://owlkick\">Open activity</a></div>\
 <div class=set><div><b>Filter lists</b><p>OwlKick is built on adblock-rust, the engine Brave uses (MPL-2.0; not made or endorsed by Brave). It always uses Owl's built-in tracker list. Download EasyList and EasyPrivacy for much wider coverage and clutter hiding; once downloaded they refresh weekly. Lists on disk: {}.</p></div><button class=ghost data-act=kickupd>Update lists</button></div>\
-<div class=set><div><b>Off for these sites</b><p>Comma-separated sites where blocking and clutter hiding are switched off, for example a bank or a site that breaks.</p></div><div class=ctl><input class=pk id=ko maxlength=800 aria-label=\"Sites where OwlKick is off\" placeholder=\"example.com, shop.example.org\" value=\"{}\"><button class=ghost data-act=setko>Save</button></div></div>",
+<div class=set><div><b>Off for these sites</b><p>Comma-separated sites where blocking and clutter hiding are switched off, for example a bank or a site that breaks.</p></div><div class=ctl><label class=cf><span>Sites where OwlKick is off</span><input class=pk id=ko maxlength=800 aria-label=\"Sites where OwlKick is off\" placeholder=\"example.com, shop.example.org\" value=\"{}\"></label><button class=ghost data-act=setko>Save</button></div></div>",
             tog("block", c.block, "Block trackers and ads", "OwlKick blocks requests to ads, analytics and trackers, and hides page clutter."),
             crate::owlkick::list_count(),
             esc(&c.kick_off.join(", "))
@@ -651,7 +652,7 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
             "{}\
 <div class=set><div><b>Cloudflare WARP (installed client)</b><p>WARP is a real VPN from Cloudflare. Owl cannot include it, but if you installed the free client it can switch it on and off here. While it is on, all your traffic goes through Cloudflare.</p></div><div class=ctl><button class=ghost data-act=warp data-w=connect>Connect</button><button class=ghost data-act=warp data-w=disconnect>Disconnect</button><button class=ghost data-act=warp data-w=status>Status</button></div></div>\
 <div class=set><div><b>Proxy or VPN</b><p>Send all page traffic through a proxy to hide your IP address, for example <code>socks5://127.0.0.1:9050</code> (Tor). WebRTC is forced through it too. Empty means direct. Restart to apply.</p></div>\
-<div class=ctl><input class=pk id=px maxlength=100 aria-label=\"Proxy address\" placeholder=\"socks5://127.0.0.1:9050\" value=\"{}\"><button class=ghost data-act=setproxy>Save</button></div></div>",
+<div class=ctl><label class=cf><span>Proxy address</span><input class=pk id=px maxlength=100 aria-label=\"Proxy address\" placeholder=\"socks5://127.0.0.1:9050\" value=\"{}\"></label><button class=ghost data-act=setproxy>Save</button></div></div>",
             tog("doh", c.doh, "Secure DNS (Cloudflare 1.1.1.1)", "Looks up site names over HTTPS at 1.1.1.1 so your network cannot see which sites you open. This is not a VPN: your IP address is unchanged. If 1.1.1.1 is blocked, pages will not load. Needs a restart. Not used while a proxy is set."),
             esc(&c.proxy)
         )),
@@ -673,15 +674,15 @@ document.querySelectorAll('.th').forEach(b=>b.onclick=()=>{const t=b.dataset.t,l
         )),
         ("sync", "Sync", format!(
             "<div class=set><div><b>Sync folder</b><p>Keep bookmarks, history and open tabs in a folder synced by OneDrive, Dropbox or Syncthing. Set the passphrase below first. Restart Owl after changing.</p></div>\
-<div class=ctl><input class=pk id=sy aria-label=\"Sync folder\" value=\"{}\" placeholder=\"C:\\Users\\you\\OneDrive\\Owl\"><button data-act=setsync>Save</button></div></div>\
+<div class=ctl><label class=cf><span>Sync folder</span><input class=pk id=sy aria-label=\"Sync folder\" value=\"{}\" placeholder=\"C:\\Users\\you\\OneDrive\\Owl\"></label><button data-act=setsync>Save</button></div></div>\
 <div class=set><div><b>Sync passphrase</b><p>Encrypts the sync file (ChaCha20-Poly1305). {} Use the same passphrase on each PC. Restart Owl to apply.</p></div>\
-<div class=ctl><input class=pk id=sp type=password autocomplete=off aria-label=\"Sync passphrase\" placeholder=\"Passphrase\"><button data-act=setsyncpass>Save</button></div></div>",
+<div class=ctl><label class=cf><span>Sync passphrase</span><input class=pk id=sp type=password autocomplete=off aria-label=\"Sync passphrase\" placeholder=\"Passphrase\"></label><button data-act=setsyncpass>Save</button></div></div>",
             esc(&c.sync_dir),
             if c.sync_key.is_empty() { "Not set yet." } else { "A passphrase is set." }
         )),
         ("advanced", "Profile and advanced", format!(
             "<div class=set><div><b>Your profile</b><p>Set at first run. Kept in the encrypted store on this PC and used only for the home-page greeting.</p></div>\
-<div class=ctl><input class=pk id=pn maxlength=60 aria-label=\"Name\" placeholder=Name value=\"{}\"><input class=pk id=pe maxlength=120 aria-label=\"Email\" placeholder=Email value=\"{}\"><button class=ghost data-act=setprofile>Save</button></div></div>\
+<div class=ctl><label class=cf><span>Name</span><input class=pk id=pn maxlength=60 aria-label=\"Name\" placeholder=Name value=\"{}\"></label><label class=cf><span>Email</span><input class=pk id=pe maxlength=120 aria-label=\"Email\" placeholder=Email value=\"{}\"></label><button class=ghost data-act=setprofile>Save</button></div></div>\
 <div class=set><div><b>Extensions (user scripts)</b><p>Put .js files in <code>{}\\extensions</code>. They run on every web page. Loaded: {}</p></div><button class=ghost data-act=opendata>Open Owl folder</button></div>\
 <div class=set><div><b>Time tracking</b><p>Minutes per site are kept on this PC for the home page. Clear them any time.</p></div><button class=ghost data-act=clearusage>Clear</button></div>\
 <div class=set><div><b>Check for updates now</b><p>Asks GitHub for the latest release. Owl never updates itself.</p></div><button class=ghost data-act=updcheck>Check now</button></div>\
