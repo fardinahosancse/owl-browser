@@ -724,6 +724,8 @@ struct Keys {
     profile: [u8; 32],
     /// private half of the sealing key pair; opens sealed profile data
     privk: Option<[u8; 32]>,
+    /// authenticates sealed profile files (derived from the startup key)
+    seal_auth: [u8; 32],
 }
 /// Key material is overwritten when the keys are dropped (lock, change of key, exit).
 impl Drop for Keys {
@@ -732,13 +734,14 @@ impl Drop for Keys {
         self.vault.zeroize();
         self.store.zeroize();
         self.profile.zeroize();
+        self.seal_auth.zeroize();
         if let Some(p) = self.privk.as_mut() {
             p.zeroize();
         }
     }
 }
 fn keys_from(m: &[u8; 32], privk: Option<[u8; 32]>) -> Keys {
-    Keys { vault: crypt::sub(m, "vault").to_vec(), store: crypt::sub(m, "store"), profile: crypt::sub(m, "profile"), privk }
+    Keys { vault: crypt::sub(m, "vault").to_vec(), store: crypt::sub(m, "store"), profile: crypt::sub(m, "profile"), privk, seal_auth: crypt::sub(m, "seal-auth") }
 }
 /// The sealing private key is stored wrapped by the startup key; the public key sits in the clear.
 fn wrap_priv(m: &[u8; 32], p: &[u8; 32]) -> String {
@@ -976,7 +979,15 @@ impl Ctx {
             (c.seal_pub.clone(), c.seal_priv.clone())
         };
         if !pubh.is_empty() && !privh.is_empty() {
-            return unwrap_priv(m, &privh);
+            let p = unwrap_priv(m, &privh)?;
+            // the public key is only a convenience copy: if it no longer matches the private key
+            // (edited settings file), future seals would go to someone else's key. Repair it.
+            let real = crypt::hex(&crypt::x_public(&p));
+            if real != pubh {
+                self.cfg.lock().unwrap().seal_pub = real;
+                self.save_cfg();
+            }
+            return Some(p);
         }
         let (p, q) = crypt::new_keypair();
         {
@@ -1527,10 +1538,10 @@ impl App {
         self.media = None;
         self.mw = None;
         self.active = 0;
-        let privk = self.ctx.keys.lock().unwrap().as_ref().and_then(|k| k.privk);
+        let (privk, auth) = self.ctx.keys.lock().unwrap().as_ref().map(|k| (k.privk, Some(k.seal_auth))).unwrap_or((None, None));
         if let Some(pubk) = self.ctx.pub_key() {
             let dir = self.ctx.dir.clone();
-            self.sealer = Some(std::thread::spawn(move || profile::seal_profile(&dir, &pubk, privk.as_ref())));
+            self.sealer = Some(std::thread::spawn(move || profile::seal_profile(&dir, &pubk, privk.as_ref(), auth.as_ref())));
             self.sealed_at_lock = true;
         }
     }
@@ -1538,6 +1549,17 @@ impl App {
     /// Once a second: decay stale download speeds, count time on the active site, save now and then.
     fn tick(&mut self) {
         self.ticks += 1;
+        // tell the lock screen how sealing went, as soon as it is done
+        if self.locked && self.sealer.as_ref().map_or(false, |h| h.is_finished()) {
+            if let Some(h) = self.sealer.take() {
+                let (ok, msg) = match h.join() {
+                    Ok(Ok(())) => (true, "Your data is sealed.".to_string()),
+                    Ok(Err(e)) => (false, format!("Warning: your data could not be fully sealed ({e}). It is still intact; Owl tries again at the next lock.")),
+                    Err(_) => (false, "Warning: sealing stopped unexpectedly. Your data is intact; Owl tries again at the next lock.".to_string()),
+                };
+                let _ = self.ui.evaluate_script(&format!("owl.sealState({},{ok})", serde_json::to_string(&msg).unwrap()));
+            }
+        }
         // test hook: OWL_TEST_ADD=<url> adds a download at start-up (used to screenshot the download list)
         if self.ticks == 6 {
             if let Ok(u) = std::env::var("OWL_TEST_NAV") {
@@ -2199,12 +2221,12 @@ impl App {
                     }
                     let first = self.ctx.keys.lock().unwrap().is_none();
                     let reopen = first || self.sealed_at_lock;
-                    let (legacy, privk) = (k.profile, k.privk);
+                    let (legacy, privk, auth) = (k.profile, k.privk, k.seal_auth);
                     if reopen && !self.ctx.private {
                         // restore cookies, logins and site data before any tab can open. If this
                         // fails the sealed file is kept untouched and Owl stays locked: opening
                         // tabs on an empty profile could lead to the real data being replaced.
-                        if let Err(e) = profile::unseal_profile(&self.ctx.dir, &legacy, privk.as_ref()) {
+                        if let Err(e) = profile::unseal_profile(&self.ctx.dir, &legacy, privk.as_ref(), Some(&auth)) {
                             let m = format!("Your saved data could not be restored ({e}). Nothing was changed or deleted. Try again, or contact support with the file sealed.owl kept in %LOCALAPPDATA%\\Owl\\profile.");
                             let _ = self.ui.evaluate_script(&format!("owl.lockFail({})", serde_json::to_string(&m).unwrap()));
                             return;
@@ -2220,6 +2242,10 @@ impl App {
                     if self.unclean {
                         self.unclean = false;
                         let n = json!({"id":"unclean","label":"Notice","text":"Owl did not close normally last time. Your browsing data was encrypted again as soon as Owl started.","actions":[{"t":"OK"}]});
+                        let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
+                    }
+                    if profile::LAST_UNAUTHENTICATED.swap(false, Relaxed) && reopen {
+                        let n = json!({"id":"unauth","label":"Notice","text":"Your browsing data was restored from a copy sealed after a crash, without your passphrase, so Owl could not confirm it was not replaced. If you did not expect a crash, sign out of important sites.","actions":[{"t":"OK"}]});
                         let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
                     }
                     self.last_active = Instant::now();
@@ -3522,7 +3548,7 @@ fn main() {
         if let Some(pubk) = app.ctx.pub_key() {
             if profile::has_plaintext(&dir) {
                 let d = dir.clone();
-                app.sealer = Some(std::thread::spawn(move || profile::seal_profile(&d, &pubk, None)));
+                app.sealer = Some(std::thread::spawn(move || profile::seal_profile(&d, &pubk, None, None)));
             }
         }
         unsafe {
@@ -3553,10 +3579,10 @@ fn main() {
                 app.tabs.clear();
                 app.mw = None;
                 app.ctx.save();
-                let privk = app.ctx.keys.lock().unwrap().as_ref().and_then(|k| k.privk);
+                let (privk, auth) = app.ctx.keys.lock().unwrap().as_ref().map(|k| (k.privk, Some(k.seal_auth))).unwrap_or((None, None));
                 let mut sealed_ok = true;
                 if let (Some(pubk), false) = (app.ctx.pub_key(), app.ctx.private) {
-                    sealed_ok = profile::seal_profile(&app.ctx.dir, &pubk, privk.as_ref()).is_ok();
+                    sealed_ok = profile::seal_profile(&app.ctx.dir, &pubk, privk.as_ref(), auth.as_ref()).is_ok();
                 }
                 // mark this exit as clean only if everything really was sealed; otherwise the next
                 // start repeats the seal and tells the user

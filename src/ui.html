@@ -419,6 +419,7 @@ window.owl={
    if(b===null){send({cmd:'upgrade_cancel'});return}
    if(a!==b){note='The two passphrases did not match.';continue}
    send({cmd:'upgrade_pin',new:a});return}})()},
+ sealState(m,ok){const l=$('lmsg');l.textContent=m;l.classList.toggle('ok',!!ok);if(ok)setTimeout(()=>{if(l.textContent===m)l.textContent=''},6000)},
  lockFail(m){const d=$('dots');d.classList.add('bad');$('lmsg').textContent=m;pin='';$('pw1').value='';setTimeout(()=>{d.classList.remove('bad');drawDots();if(document.body.classList.contains('passmode'))$('pw1').focus()},350)}
 };
 /* ---------- tab context menu ---------- */

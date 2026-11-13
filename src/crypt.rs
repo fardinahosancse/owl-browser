@@ -180,3 +180,118 @@ pub fn open(key: &[u8; 32], data: &[u8]) -> Option<Vec<u8>> {
     header_salt(data)?;
     ChaCha20Poly1305::new(Key::from_slice(key)).decrypt(Nonce::from_slice(&data[24..36]), &data[36..]).ok()
 }
+
+// ---- streamed public-key sealing (profile format 3) ----
+// The bundle is encrypted in 1 MiB chunks with one random content key, so profiles of any size
+// can be sealed without holding them in memory. Each chunk carries its index and a "last" flag in
+// its authenticated data, so chunks cannot be reordered, dropped or truncated unnoticed. When the
+// startup key is at hand, an HMAC over the header and the plaintext hash binds the file to it.
+pub const MAGIC_PROFILE3: &[u8; 8] = b"OWLPROF3";
+pub const STREAM_HEADER: usize = 8 + 32 + 12 + 48 + 8 + 8;
+pub const STREAM_CHUNK: usize = 1 << 20;
+
+pub struct Stream {
+    aead: ChaCha20Poly1305,
+    nbase: [u8; 8],
+    idx: u32,
+}
+
+impl Stream {
+    fn nonce(&self) -> [u8; 12] {
+        let mut n = [0u8; 12];
+        n[..8].copy_from_slice(&self.nbase);
+        n[8..].copy_from_slice(&self.idx.to_be_bytes());
+        n
+    }
+    fn aad(&self, last: bool) -> [u8; 5] {
+        let mut a = [0u8; 5];
+        a[..4].copy_from_slice(&self.idx.to_be_bytes());
+        a[4] = last as u8;
+        a
+    }
+    /// Encrypt one chunk (the next in order).
+    pub fn seal_chunk(&mut self, plain: &[u8], last: bool) -> Vec<u8> {
+        use chacha20poly1305::aead::Payload;
+        let n = self.nonce();
+        let aad = self.aad(last);
+        let c = self.aead.encrypt(Nonce::from_slice(&n), Payload { msg: plain, aad: &aad }).expect("encrypt");
+        self.idx += 1;
+        c
+    }
+    /// Decrypt the next chunk; None if it was altered, reordered or its "last" flag is wrong.
+    pub fn open_chunk(&mut self, ct: &[u8], last: bool) -> Option<Vec<u8>> {
+        use chacha20poly1305::aead::Payload;
+        let n = self.nonce();
+        let aad = self.aad(last);
+        let p = self.aead.decrypt(Nonce::from_slice(&n), Payload { msg: ct, aad: &aad }).ok()?;
+        self.idx = self.idx.checked_add(1)?;
+        Some(p)
+    }
+}
+
+/// Header for a new sealed stream to `recipient`; `authenticated` records that a MAC trailer follows.
+pub fn stream_seal(recipient: &[u8; 32], authenticated: bool) -> (Vec<u8>, Stream) {
+    let (eph, eph_pub) = new_keypair();
+    let mut eph = eph;
+    let mut shared = x25519_dalek::x25519(eph, *recipient);
+    let mut wrap = box_wrap_key(&shared, &eph_pub, recipient);
+    shared.zeroize();
+    eph.zeroize();
+    let mut k: [u8; 32] = random(32).try_into().unwrap();
+    let n1 = random(12);
+    let wk = ChaCha20Poly1305::new(Key::from_slice(&wrap)).encrypt(Nonce::from_slice(&n1), k.as_slice()).expect("encrypt");
+    wrap.zeroize();
+    let nbase: [u8; 8] = random(8).try_into().unwrap();
+    let mut h = MAGIC_PROFILE3.to_vec();
+    h.extend_from_slice(&eph_pub);
+    h.extend_from_slice(&n1);
+    h.extend_from_slice(&wk);
+    h.extend_from_slice(&nbase);
+    let mut flags = [0u8; 8];
+    flags[0] = authenticated as u8;
+    h.extend_from_slice(&flags);
+    let s = Stream { aead: ChaCha20Poly1305::new(Key::from_slice(&k)), nbase, idx: 0 };
+    k.zeroize();
+    (h, s)
+}
+
+/// Open a sealed stream's header with the private key. Returns the stream and whether it says it
+/// is authenticated.
+pub fn stream_open(privk: &[u8; 32], header: &[u8]) -> Option<(Stream, bool)> {
+    if header.len() != STREAM_HEADER || &header[..8] != MAGIC_PROFILE3 {
+        return None;
+    }
+    let eph_pub: [u8; 32] = header[8..40].try_into().ok()?;
+    let recipient = x_public(privk);
+    let mut shared = x25519_dalek::x25519(*privk, eph_pub);
+    let mut wrap = box_wrap_key(&shared, &eph_pub, &recipient);
+    shared.zeroize();
+    let kv = ChaCha20Poly1305::new(Key::from_slice(&wrap)).decrypt(Nonce::from_slice(&header[40..52]), &header[52..100]);
+    wrap.zeroize();
+    let mut k: [u8; 32] = kv.ok()?.try_into().ok()?;
+    let nbase: [u8; 8] = header[100..108].try_into().ok()?;
+    let s = Stream { aead: ChaCha20Poly1305::new(Key::from_slice(&k)), nbase, idx: 0 };
+    k.zeroize();
+    Some((s, header[108] == 1))
+}
+
+/// HMAC-SHA-256.
+pub fn hmac(key: &[u8; 32], msg: &[u8]) -> [u8; 32] {
+    let (mut ipad, mut opad) = ([0x36u8; 64], [0x5cu8; 64]);
+    for i in 0..32 {
+        ipad[i] ^= key[i];
+        opad[i] ^= key[i];
+    }
+    let mut a = Sha256::new();
+    a.update(ipad);
+    a.update(msg);
+    let inner = a.finalize();
+    let mut b = Sha256::new();
+    b.update(opad);
+    b.update(inner);
+    b.finalize().into()
+}
+
+pub fn ct_eq_bytes(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
