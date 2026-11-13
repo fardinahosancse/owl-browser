@@ -15,6 +15,7 @@ mod pages;
 mod profile;
 mod themes;
 mod vault;
+mod panel;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -46,6 +47,32 @@ use wry::{
 const UI_BASE: f64 = 72.0;
 const UI_BAR: f64 = 26.0;
 const UI_HTML: &str = include_str!("ui.html");
+/// Pages glide in instead of snapping on: the Web Animations API is used because a page's CSP
+/// cannot block it, and nothing is left behind on the page.
+const PAGE_IN_JS: &str = "(function(){if(window.top!==window)return;addEventListener('DOMContentLoaded',function(){try{if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;document.documentElement.animate([{opacity:.4,transform:'translateY(6px)'},{opacity:1,transform:'none'}],{duration:280,easing:'cubic-bezier(.2,.8,.2,1)'})}catch(e){}},{once:true})})();";
+/// The name of this release, shown in What's new.
+const RELEASE_NAME: &str = "Quickpatch";
+
+fn b64(b: &[u8]) -> String {
+    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut o = String::with_capacity(b.len() * 4 / 3 + 4);
+    for c in b.chunks(3) {
+        let n = (c[0] as u32) << 16 | (*c.get(1).unwrap_or(&0) as u32) << 8 | *c.get(2).unwrap_or(&0) as u32;
+        for i in 0..4 {
+            o.push(if i <= c.len() { T[(n >> (18 - 6 * i) & 63) as usize] as char } else { '=' });
+        }
+    }
+    o
+}
+/// The Owl. wordmark as one SVG path (traced from the brand artwork), shared by the chrome, the
+/// lock screen and the panels.
+pub const WORDMARK: &str = include_str!("../assets/wordmark.d");
+/// What's new in this version: shown once after an install or update.
+const WHATS_NEW: &[(&str, &str, &[u8])] = &[
+    ("Site information", "Click the lock in the address bar to see whether the connection is secure, who issued the site's certificate and until when, how many cookies it keeps, and what you allowed it to do. Clear its data or reset a permission in one click.", include_bytes!("../assets/whatsnew/site.jpg")),
+    ("Panels for OwlKick, Data saver and Secure DNS", "The three toolbar buttons now open a small panel with the numbers that matter and a switch, like an extension popup. Turn OwlKick off for one site, pick a Data saver level, or see whether Secure DNS is running.", include_bytes!("../assets/whatsnew/panel.jpg")),
+    ("Owl. has a signature", "A new wordmark everywhere, a lock screen that writes itself, pages that glide in, a loading line in the address bar, and Owl's own pages opening in their own tab.", include_bytes!("../assets/whatsnew/brand.jpg")),
+];
 const SEARCH: &str = "https://duckduckgo.com/?q=";
 const HOST: &str = "owl.localhost";
 const DEFAULT_PIN: &str = "1966";
@@ -179,6 +206,8 @@ static BLOCK: AtomicBool = AtomicBool::new(true);
 static HTTPS: AtomicBool = AtomicBool::new(false);
 static BLOCKED: AtomicU32 = AtomicU32::new(0);
 static BLOCKED_BASE: AtomicU64 = AtomicU64::new(0);
+/// OwlKick filter list update: (running, last result) for the activity page.
+static KICK_UPD: Mutex<(bool, String)> = Mutex::new((false, String::new()));
 /// Made-up live download details, filled only by the `_mock` test command (screenshots).
 static MOCK_LIVE: Mutex<Option<HashMap<u32, Value>>> = Mutex::new(None);
 /// Hosts the user chose to open over plain http this session.
@@ -547,6 +576,9 @@ pub struct Config {
     /// sites where OwlKick blocking is switched off
     #[serde(default)]
     pub kick_off: Vec<String>,
+    /// the version whose What's new was last shown
+    #[serde(default)]
+    pub seen_ver: String,
     /// image compression strength 1-99, 0 = off
     #[serde(default)]
     pub compress: u32,
@@ -648,7 +680,7 @@ impl Default for Config {
             block: true, https_only: false, sync_dir: String::new(), theme: sys(), bookmark_bar: false,
             pin_hash: String::new(), pin_salt: String::new(), organize: true, pw_save: true, pw_never: vec![],
             strikes: 0, fails: 0, locked_until: 0, sync_key: String::new(), pin_mode: pin_mode(), kdf: 0, fp: true,
-            fp_strict: false, perm_block: false, bar_top: false, home_calm: false, compress_last: 0, torrent_seed: false, kick_off: vec![], compress: 0, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
+            fp_strict: false, perm_block: false, bar_top: false, home_calm: false, compress_last: 0, torrent_seed: false, kick_off: vec![], seen_ver: String::new(), compress: 0, doh: false, dl_limit: 0, dl_active: 3, track_strict: false, update_check: false, update_last: 0, autolock: autolock_default(), proxy: String::new(),
             seal_pub: String::new(), seal_priv: String::new(), lock_on_winlock: true,
         }
     }
@@ -662,7 +694,7 @@ fn pick_random() {
 /// The concrete theme in effect ("random" resolves to the palette picked for this run).
 fn theme_attr() -> String {
     let t = THEME.lock().unwrap().clone();
-    let known = |x: &str| matches!(x, "system" | "light" | "dark" | "black" | "navy" | "invert" | "sand");
+    let known = |x: &str| matches!(x, "system" | "light" | "dark" | "black" | "navy" | "sand");
     if t == "random" {
         let r = RANDOM.lock().unwrap().clone();
         if known(&r) { r } else { "dark".into() }
@@ -695,7 +727,6 @@ fn theme_bg(t: &str) -> (u8, u8, u8, u8) {
         "black" => (0, 0, 0, 255),
         "navy" => (0x0b, 0x1a, 0x3a, 255),
         "sand" => (0xef, 0xe9, 0xdc, 255),
-        "invert" => (0xe3, 0x06, 0x13, 255),
         _ if dark => (0x10, 0x10, 0x10, 255),
         _ => (255, 255, 255, 255),
     }
@@ -1213,6 +1244,10 @@ pub enum Ev {
     Update(String, bool, bool),
     /// filter lists downloaded (count)
     Filters(usize),
+    /// an owl:// link was followed inside a tab
+    OwlLink(u32, String),
+    /// a late part of the site information panel (certificate, cookies, permissions)
+    PanelPart(String, String),
     Audible(u32, bool),
     Snap(u32, String),
     /// (dialog id, tab id, kind 0 alert / 1 confirm / 2 prompt / 3 leave-page, page address, message, default text)
@@ -1318,6 +1353,8 @@ fn serve(path: &str, query: &str, ctx: &Ctx) -> (u16, &'static str, String) {
         r["age"] = json!(owlkick::lists_age_days());
         r["on"] = json!(cfg.block);
         r["off"] = json!(cfg.kick_off);
+        let u = KICK_UPD.lock().unwrap().clone();
+        r["upd"] = json!({"state": if u.0 { "running" } else { "idle" }, "msg": u.1});
         return (200, "application/json", r.to_string());
     }
     if path == "/downloads.json" {
@@ -1393,6 +1430,13 @@ struct App {
     mw: Option<WebView>,
     mcollapsed: bool,
     mshown: std::cell::Cell<bool>,
+    /// the floating toolbar panel and what it shows ("" when closed)
+    pnl: Option<WebView>,
+    pnl_kind: String,
+    pnl_x: f64,
+    pnl_h: f64,
+    /// What's new is on screen
+    wn: bool,
     /// tab id -> the http:// URL that HTTPS-only upgraded
     upg: HashMap<u32, String>,
     /// the verified 4-digit key, held only while the user chooses a passphrase
@@ -1455,7 +1499,12 @@ impl App {
             position: LogicalPosition::new(0.0, y).into(),
             size: LogicalSize::new(s.width, h.max(1.0)).into(),
         };
-        if self.locked || self.modal {
+        if let Some(p) = &self.pnl {
+            if self.locked || self.modal || self.wn || self.pnl_kind.is_empty() {
+                let _ = p.set_visible(false);
+            }
+        }
+        if self.locked || self.modal || self.wn {
             let _ = self.ui.set_visible(true);
             let _ = self.ui.set_bounds(r(0.0, s.height));
             for t in &self.tabs {
@@ -1487,6 +1536,7 @@ impl App {
             }
         }
         self.layout_media(s.width, page_y, page_h);
+        self.layout_panel(s.width, s.height, top, base);
         // the overlay may never be taller than the window: it scrolls instead
         let _ = self.ui.evaluate_script(&format!("owl.maxo({})", (s.height - base - 16.0).max(120.0) as i64));
         if self.extra > 0.0 {
@@ -1518,6 +1568,201 @@ impl App {
         if !self.mshown.replace(true) {
             let _ = mw.evaluate_script("m.enter()");
         }
+    }
+
+    /// Open an Owl page the way the user expects: switch to the tab that already shows it, use the
+    /// current tab when it is the home page or empty, otherwise open a new tab. Web addresses
+    /// followed from Owl's own pages always open in a new tab.
+    fn open_owl(&mut self, u: &str, from: Option<u32>) {
+        let u = u.trim();
+        if u.len() > 2048 || !(u.starts_with("owl://") || u.starts_with("https://") || u.starts_with("http://")) {
+            return;
+        }
+        self.panel_close();
+        if !u.starts_with("owl://") {
+            self.new_tab(u);
+            return;
+        }
+        let base = |x: &str| x.split('#').next().unwrap_or("").trim_end_matches('/').to_string();
+        let want = base(u);
+        let cur = from.unwrap_or(self.active);
+        if let Some(t) = self.tabs.iter().find(|t| base(&t.url) == want) {
+            let id = t.id;
+            if u.contains('#') {
+                let _ = t.wv.load_url(&internal(u));
+            }
+            self.active = id;
+            self.layout();
+            self.push();
+            return;
+        }
+        let here = self.tabs.iter().find(|t| t.id == cur).map(|t| t.url.clone()).unwrap_or_default();
+        if here.is_empty() || here == "owl://newtab" || here == "about:blank" {
+            if let Some(t) = self.tabs.iter().find(|t| t.id == cur) {
+                let _ = t.wv.load_url(&internal(u));
+            }
+            self.active = cur;
+            self.layout();
+            self.push();
+        } else {
+            self.new_tab(u);
+        }
+    }
+
+    fn ensure_panel(&mut self) {
+        if self.pnl.is_some() {
+            return;
+        }
+        let up = self.proxy.clone();
+        let r = WebViewBuilder::new()
+            .with_bounds(Rect { position: LogicalPosition::new(0.0, 0.0).into(), size: LogicalSize::new(340.0, 200.0).into() })
+            .with_devtools(false)
+            .with_visible(false)
+            .with_html(secure_html(&panel::HTML.replace("/*THEMES*/", themes::THEMES), "img-src data:"))
+            .with_ipc_handler(move |req| {
+                let _ = up.send_event(Ev::Ui(req.body().clone()));
+            })
+            .build_as_child(&self.window);
+        if let Ok(w) = r {
+            let _ = w.set_background_color(theme_bg(&theme_attr()));
+            self.pnl = Some(w);
+        }
+    }
+
+    /// What one panel shows; `site` also asks the engine for the certificate, cookies and permissions.
+    fn panel_data(&self, kind: &str) -> Value {
+        let c = self.ctx.cfg.lock().unwrap();
+        let url = self.tabs.iter().find(|t| t.id == self.active).map(|t| t.url.clone()).unwrap_or_default();
+        let host = if url.starts_with("http") { host_of(&url).trim_start_matches("www.").to_string() } else { String::new() };
+        let mut d = json!({"kind": kind, "theme": theme_attr()});
+        match kind {
+            "saver" => {
+                d["title"] = json!("Data saver");
+                d["compress"] = json!(c.compress);
+                d["proxied"] = json!(!c.proxy.is_empty());
+                d["imgs"] = json!(c.proxy.is_empty() && !doh::active());
+            }
+            "dns" => {
+                d["title"] = json!("Secure DNS");
+                d["doh"] = json!(c.doh);
+                d["doh_on"] = json!(doh::active());
+                d["proxied"] = json!(!c.proxy.is_empty());
+            }
+            "kick" => {
+                d["title"] = json!("OwlKick");
+                let r = owlkick::report();
+                let here: u64 = r["pages"].as_array().and_then(|a| a.iter().find(|x| x["h"] == host)).and_then(|x| x["n"].as_u64()).unwrap_or(0);
+                let mut top: HashMap<String, u64> = HashMap::new();
+                for x in r["recent"].as_array().into_iter().flatten().filter(|x| x["p"] == host) {
+                    *top.entry(x["h"].as_str().unwrap_or("").to_string()).or_default() += 1;
+                }
+                let mut top: Vec<(String, u64)> = top.into_iter().collect();
+                top.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+                d["host"] = json!(host);
+                d["here"] = json!(here);
+                d["session"] = json!(BLOCKED.load(Relaxed));
+                d["block"] = json!(c.block);
+                d["off"] = json!(!host.is_empty() && c.kick_off.iter().any(|s| *s == host || host.ends_with(&format!(".{s}"))));
+                d["offlist"] = json!(c.kick_off);
+                d["top"] = json!(top.iter().take(5).map(|(h, n)| json!({"h": h, "n": n})).collect::<Vec<_>>());
+            }
+            _ => {
+                let owl = url.starts_with("owl://") || url.is_empty();
+                d["title"] = json!(if owl { "Owl." .to_string() } else { host_of(&url) });
+                d["owl"] = json!(owl);
+                d["url"] = json!(url);
+                d["https"] = json!(url.starts_with("https://"));
+                let origin = url.split('/').take(3).collect::<Vec<_>>().join("/");
+                d["origin"] = json!(origin);
+            }
+        }
+        d
+    }
+
+    fn panel_show(&mut self, kind: &str, keep: bool) {
+        self.ensure_panel();
+        let mut d = self.panel_data(kind);
+        d["keep"] = json!(keep);
+        self.pnl_kind = kind.to_string();
+        if let Some(p) = &self.pnl {
+            let _ = p.set_background_color(theme_bg(&theme_attr()));
+            let _ = p.evaluate_script(&format!("Pn.show({d})"));
+        }
+        if kind == "site" && !keep && d["owl"] == false {
+            if let Some(t) = self.tabs.iter().find(|t| t.id == self.active) {
+                let url = d["url"].as_str().unwrap_or("").to_string();
+                let origin = d["origin"].as_str().unwrap_or("").to_string();
+                let send = |k: &'static str| {
+                    let p = Mutex::new(self.proxy.clone());
+                    move |j: String| {
+                        let _ = p.lock().unwrap().send_event(Ev::PanelPart(k.into(), j));
+                    }
+                };
+                if url.starts_with("https://") {
+                    let s1 = send("cert");
+                    native::cdp(&t.wv, "Network.getCertificate", &json!({"origin": origin}).to_string(), move |j| {
+                        let v = native::cert_info(&j).map(|(a, b, c)| json!({"subject": a, "issuer": b, "until": c})).unwrap_or(json!({}));
+                        s1(v.to_string());
+                    });
+                }
+                let s2 = send("cook");
+                native::cookie_count(&t.wv, &url, move |n| s2(json!({"n": n}).to_string()));
+                let s3 = send("perm");
+                let o2 = origin.clone();
+                native::list_permissions(&t.wv, move |j| {
+                    let v: Value = serde_json::from_str(&j).unwrap_or(json!([]));
+                    let mine: Vec<Value> = v.as_array().into_iter().flatten().filter(|x| x["o"].as_str().map_or(false, |o| o.trim_end_matches('/') == o2)).cloned().collect();
+                    s3(Value::Array(mine).to_string());
+                });
+            }
+        }
+        self.layout();
+        if let Some(p) = &self.pnl {
+            let _ = p.set_visible(true);
+            raise(p);
+            let _ = p.focus();
+        }
+    }
+
+    fn panel_close(&mut self) {
+        if self.pnl_kind.is_empty() {
+            return;
+        }
+        self.pnl_kind.clear();
+        if let Some(p) = &self.pnl {
+            let _ = p.set_visible(false);
+        }
+        let _ = self.ui.evaluate_script("owl.panelState('')");
+    }
+
+    /// The panel floats over the page next to the button that opened it, above the toolbar when
+    /// the toolbar is at the bottom and below it when it is at the top.
+    fn layout_panel(&self, w: f64, h: f64, top: bool, base: f64) {
+        let Some(p) = &self.pnl else { return };
+        if self.pnl_kind.is_empty() || self.fs {
+            let _ = p.set_visible(false);
+            return;
+        }
+        let pw = 340.0;
+        let ph = self.pnl_h.clamp(80.0, (h - base - 24.0).max(120.0));
+        let x = (self.pnl_x - pw).clamp(8.0, (w - pw - 8.0).max(8.0));
+        let y = if top { base + 6.0 } else { (h - base - ph - 6.0).max(0.0) };
+        let _ = p.set_bounds(Rect { position: LogicalPosition::new(x, y).into(), size: LogicalSize::new(pw, ph).into() });
+    }
+
+    /// Show What's new once after an install or an update.
+    fn maybe_whats_new(&mut self) {
+        let ver = env!("CARGO_PKG_VERSION");
+        if self.ctx.private || self.locked || self.wn || self.ctx.cfg.lock().unwrap().seen_ver == ver {
+            return;
+        }
+        let items: Vec<Value> = WHATS_NEW.iter().map(|(t, d, img)| json!({"t": t, "d": d, "img": format!("data:image/jpeg;base64,{}", b64(img))})).collect();
+        let fresh = self.ctx.cfg.lock().unwrap().seen_ver.is_empty();
+        self.wn = true;
+        self.panel_close();
+        self.layout();
+        let data = json!({"ver": ver, "name": RELEASE_NAME, "fresh": fresh, "items": items, "notes": format!("https://github.com/fardinahosancse/owl-browser/releases/tag/v{ver}")});
+        let _ = self.ui.evaluate_script(&format!("owl.whatsNew({data})"));
     }
 
     fn ensure_widget(&mut self) {
@@ -1743,6 +1988,9 @@ impl App {
 
     fn tick(&mut self) {
         self.ticks += 1;
+        if self.ticks % 4 == 0 && self.ticks > 4 {
+            self.maybe_whats_new();
+        }
         if let Some(e) = SAVE_FAILED.lock().unwrap().take() {
             let n = json!({"id":"savefail","label":"Warning","text":format!("Owl could not save {e}. The previous version is kept. Check free disk space."),"actions":[{"t":"OK"}]});
             let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
@@ -2090,6 +2338,7 @@ impl App {
         if imgcomp::STRENGTH.load(Relaxed) > 0 {
             scripts.push(imgcomp::LAZY_JS.to_string());
         }
+        scripts.push(PAGE_IN_JS.to_string());
         scripts.extend([gpc, KEYS_JS.to_string(), PW_JS.to_string(), FORM_JS.to_string(), media::PAGE_JS.to_string()]);
         scripts.extend(ext_scripts);
         let mut b0 = WebViewBuilder::new_with_web_context(&mut self.wctx)
@@ -2139,6 +2388,11 @@ impl App {
                     && !ALLOW_HTTP.lock().unwrap().contains(&host_of(&u))
                 {
                     let _ = p1.send_event(Ev::Go(id, format!("https://{}", &u[7..])));
+                    return false;
+                }
+                // Owl's pages link with owl:// addresses, which the engine cannot open itself
+                if u.starts_with("owl://") {
+                    let _ = p1.send_event(Ev::OwlLink(id, u));
                     return false;
                 }
                 let _ = p1.send_event(Ev::Nav(id, u));
@@ -2374,6 +2628,43 @@ impl App {
         let did = v["id"].as_u64().unwrap_or(0) as u32;
         match cmd {
             "ready" => self.push(),
+            "open_owl" => {
+                let u = s("url");
+                self.open_owl(&u, None);
+            }
+            "panel" => {
+                let kind = s("kind");
+                if !matches!(kind.as_str(), "saver" | "dns" | "kick" | "site") || self.locked {
+                    return;
+                }
+                if self.pnl_kind == kind {
+                    self.panel_close();
+                    return;
+                }
+                self.pnl_x = v["x"].as_f64().unwrap_or(0.0);
+                self.pnl_h = 220.0;
+                let _ = self.ui.evaluate_script(&format!("owl.panelState({})", serde_json::to_string(&kind).unwrap()));
+                self.panel_show(&kind, false);
+            }
+            "panel_close" => self.panel_close(),
+            "panel_h" => {
+                self.pnl_h = v["h"].as_f64().unwrap_or(200.0).clamp(60.0, 900.0);
+                self.layout();
+            }
+            "site_clear" => {
+                let o = s("origin");
+                if (o.starts_with("https://") || o.starts_with("http://")) && o.len() < 300 {
+                    if let Some(t) = self.tabs.iter().find(|t| t.id == self.active) {
+                        native::cdp(&t.wv, "Storage.clearDataForOrigin", &json!({"origin": o, "storageTypes": "all"}).to_string(), |_| {});
+                    }
+                }
+            }
+            "wn_close" => {
+                self.wn = false;
+                self.ctx.cfg.lock().unwrap().seen_ver = env!("CARGO_PKG_VERSION").to_string();
+                self.ctx.save_cfg();
+                self.layout();
+            }
             // ----- window chrome -----
             "win_min" => self.window.set_minimized(true),
             "win_max" => {
@@ -2905,11 +3196,16 @@ impl App {
             }
             "filters_update" => {
                 if self.ctx.cfg.lock().unwrap().proxy.is_empty() {
+                    if KICK_UPD.lock().unwrap().0 {
+                        return; // one update at a time
+                    }
+                    *KICK_UPD.lock().unwrap() = (true, String::new());
                     let p = self.proxy.clone();
                     owlkick::update_lists(move |n| {
                         let _ = p.send_event(Ev::Filters(n));
                     });
                 } else {
+                    *KICK_UPD.lock().unwrap() = (false, "Updates are off while a proxy is set.".into());
                     let n = json!({"id":"owlkick","label":"OwlKick","text":"Filter list updates are off while a proxy is set, so your address is not revealed.","actions":[{"t":"OK","pri":true}]});
                     let _ = self.ui.evaluate_script(&format!("owl.notice({n})"));
                 }
@@ -3238,6 +3534,7 @@ impl App {
                 self.close(cid)
             }
             "switch" => {
+                self.panel_close();
                 self.active = v["id"].as_u64().unwrap_or(0) as u32;
                 self.layout();
                 self.push();
@@ -3387,7 +3684,7 @@ impl App {
                         }
                         "lock_win" => c.lock_on_winlock = on,
                         "pw_save" => c.pw_save = on,
-                        "theme" if !matches!(s("val").as_str(), "system" | "light" | "dark" | "black" | "navy" | "invert" | "sand" | "random") => {}
+                        "theme" if !matches!(s("val").as_str(), "system" | "light" | "dark" | "black" | "navy" | "sand" | "random") => {}
                         "theme" => {
                             c.theme = s("val");
                             *THEME.lock().unwrap() = c.theme.clone();
@@ -3705,6 +4002,9 @@ fn main() {
     engine::MAX_ACTIVE.store(cfg.dl_active.clamp(1, 8), Relaxed);
     native::TRACK_STRICT.store(cfg.track_strict, Relaxed);
     HTTPS.store(cfg.https_only, Relaxed);
+    if cfg.theme == "invert" {
+        cfg.theme = "light".into(); // the Invert theme was removed
+    }
     *THEME.lock().unwrap() = cfg.theme.clone();
     pick_random();
     let vault_list: Vec<Cred> = if private { vec![] } else { vault_loaded.unwrap_or_default() };
@@ -3767,7 +4067,7 @@ fn main() {
     let ui = match WebViewBuilder::new_with_web_context(&mut ui_ctx)
         .with_bounds(Rect { position: LogicalPosition::new(0.0, 0.0).into(), size: LogicalSize::new(1280.0, 800.0).into() })
         .with_devtools(false) // no inspector on the chrome or the lock screen
-        .with_html(secure_html(&UI_HTML.replace("/*THEMES*/", themes::THEMES), "img-src http: https: data:"))
+        .with_html(secure_html(&UI_HTML.replace("/*THEMES*/", themes::THEMES).replace("__WM__", WORDMARK.trim()), "img-src http: https: data:"))
         .with_ipc_handler(move |req| {
             let _ = up.send_event(Ev::Ui(req.body().clone()));
         })
@@ -3783,6 +4083,7 @@ fn main() {
         locked: !private, fails: 0, lock_until: None, pending: None, speeds: HashMap::new(),
         last_push: Instant::now(), proxy, ctx, ticks: 0, media: None, mw: None, mcollapsed: false,
         mshown: std::cell::Cell::new(false),
+        pnl: None, pnl_kind: String::new(), pnl_x: 0.0, pnl_h: 0.0, wn: false,
         upg: HashMap::new(), upgrade_old: None, test_cmds: None, last_key: Instant::now(), dl_ask: vec![], seen_media: HashMap::new(), recent_dl: vec![], engine_watch: false,
         sealer: None, sealed_at_lock: false, last_active: Instant::now(),
         snap_wait: None, unclean, block_reason: false, restore2: vec![],
@@ -3855,7 +4156,11 @@ fn main() {
                 Ev::Ui(s) => {
                     if let Ok(v) = serde_json::from_str::<Value>(&s) {
                         let a = app.active;
-                        app.command(v, true, a)
+                        let again = v["panel"].as_str().map(|k| k.to_string());
+                        app.command(v, true, a);
+                        if let Some(k) = again.filter(|k| *k == app.pnl_kind && k != "site") {
+                            app.panel_show(&k, true);
+                        }
                     }
                 }
                 Ev::Tab(id, s, trusted) => {
@@ -3909,9 +4214,18 @@ fn main() {
                     });
                     let _ = app.ui.evaluate_script(&format!("owl.notice({n})"));
                 }
+                Ev::OwlLink(id, u) => {
+                    app.open_owl(&u, Some(id));
+                }
+                Ev::PanelPart(k, j) => {
+                    if let Some(p) = &app.pnl {
+                        let _ = p.evaluate_script(&format!("Pn.part({},{j})", serde_json::to_string(&k).unwrap()));
+                    }
+                }
                 Ev::Filters(n) => {
                     owlkick::reload();
                     let text = if n > 0 { format!("OwlKick Engine updated {n} filter lists.") } else { "Could not download the filter lists.".to_string() };
+                    *KICK_UPD.lock().unwrap() = (false, if n > 0 { format!("Updated {n} lists just now.") } else { "Could not reach easylist.to. Try again later.".into() });
                     let note = json!({"id":"owlkick","label":"OwlKick","text":text,"actions":[{"t":"OK","pri":true}]});
                     let _ = app.ui.evaluate_script(&format!("owl.notice({note})"));
                 }

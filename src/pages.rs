@@ -2,6 +2,7 @@ use crate::{Config, Store};
 use std::collections::HashSet;
 
 const CSS: &str = r#"*{box-sizing:border-box;margin:0;padding:0}
+main{animation:pagein .42s cubic-bezier(.2,.8,.2,1) both}@keyframes pagein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){main{animation:none}}
 /*THEMES*/
 html{scroll-behavior:smooth}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 body{font:16px/1.45 "Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);padding:0 40px 40px;min-height:100vh;-webkit-font-smoothing:antialiased;transition:background .35s,color .35s}
@@ -145,6 +146,8 @@ form.s kbd{align-self:center;font:700 12px "Helvetica Neue",Arial;color:var(--mu
 const SHARED_JS: &str = r#"<script>
 (function(){
  const send=o=>ipc.postMessage(JSON.stringify(o)),$=i=>document.getElementById(i);
+ // links out of Owl's own pages open in a new tab instead of replacing the page
+ document.addEventListener('click',e=>{const l=e.target.closest('a[href]');if(!l||e.defaultPrevented)return;const h=l.getAttribute('href')||'';if(/^https?:\/\//i.test(h)&&!/^https?:\/\/owl\.localhost/i.test(h)){e.preventDefault();send({cmd:'open_owl',url:h})}},true);
  document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;
   if(a==='cmpset'){const r=document.querySelector('[data-sel=compress]');if(r){r.value=b.dataset.v;r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}))}return}
   if(a==='warp'){send({cmd:'warp',a:b.dataset.w});return}
@@ -207,7 +210,7 @@ fn page(title: &str, body: &str, head: &str, theme: &str, cls: &str) -> String {
     html.replace("<script>", &format!("<script nonce={n}>"))
 }
 fn hdr(title: &str) -> String {
-    format!("<header><span>Owl <i>/</i> {title}</span><span>Ultra-light browser</span></header>")
+    format!("<header><span>Owl<i>.</i> <i>/</i> {title}</span><span>The private browser</span></header>")
 }
 fn icon(i: &str, u: &str) -> String {
     let h = host(u);
@@ -604,13 +607,13 @@ pub fn downloads(theme: &str) -> String {
 .dr.paused .parts i::after,.dr.paused .bar i{background:var(--mute)}
 .dr .inf{font-size:12px;font-variant-numeric:tabular-nums;line-height:1.5}.dr .inf b{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:2px}
 .dr .inf .m{color:var(--mute)}
-.dr .ac{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}.dr .ac button{min-height:32px;padding:0 12px;font-size:11px}
+.dr .ac{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}.dr .ac button{min-height:34px;width:34px;padding:0;justify-content:center}.dr .ac button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.dr .ac button.ok{background:var(--red);color:var(--onred)}.dr{cursor:pointer;transition:background .15s,box-shadow .15s}.dr:hover{background:var(--soft)}.dr.sel{box-shadow:inset 3px 0 0 var(--red);background:var(--soft)}.selnote{font-size:12px;color:var(--mute);margin:-2px 0 10px}.selnote button{min-height:24px;padding:0 8px;margin-left:8px;font-size:10px}
 .dr.done .bar i{background:var(--ink)}.dr.failed .bar i,.dr.cancelled .bar i{background:var(--mute)}
 button[disabled]{opacity:.45;cursor:default}
 @media(max-width:900px){.dr{grid-template-columns:44px 1fr}.dr .inf,.dr .ac{grid-column:2}.dr .ac{justify-content:flex-start}.stats{grid-template-columns:repeat(2,1fr)}.dtop{grid-template-columns:1fr}}
 </style>"#;
     let extra = r#"<div class=dtop><label class=vh for=addu>Add a download</label><input class=pf id=addu placeholder="Paste a link or a magnet link to download it" autocomplete=off spellcheck=false><button id=addb>Add download</button></div>
-<div class=stats aria-live=polite><div><b id=s1>0</b><span>Active</span></div><div><b id=s2>0 B/s</b><span>Download speed</span></div><div><b id=s3>0</b><span>Connections</span></div><div><b id=s4>0 B/s</b><span>Torrent upload</span></div></div>
+<div class=stats aria-live=polite><div><b id=s1>0</b><span id=l1>Active</span></div><div><b id=s2>0 B/s</b><span id=l2>Download speed</span></div><div><b id=s3>0</b><span id=l3>Connections</span></div><div><b id=s4>0 B/s</b><span id=l4>Torrent upload</span></div></div><p class=selnote id=selnote hidden></p>
 <div class=tb role=group aria-label="Filter downloads"><button class=on data-f=all aria-pressed=true>All</button><button class=ghost data-f=active aria-pressed=false>Active</button><button class=ghost data-f=done aria-pressed=false>Completed</button><button class=ghost data-f=torrent aria-pressed=false>Torrents</button>
 <label class=vh for=cat>Type</label><select class=pk id=cat aria-label="File type"><option value="">All types</option><option>Video</option><option>Music</option><option>Documents</option><option>Images</option><option>Archives</option><option>Programs</option><option>Other</option></select>
 <label class=vh for=dq>Search downloads</label><input class=pf id=dq placeholder="Search" style="width:180px"><span class=sp></span>
@@ -627,9 +630,12 @@ const EXT={Video:['mp4','mkv','avi','mov','webm','wmv','m4v'],Music:['mp3','wav'
 function cat(d){if(d.kind==='torrent')return 'Torrent';const e=(d.name.split('.').pop()||'').toLowerCase();for(const k in EXT)if(EXT[k].includes(e))return k;return 'Other'}
 const P={Torrent:'<path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/>',Video:'<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',Music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',Documents:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 13H8"/><path d="M16 17H8"/>',Images:'<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',Archives:'<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',Programs:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',Other:'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>'};
 function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
-const TIP={'Stop and delete':'Stop the torrent and delete what was downloaded','Stop seeding':'Stop uploading this finished torrent to other peers','Force start':'Start now, even if the downloads-at-once limit is reached','Retry':'Resume from where it stopped; finished parts are kept','Show':'Show the file in its folder','Copy link':'Copy the address this file came from','Remove':'Remove from the list; the file stays on disk','Cancel':'Stop and delete the partial file'};
-function btn(label,cmd,d){const b=el('button','ghost',label);if(TIP[label])b.title=TIP[label];b.onclick=()=>{if(cmd==='copy'){try{navigator.clipboard.writeText(d.url)}catch(e){}b.textContent='Copied';setTimeout(()=>b.textContent=label,1200);return}send({cmd,id:d.id});setTimeout(poll,150)};return b}
-function row(d){const L=d.live||{},tor=d.kind==='torrent',k=cat(d);const r=el('div','dr '+d.status+(tor?' torrent':''));
+const AI={'Start now':'<polygon points="6 3 20 12 6 21 6 3"/>','Pause':'<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>','Stop':'<rect x="5" y="5" width="14" height="14"/>','Resume':'<polygon points="6 3 20 12 6 21 6 3"/>','Stop and delete':'<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>','Cancel':'<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>','Open':'<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>','Show':'<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>','Stop seeding':'<path d="m17 11-5-5-5 5"/><path d="M12 6v12"/><path d="M4 4l16 16"/>','Copy link':'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>','Retry':'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>','Remove':'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>','Copied':'<path d="M20 6 9 17l-5-5"/>'};
+const TIP={'Start now':'Start now, even if the downloads-at-once limit is reached','Pause':'Pause; resumes from where it stopped','Stop':'Stop the torrent','Resume':'Resume','Open':'Open the file','Show':'Show the file in its folder','Copy link':'Copy the address this file came from','Remove':'Remove from the list; the file stays on disk','Cancel':'Stop and delete the partial file','Retry':'Resume from where it stopped; finished parts are kept','Stop and delete':'Stop the torrent and delete what was downloaded','Stop seeding':'Stop uploading this finished torrent to other peers'};
+const svg=n=>'<svg viewBox="0 0 24 24" aria-hidden="true">'+(AI[n]||'')+'</svg>';
+function btn(label,cmd,d){const b=el('button','ghost');b.innerHTML=svg(label);b.dataset.a=label;b.title=TIP[label]||label;b.setAttribute('aria-label',label+': '+d.name);b.onclick=e=>{e.stopPropagation();if(cmd==='copy'){try{navigator.clipboard.writeText(d.url)}catch(_){}b.innerHTML=svg('Copied');b.classList.add('ok');b.title='Copied';setTimeout(()=>{b.innerHTML=svg(label);b.classList.remove('ok');b.title=TIP[label]},1200);return}send({cmd,id:d.id});setTimeout(poll,150)};return b}
+let SEL=0;
+function row(d){const L=d.live||{},tor=d.kind==='torrent',k=cat(d);const r=el('div','dr '+d.status+(tor?' torrent':'')+(SEL===d.id?' sel':''));r.tabIndex=0;r.setAttribute('aria-selected',SEL===d.id);r.title='Click to show this download in the totals above';r.onclick=()=>{SEL=SEL===d.id?0:d.id;sig='';stats();draw()};r.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&e.target===r){e.preventDefault();r.click()}};
  const ic=el('div','ic');ic.setAttribute('aria-hidden','true');ic.innerHTML='<svg viewBox="0 0 24 24">'+(P[k]||P.Other)+'</svg>';r.appendChild(ic);
  const mid=el('div');const nm=el('div','nm');const tg=el('span','tag'+(tor?' t':''),tor?'Torrent':d.kind==='fast'?'Fast':d.kind==='media'?'Media':k);nm.appendChild(tg);nm.appendChild(document.createTextNode(d.name));nm.title=d.url||d.name;mid.appendChild(nm);
  mid.appendChild(el('div','pa',d.path));
@@ -662,19 +668,30 @@ function draw(){const L=document.getElementById('list');
  if(!rows.length){L.textContent='';R.clear();L.appendChild(el('div','empty',F==='active'?'Nothing is downloading right now.':F==='torrent'?'No torrents yet. Open a magnet link or a .torrent file, or paste one above.':D.length?'Nothing matches.':'Files you download appear here. Paste a link above to download it with up to 8 connections.'));return}
  const em=L.querySelector('.empty');if(em)em.remove();
  // update rows in place: only a row whose data changed is rebuilt, so the list does not flicker
- const keep=new Set(),fa=document.activeElement,ft=fa&&fa.tagName==='BUTTON'?fa.textContent:null;
- rows.forEach(d=>{const s=JSON.stringify(d);let x=R.get(d.id);if(!x||x.s!==s){const n=row(d);const had=x&&x.el.contains(fa);if(x)x.el.replaceWith(n);x={el:n,s};R.set(d.id,x);if(had&&ft){const b=[...n.querySelectorAll('button')].find(b=>b.textContent===ft);if(b)b.focus()}}keep.add(d.id);L.appendChild(x.el)});
+ const keep=new Set(),fa=document.activeElement,ft=fa&&fa.tagName==='BUTTON'?fa.dataset.a:null;
+ rows.forEach(d=>{const s=JSON.stringify(d);let x=R.get(d.id);if(!x||x.s!==s){const n=row(d);const had=x&&x.el.contains(fa);if(x)x.el.replaceWith(n);x={el:n,s};R.set(d.id,x);if(had&&ft){const b=[...n.querySelectorAll('button')].find(b=>b.dataset.a===ft);if(b)b.focus()}}keep.add(d.id);L.appendChild(x.el)});
  for(const [id,x] of R)if(!keep.has(id)){x.el.remove();R.delete(id)}}
 const ST=['downloading','paused','pending','done','failed','cancelled','interrupted'],KD=['','fast','torrent','media','image','add'];
+function setS(i,v,l){document.getElementById('s'+i).textContent=v;document.getElementById('l'+i).textContent=l}
+// the totals bar: every download, or only the selected one
+function stats(){const x=SEL&&D.find(d=>d.id===SEL),n=document.getElementById('selnote');
+ if(!x){SEL=0;n.hidden=true;const a=D.filter(d=>d.status==='downloading');
+  setS(1,a.length,'Active');setS(2,sz(a.reduce((s,d)=>s+d.speed,0))+'/s','Download speed');
+  setS(3,D.reduce((s,d)=>s+((d.live&&+d.live.conns)||0)+((d.live&&+d.live.peers)||0),0),'Connections');
+  setS(4,sz(D.reduce((s,d)=>s+((d.live&&+d.live.up)||0),0))+'/s','Torrent upload');return}
+ const L=x.live||{},tor=x.kind==='torrent',pct=x.total>0?Math.min(100,x.received*100/x.total):(x.status==='done'?100:0),sp=x.status==='downloading'?x.speed:0;
+ setS(1,Math.floor(pct)+'%',x.total>0?sz(x.received)+' of '+sz(x.total):x.status);
+ setS(2,sz(sp)+'/s',sp>0&&x.total>0?eta((x.total-x.received)/sp)+' left':'Download speed');
+ if(tor){setS(3,(+L.peers||0)+' / '+(+L.seeders||0),'Peers / seeders');setS(4,sz(+L.up||0)+'/s','Upload · '+sz(+L.uploaded||0)+' sent')}
+ else{setS(3,+L.conns||0,(L.parts&&L.parts.length>1)?L.parts.length+' parts':'Connections');setS(4,x.kind==='fast'?'Fast':x.kind==='media'?'Media':'Browser','Engine')}
+ n.hidden=false;n.textContent='Showing '+x.name+'.';const c=el('button','ghost','Show all');c.onclick=()=>{SEL=0;sig='';stats();draw()};n.appendChild(c)}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&SEL){SEL=0;sig='';stats();draw()}});
 async function poll(){try{const j=await (await fetch('/downloads.json',{cache:'no-store'})).json();meta=j||{};
  D=(j.items||[]).map(d=>({id:+d.id||0,name:String(d.name||''),path:String(d.path||''),url:String(d.url||''),status:ST.includes(d.status)?d.status:'failed',kind:KD.includes(d.kind)?d.kind:'',received:+d.received||0,total:+d.total||0,speed:+d.speed||0,live:d.live&&typeof d.live==='object'?d.live:null}));
- const a=D.filter(d=>d.status==='downloading');
- document.getElementById('s1').textContent=a.length;document.getElementById('s2').textContent=sz(a.reduce((s,d)=>s+d.speed,0))+'/s';
- document.getElementById('s3').textContent=D.reduce((s,d)=>s+((d.live&&+d.live.conns)||0)+((d.live&&+d.live.peers)||0),0);
- document.getElementById('s4').textContent=sz(D.reduce((s,d)=>s+((d.live&&+d.live.up)||0),0))+'/s';
+ stats();
  const lim=document.getElementById('lim'),par=document.getElementById('par');if(document.activeElement!==lim)lim.value=String(+meta.limit||0);if(document.activeElement!==par)par.value=String(+meta.active||3);
  document.getElementById('clr').disabled=!D.some(d=>!act(d));
- const k=JSON.stringify(D)+F+C+Q;if(k!==sig){sig=k;draw()}}catch(e){}}
+ const k=JSON.stringify(D)+F+C+Q+SEL;if(k!==sig){sig=k;draw()}}catch(e){}}
 document.querySelectorAll('.tb button[data-f]').forEach(b=>b.onclick=()=>{F=b.dataset.f;document.querySelectorAll('.tb button[data-f]').forEach(x=>{x.className=x===b?'on':'ghost';x.setAttribute('aria-pressed',x===b)});sig='';poll()});
 document.getElementById('cat').onchange=e=>{C=e.target.value;sig='';draw()};
 document.getElementById('dq').oninput=e=>{Q=e.target.value.trim().toLowerCase();sig='';draw()};
@@ -732,7 +749,6 @@ const THEME_CARDS: &[(&str, &str, &str, &str, &str)] = &[
     ("dark", "Dark", "#101010", "#f4f4f4", "#ff3b30"),
     ("black", "Black", "#000", "#fff", "#ff2b1f"),
     ("navy", "Navy", "#0b1a3a", "#eef3ff", "#ff5a36"),
-    ("invert", "Invert", "#e30613", "#fff", "#111"),
     ("sand", "Sand", "#efe9dc", "#171717", "#b8290f"),
     ("random", "Random", "conic-gradient(#e30613,#0b1a3a,#efe9dc,#000,#e30613)", "#fff", "#111"),
 ];
@@ -930,7 +946,7 @@ pub fn owlkick(theme: &str) -> String {
 .ktb{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;align-items:center}.ktb .sp{flex:1}.ktb .st{font-size:13px;color:var(--mute)}
 @media(max-width:900px){.kst{grid-template-columns:repeat(2,1fr)}.kg{grid-template-columns:1fr}.kr{grid-template-columns:60px minmax(0,1fr)}.kr .k,.kr .p{display:none}}
 </style>"#;
-    let body = r#"<div class=ktb><span class=st id=kon></span><span class=sp></span><button class=ghost id=kupd>Update lists</button><a class=btn href="owl://settings#owlkick">OwlKick settings</a></div>
+    let body = r#"<div class=ktb><span class=st id=kon></span><span class=sp></span><span class=st id=kmsg role=status></span><button class=ghost id=kupd>Update lists</button><a class=btn href="owl://settings#owlkick">OwlKick settings</a></div>
 <div class=kst aria-live=polite><div><b id=k1>0</b><span>Blocked this session</span></div><div><b id=k2>0</b><span>Blocked all time</span></div><div><b id=k3>0</b><span>Filter lists</span></div><div><b id=k4>-</b><span>Lists updated</span></div></div>
 <div class=kg><div><div class=kh>Most blocked hosts <span>session</span></div><div id=kh></div></div><div><div class=kh>Pages with most blocking <span>session</span></div><div id=kp></div><div class=kh style="margin-top:28px">By kind</div><div id=kk></div></div></div>
 <div class=kh>Latest blocked requests <span id=kc></span></div><div id=kl></div>
@@ -943,6 +959,7 @@ const ago=t=>{const s=Math.max(0,Math.floor(Date.now()/1000)-(+t||0));return s<6
 let sig='';
 async function poll(){try{const j=await (await fetch('/owlkick.json',{cache:'no-store'})).json();
  document.getElementById('k1').textContent=(+j.session||0).toLocaleString();document.getElementById('k2').textContent=(+j.total||0).toLocaleString();
+ {const b=document.getElementById('kupd'),u=j.upd||{};if(u.state==='running'){b.textContent='Updating...';b.disabled=true}else{b.disabled=false;b.textContent='Update lists';const m=document.getElementById('kmsg');if(m)m.textContent=u.msg||''}}
  document.getElementById('k3').textContent=String(+j.lists||0);document.getElementById('k4').textContent=j.age==null?'never':(+j.age===0?'today':j.age+' d ago');
  document.getElementById('kon').textContent=j.on?'OwlKick is on'+(Array.isArray(j.off)&&j.off.length?' · off on '+j.off.length+' site'+(j.off.length>1?'s':''):''):'OwlKick is off. Turn it on in settings.';
  const k=JSON.stringify([j.recent&&j.recent.slice(0,40),j.hosts,j.pages,j.kinds]);if(k===sig)return;sig=k;
@@ -951,7 +968,7 @@ async function poll(){try{const j=await (await fetch('/owlkick.json',{cache:'no-
  const L=document.getElementById('kl');L.textContent='';const rec=(j.recent||[]).slice(0,60);document.getElementById('kc').textContent=rec.length?'newest first':'';
  if(!rec.length){L.appendChild(el('div','empty','Blocked requests show up here as you browse.'));return}
  rec.forEach(x=>{const r=el('div','kr');r.appendChild(el('span','t',ago(x.t)));r.appendChild(el('span','h',String(x.h||'')));r.appendChild(el('span','k',String(x.k||'')));r.appendChild(el('span','p',x.p?'on '+x.p:''));L.appendChild(r)})}catch(e){}}
-document.getElementById('kupd').onclick=()=>{send({cmd:'filters_update'});document.getElementById('kupd').textContent='Updating...'};
+document.getElementById('kupd').onclick=()=>{send({cmd:'filters_update'});const b=document.getElementById('kupd');b.textContent='Updating...';b.disabled=true;setTimeout(poll,300)};
 poll();setInterval(poll,2000)})();
 </script>"#;
     list_page("OwlKick", body, "<p class=lead style=\"max-width:62ch;margin-bottom:24px\">What Owl's content blocker stopped while you browsed. Nothing here leaves this PC, and it is cleared when Owl closes.</p>", css, theme)

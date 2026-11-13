@@ -19,7 +19,7 @@ svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke
 @keyframes dot{from{transform:scale(.4)}to{transform:scale(1)}}
 #bar{flex:none;display:flex;flex-direction:column;contain:layout paint;border-top:1px solid var(--ink);position:relative;background:var(--bg)}
 #top{height:32px;display:flex;align-items:stretch;border-bottom:1px solid var(--line)}
-#brand{width:40px;background:var(--red);color:var(--onred);letter-spacing:-.04em;display:flex;align-items:center;justify-content:center;flex:none;font:italic 700 16px Georgia,serif}
+#brand{width:56px;color:var(--red);display:flex;align-items:center;justify-content:center;flex:none}#brand svg{width:38px;height:auto;fill:currentColor;stroke:none}
 #tabs{display:flex;flex:1;min-width:0}
 #tl{display:flex;min-width:0;flex:0 1 auto;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}#tl::-webkit-scrollbar{display:none}
 #fill{flex:1;min-width:28px}
@@ -144,7 +144,7 @@ body.bm #marks{display:flex}
 #lock{display:none;position:fixed;inset:0;z-index:100;background:var(--bg);grid-template-columns:1.3fr 1fr}
 body.locked #lock{display:grid;animation:ovin .35s ease-out}
 #lock .l{padding:48px 56px;display:flex;flex-direction:column;justify-content:space-between;border-right:2px solid var(--ink)}
-#lock .w{font:italic 400 clamp(120px,22vw,340px)/.8 Georgia,"Palatino Linotype",serif;letter-spacing:-.06em;color:var(--red);animation:rise .8s cubic-bezier(.2,.7,.2,1) both}
+#lock .w{color:var(--red)}#lock .w svg{width:min(92%,640px);height:auto;overflow:visible}#wmp{fill:currentColor;stroke:currentColor;stroke-width:1.4;stroke-linejoin:round}#wms.write #wmp{fill-opacity:0;stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:wmdraw 2.4s cubic-bezier(.45,.05,.3,1) forwards,wmfill .9s ease-out 1.9s forwards}@keyframes wmdraw{to{stroke-dashoffset:0}}@keyframes wmfill{to{fill-opacity:1;stroke-width:0}}
 #lock .hint{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
 #lock .hint span{color:var(--mute);display:block;margin-top:8px;letter-spacing:.02em;text-transform:none;font-weight:500;font-size:13px}
 #lock .r{padding:48px 56px;display:flex;flex-direction:column;justify-content:center;gap:28px;max-width:560px}
@@ -196,6 +196,8 @@ body.modal #lwin{display:flex;z-index:210}body.modal #ldrag{display:block;z-inde
 #find input{flex:1;min-width:0;width:auto}
 .zr button.zv{width:auto;min-width:56px;background:none;font-size:14px}.zr button.zv:hover{background:var(--ink);color:var(--on)}
 button.chip{background:none;border:0;font-family:inherit;min-height:24px;padding:0 4px}#shield{cursor:default}
+#addr{position:relative}#addr::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:0;background:var(--red);opacity:0;transition:opacity .3s}#addr.ld::after{opacity:1;animation:adld 2.4s cubic-bezier(.1,.7,.2,1) forwards}#addr.ld::before{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent,var(--red),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:adsh 1.1s linear infinite;opacity:.55}@keyframes adld{from{width:0}to{width:85%}}@keyframes adsh{from{background-position:-40% 0}to{background-position:140% 0}}
+#sec{cursor:pointer;border-radius:0;padding:0 2px}#sec:hover{color:var(--ink)}#sec.bad:hover{color:var(--red)}
 #sec{display:none;align-items:center;gap:5px;flex:none;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
 #sec.show{display:flex}#sec svg{width:14px;height:14px}#sec.bad{color:var(--red)}
 button.m{border:0;background:none;color:inherit;font:inherit;font-size:12px}
@@ -230,13 +232,25 @@ body.top #tool{order:1;border-bottom:1px solid var(--line)}body.top #top{order:2
 .fh{display:block;font-size:12px;color:var(--mute);margin:5px 0 2px}
 #lock input[aria-invalid=true]{box-shadow:inset 0 0 0 2px var(--red)}
 #lmsg.ok{color:var(--ink)}
+#wn{display:none;position:fixed;inset:0;z-index:300;background:var(--bg);overflow:auto}body.wn #wn{display:flex}body.wn #bar,body.wn #lock{visibility:hidden}
+#wn .wc{margin:auto;width:min(1120px,92vw);padding:48px 0;animation:rise .5s cubic-bezier(.2,.8,.2,1) both}
+#wn .wk{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
+#wn h2{font-size:clamp(40px,6vw,84px);letter-spacing:-.04em;line-height:.95;margin:10px 0 28px}
+#wn .wg{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;border-top:2px solid var(--ink);padding-top:22px}
+#wn figure{margin:0;animation:rise .5s cubic-bezier(.2,.8,.2,1) both}#wn img{width:100%;aspect-ratio:16/9;object-fit:cover;object-position:top;border:1px solid var(--ink);display:block;margin-bottom:12px}
+#wn figure b{display:block;font-size:17px;margin-bottom:6px}#wn figure p{font-size:14px;line-height:1.5;color:var(--mute)}
+#wn .wa{display:flex;gap:10px;justify-content:flex-end;margin-top:32px}
+#wn .wa button{min-height:40px;padding:0 22px;border:0;font:700 11px "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+#wn .wa .pri{background:var(--red);color:var(--onred)}#wn .wa .g2{background:var(--soft);color:var(--ink)}
+@media(max-width:900px){#wn .wg{grid-template-columns:1fr}}
+.b.q.pop,#sec.pop{color:var(--red)}
 </style></head><body>
 <div id="mdl"><div class="mc" role="dialog" aria-modal="true" aria-labelledby="mh" aria-describedby="mt"><button class="mx" id="mx" aria-label="Close" title="Close (Esc)" data-i="x"></button><div class="mh" id="mh"></div><div class="mt" id="mt"></div><input id="mi" autocomplete="off" spellcheck="false" aria-label="Answer"><div class="mb"><button class="lnk" id="mshow" style="display:none" type="button">Show</button><button class="lnk" id="mblk">Stop this page showing dialogs</button><span class="sp"></span><button id="mcn">Cancel</button><button class="pri" id="mok">OK</button></div></div></div>
 <div id="ldrag"></div>
 <div id="lwin"><button class="wb" data-w="min" data-i="min" title="Minimize" aria-label="Minimize"></button><button class="wb" data-w="max" data-i="max" title="Maximize" aria-label="Maximize"></button><button class="wb cl" data-w="close" data-i="x" title="Close" aria-label="Close"></button></div>
 <div id="lock">
- <div class="l"><div class="hint">Owl<span>Ultra-light browser</span></div><div class="w">Owl.</div><div class="hint"><i id="lh" style="font-style:normal">Locked</i><span id="ls">Enter your key to open the browser.</span></div></div>
- <div class="r"><div id="rcv" role="alert"><h3>Settings need attention</h3><p>Owl&#39;s settings file is damaged or missing, so your encrypted data cannot be opened safely. Nothing was changed or deleted.</p><p>Restore <b>config.json</b> from <b>config.bak</b> in your Owl folder, then start Owl again.</p><div class="rb"><button id="rcvo" type="button">Open Owl folder</button><button id="rcvq" type="button" class="g2">Quit</button></div></div><div id="dots" role="img" aria-label="0 of 4 digits entered"><i></i><i></i><i></i><i></i></div><form id="sf" autocomplete="off"><h3>Welcome to Owl</h3><p>Set up your browser. Your name and email stay on this PC, inside the encrypted store, and are never sent anywhere. The password replaces the default key and protects your saved passwords, history and cookies.</p>
+ <div class="l"><div class="hint">Owl<span>Ultra-light browser</span></div><div class="w" role="img" aria-label="Owl."><svg viewBox="-4 -4 516.1 225" id="wms"><path id="wmp" d="__WM__"/></svg></div><div class="hint"><i id="lh" style="font-style:normal">Locked</i><span id="ls">Enter your key to open the browser.</span></div></div>
+ <div class="r"><div id="rcv" role="alert"><h3>Settings need attention</h3><p>Owl&#39;s settings file is damaged or missing, so your encrypted data cannot be opened safely. Nothing was changed or deleted.</p><p>Restore <b>config.json</b> from <b>config.bak</b> in your Owl folder, then start Owl again.</p><div class="rb"><button id="rcvo" type="button">Open Owl folder</button><button id="rcvq" type="button" class="g2">Quit</button></div></div><div id="dots" role="img" aria-label="0 of 4 digits entered"><i></i><i></i><i></i><i></i></div><form id="sf" autocomplete="off"><h3>Welcome to Owl.</h3><p>Set up your browser. Your name and email stay on this PC, inside the encrypted store, and are never sent anywhere. The password replaces the default key and protects your saved passwords, history and cookies.</p>
   <label class="fl" for="sn">Your name</label><input id="sn" maxlength="60" autocomplete="off" aria-describedby="lmsg">
   <label class="fl" for="se">Email address</label><input id="se" type="email" maxlength="120" autocomplete="off" aria-describedby="lmsg">
   <label class="fl" for="sp1">New passphrase</label><input id="sp1" type="password" maxlength="128" autocomplete="off" aria-describedby="sp1h lmsg"><span class="fh" id="sp1h">At least 12 characters. A few words you will remember works well.</span>
@@ -245,17 +259,18 @@ body.top #tool{order:1;border-bottom:1px solid var(--line)}body.top #top{order:2
   <div id="pad"></div></div>
 </div>
 <div id="ovl"></div>
+<div id="wn"></div>
 <div id="bar">
  <div id="load"></div>
  <div id="marks"></div>
- <div id="top"><div id="brand">Ow</div><div id="tabs"><div id="tl" role="tablist" aria-label="Tabs"></div><button id="plus" data-i="plus" title="New tab (Ctrl+T)" aria-label="New tab"></button><div id="fill"></div></div><div id="priv">PRIVATE</div></div>
+ <div id="top"><div id="brand" title="Owl."><svg viewBox="0 0 508.1 217" aria-hidden="true"><path d="__WM__"/></svg></div><div id="tabs"><div id="tl" role="tablist" aria-label="Tabs"></div><button id="plus" data-i="plus" title="New tab (Ctrl+T)" aria-label="New tab"></button><div id="fill"></div></div><div id="priv">PRIVATE</div></div>
  <div id="tool">
   <button class="b" id="back" data-i="back" title="Back (Alt+Left)" aria-label="Back"></button>
   <button class="b" id="fwd" data-i="fwd" title="Forward (Alt+Right)" aria-label="Forward"></button>
+  <button class="b" id="rel" data-i="rel" title="Reload (Ctrl+R)" aria-label="Reload"></button>
   <div id="addr"><span id="sec"></span><input id="url" spellcheck="false" autocomplete="off" aria-label="Address" placeholder="Search or enter address" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ovl"><button type="button" class="chip" id="zc" title="Reset zoom" aria-label="Reset zoom"></button></div>
   <div id="quick" role="group" aria-label="Quick settings"><button type="button" class="b q" id="qsav" data-i="gauge" aria-pressed="false" aria-label="Data saver" title="Data saver"></button><button type="button" class="b q" id="qdns" data-i="dnsi" aria-pressed="false" aria-label="Secure DNS" title="Secure DNS"></button><button type="button" class="b q" id="qkick" data-i="kick" aria-label="OwlKick activity" title="OwlKick activity"><span id="shield" class="vh"></span></button></div>
   <div id="find" role="search"><input id="fi" placeholder="Find in page" aria-label="Find in page" spellcheck="false"><button type="button" id="fprev" data-i="up" title="Previous match (Shift+Enter)" aria-label="Previous match"></button><button type="button" id="fnext" data-i="down" title="Next match (Enter)" aria-label="Next match"></button><button type="button" id="fclose" data-i="x" title="Close (Esc)" aria-label="Close find"></button></div>
-  <button class="b" id="rel" data-i="rel" title="Reload (Ctrl+R)" aria-label="Reload"></button>
   <button class="b" id="mdb" data-i="vid" title="Download video or audio from this page" aria-label="Download video or audio from this page" hidden></button>
   <button class="b" id="home" data-i="home" title="Home" aria-label="Home"></button>
   <button class="b" id="dlb" data-i="dl" title="Downloads" aria-label="Downloads"><span id="dls"></span><i id="dlp"></i></button>
@@ -313,7 +328,7 @@ function ico(i,u,cls){const m=document.createElement('img');if(cls)m.className=c
 const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
 const spd=b=>b>=1e6?(b/1e6).toFixed(1)+' MB/s':b>=1e3?Math.round(b/1e3)+' KB/s':Math.round(b)+' B/s';
 const dur=s=>{const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?h+'h '+String(m).padStart(2,'0')+'m':m?m+'m':s>0?'<1m':'0m'};
-const TH=[['system','System','linear-gradient(90deg,#fff 50%,#101010 50%)','#777','#e30613'],['light','Light','#fff','#111','#e30613'],['dark','Dark','#101010','#f4f4f4','#ff3b30'],['black','Black','#000','#fff','#ff2b1f'],['navy','Navy','#0b1a3a','#eef3ff','#ff5a36'],['invert','Invert','#e30613','#fff','#111'],['sand','Sand','#efe9dc','#171717','#b8290f'],['random','Random','conic-gradient(#e30613,#0b1a3a,#efe9dc,#000,#e30613)','#fff','#111']];
+const TH=[['system','System','linear-gradient(90deg,#fff 50%,#101010 50%)','#777','#e30613'],['light','Light','#fff','#111','#e30613'],['dark','Dark','#101010','#f4f4f4','#ff3b30'],['black','Black','#000','#fff','#ff2b1f'],['navy','Navy','#0b1a3a','#eef3ff','#ff5a36'],['sand','Sand','#efe9dc','#171717','#b8290f'],['random','Random','conic-gradient(#e30613,#0b1a3a,#efe9dc,#000,#e30613)','#fff','#111']];
 let keep=false,skipSel=false,lastH=-1,ctimer=0,lastAct=null;
 const lsGet=(k,d)=>{try{return localStorage.getItem(k)||d}catch(e){return d}},lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
 function setSec(u){const s=$('sec');
@@ -394,8 +409,16 @@ tl.addEventListener('keydown',e=>{const tabs=[...tl.querySelectorAll('.tab:not(.
 tl.addEventListener('wheel',e=>{if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){tl.scrollLeft+=e.deltaY;e.preventDefault()}},{passive:false});
 $('marks').addEventListener('wheel',e=>{if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){$('marks').scrollLeft+=e.deltaY;e.preventDefault()}},{passive:false});
 /* ---------- state ---------- */
+function writeMark(){const sv=$('wms'),p=$('wmp');if(!sv||!p||matchMedia('(prefers-reduced-motion: reduce)').matches)return;try{sv.style.setProperty('--len',Math.ceil(p.getTotalLength())+'');sv.classList.remove('write');void sv.getBoundingClientRect();sv.classList.add('write')}catch(e){}}
+let wasLocked=null;
 window.owl={
- state(s){S=s;const c=s.cfg||{};if(s.locked){lastMarks='';lastLoad=''}
+ panelState(k){['qsav','qdns','qkick','sec'].forEach(i=>$(i).classList.toggle('pop',{saver:'qsav',dns:'qdns',kick:'qkick',site:'sec'}[k]===i))},
+ whatsNew(d){const w=$('wn');w.textContent='';const c=el('div','wc');c.setAttribute('role','dialog');c.setAttribute('aria-modal','true');c.setAttribute('aria-labelledby','wnh');
+  const h=el('div','wh');h.appendChild(el('span','wk',(d.fresh?'Welcome to':'New in')+' Owl. '+d.ver+(d.name?' · '+d.name:'')));const t=el('h2','',d.fresh?'Good to meet you.':'What’s new.');t.id='wnh';h.appendChild(t);c.appendChild(h);
+  const g=el('div','wg');(d.items||[]).forEach((x,i)=>{const f=el('figure');f.style.animationDelay=(.12+i*.08)+'s';const im=document.createElement('img');im.src=x.img;im.alt='';f.appendChild(im);f.appendChild(el('b','',x.t));f.appendChild(el('p','',x.d));g.appendChild(f)});c.appendChild(g);
+  const a=el('div','wa');const n=el('button','g2','Release notes');n.onclick=()=>{send({cmd:'new_tab',url:d.notes});close()};const ok=el('button','pri','Start browsing');const close=()=>{document.body.classList.remove('wn');send({cmd:'wn_close'})};ok.onclick=close;a.append(n,ok);c.appendChild(a);
+  w.appendChild(c);document.body.classList.add('wn');setTimeout(()=>ok.focus(),60);w.onkeydown=e=>{if(e.key==='Escape')close()}},
+ state(s){S=s;const c=s.cfg||{};if(s.locked){lastMarks='';lastLoad=''}if(s.locked!==wasLocked){wasLocked=s.locked;if(s.locked)setTimeout(writeMark,60)}
   document.documentElement.dataset.theme=c.eff||c.theme||'system';
   document.body.classList.toggle('private',!!s.private);document.body.classList.toggle('bm',!!c.bar);
   document.body.classList.toggle('locked',!!s.locked);
@@ -413,7 +436,7 @@ window.owl={
    const z=Math.round(a.zoom*100);$('zc').textContent=z+'%';$('zc').classList.toggle('show',z!==100);
    $('back').disabled=!a.back;$('fwd').disabled=!a.fwd;setIc($('rel'),a.loading?'x':'rel');setSec(a.url);
    // the loading bar only restarts when loading starts or stops, not on every state update
-   const l=$('load'),lk=a.id+':'+!!a.loading;if(lk!==lastLoad){lastLoad=lk;l.className='';l.style.width='0';if(a.loading){void l.offsetWidth;l.className='go'}else{l.style.width='100%';setTimeout(()=>{if(!l.className)l.style.width='0'},250)}}}
+   $('addr').classList.toggle('ld',!!a.loading);const l=$('load'),lk=a.id+':'+!!a.loading;if(lk!==lastLoad){lastLoad=lk;l.className='';l.style.width='0';if(a.loading){void l.offsetWidth;l.className='go'}else{l.style.width='100%';setTimeout(()=>{if(!l.className)l.style.width='0'},250)}}}
   if(!!s.bookmarked!==prevBm){prevBm=!!s.bookmarked;$('star').classList.remove('pop');void $('star').offsetWidth;$('star').classList.add('pop')}
   $('star').classList.toggle('on',!!s.bookmarked);
   $('shield').textContent=s.blocked+' blocked';$('qkick').classList.toggle('has',s.blocked>0);$('qkick').title='OwlKick: '+(c.block?s.blocked+' blocked on this page session':'off')+'. Open activity';$('qkick').classList.toggle('off',!c.block);
@@ -502,7 +525,7 @@ const MT={'Private window':'A separate window that saves no history, cookies or 
 function item(label,hint,fn,on){const b=el('button','mi'+(on?' on':''));const lb=el('span','ml');if(MI[label])lb.insertAdjacentHTML('afterbegin',ic(MI[label]));lb.appendChild(document.createTextNode(label));b.appendChild(lb);if(MT[label])b.title=MT[label];
  if(on!==undefined){b.setAttribute('role','switch');b.setAttribute('aria-checked',on?'true':'false');b.appendChild(el('span','sw'))}else if(hint)b.appendChild(el('small','',hint));b.onclick=()=>{fn()};return b}
 function col(title){const d=el('div');d.appendChild(el('h4','',title));return d}
-const go=u=>()=>{closeOvl();send({cmd:'navigate',url:u})};
+const go=u=>()=>{closeOvl();send({cmd:'open_owl',url:u})};
 const setv=(key,val)=>()=>send({cmd:'set',key,val});
 function drawMenu(open=true){
   const c=S.cfg||{},a=S.tabs.find(t=>t.id===S.active)||{zoom:1};
@@ -575,13 +598,14 @@ fi.addEventListener('keydown',e=>{if(e.key==='Enter')send({cmd:'find',q:fi.value
 $('plus').onclick=()=>send({cmd:'new_tab'});$('back').onclick=()=>send({cmd:'back'});$('fwd').onclick=()=>send({cmd:'forward'});
 $('rel').onclick=()=>{const a=S.tabs.find(t=>t.id===S.active);if(a&&a.loading)return send({cmd:'stop'});const b=$('rel');b.classList.remove('spin');void b.offsetWidth;b.classList.add('spin');send({cmd:'reload'})};
 $('home').onclick=()=>send({cmd:'navigate',url:'owl://newtab'});
-$('dlb').onclick=()=>send({cmd:'navigate',url:'owl://downloads'});
+$('dlb').onclick=()=>send({cmd:'open_owl',url:'owl://downloads'});
 $('mdb').onclick=()=>send({cmd:'media_list'});
-$('qsav').onclick=()=>send({cmd:'quick_saver'});
-$('qdns').onclick=()=>send({cmd:'quick_dns'});
-$('qkick').onclick=()=>send({cmd:'navigate',url:'owl://owlkick'});
+const panel=(k,b)=>{closeOvl();send({cmd:'panel',kind:k,x:b.getBoundingClientRect().right})};
+$('qsav').onclick=e=>panel('saver',e.currentTarget);$('qdns').onclick=e=>panel('dns',e.currentTarget);$('qkick').onclick=e=>panel('kick',e.currentTarget);
+$('sec').setAttribute('role','button');$('sec').tabIndex=0;$('sec').onclick=e=>panel('site',e.currentTarget);$('sec').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();panel('site',e.currentTarget)}};
+document.addEventListener('mousedown',e=>{if(!e.target.closest('#quick,#sec'))send({cmd:'panel_close'})},true);
 $('inc').onclick=()=>send({cmd:'private'});
-$('pw').onclick=()=>send({cmd:'navigate',url:'owl://passwords'});
+$('pw').onclick=()=>send({cmd:'open_owl',url:'owl://passwords'});
 $('zc').onclick=()=>send({cmd:'zoom',d:0});
 $('star').onclick=()=>{const a=S.tabs.find(t=>t.id===S.active);if(!a)return;
   if(S.bookmarked){send({cmd:'bookmark'});owl.notice({id:'bm',label:'Bookmark',text:'Removed from bookmarks',actions:[{t:'Undo',cmd:'bookmark',args:{group:lsGet('owl.grp','General')}},{t:'OK'}]});return}

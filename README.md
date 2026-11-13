@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="Owl. Ultra-light private browser" width="100%">
+  <img src="assets/banner.svg" alt="Owl. The private browser for Windows" width="100%">
 </p>
 
 <p align="center">
@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <b>Owl</b> is a small, fast and private desktop browser for Windows. It is written in Rust,
+  <b>Owl.</b> is a small, fast and private desktop browser for Windows. It is written in Rust,
   renders with the system's Edge WebView2 engine, and wraps it in a Swiss-style interface that
   puts the address bar and tabs at the bottom and gives the page every other pixel.
 </p>
@@ -66,6 +66,8 @@ made-up sample data: the sites are `example.com` addresses and the downloads are
 | **Navy theme** on the calm home page. | **First run**: create your profile and passphrase. |
 | ![The Owl menu with icons, open over a page](assets/screenshots/menu.jpg) | ![About Owl: version, creator and credits](assets/screenshots/about.jpg) |
 | **Menu**: icons, shortcuts and switches with tooltips. | **About**: version, creator, credits, privacy and terms. |
+| ![OwlKick panel open from the toolbar](assets/screenshots/panel.jpg) | ![Site information panel: connection, certificate, cookies, permissions](assets/screenshots/site-info.jpg) |
+| **Toolbar panels**: OwlKick, Data saver, Secure DNS. | **Site information**: from the lock in the address bar. |
 
 ### How the main features work
 

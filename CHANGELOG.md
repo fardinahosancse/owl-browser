@@ -6,6 +6,32 @@ All notable changes to Owl are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-14
+
+Quickpatch. From 0.3 on, Owl. releases are an **alpha developer preview**: usable every day, still changing quickly.
+
+### Added
+- **Owl. wordmark**: the browser is called Owl. (with the dot). A new wordmark, traced from the brand artwork, replaces the owl-face logo in the app icon, installer, tab strip, lock screen, landing page, favicon and README.
+- **Site information**: click the lock in the address bar to see whether the connection is secure, the certificate, cookies for the site and the permissions you gave it, with Clear site data and Reset.
+- **Toolbar panels**: OwlKick, Data saver and Secure DNS open a small floating panel with the key numbers and switches, including turning OwlKick off for one site.
+- **What's new**: shown once after an install or update, with screenshots.
+- **Downloads**: select a download to see its own progress, speed, connections or peers in the totals bar; row actions are icons with tooltips.
+- **Lock screen**: the wordmark writes itself; Owl's pages and new web pages glide in; a loading line runs in the address bar while a page loads.
+
+### Fixed
+- Links between Owl's own pages (for example Settings > About Owl) did nothing.
+- OwlKick Update lists stayed on Updating... and never showed the result.
+- The landing page was not deployed when the last commit of a push did not touch the site.
+
+### Changed
+- Owl's pages opened from the menu or the toolbar open in their own tab, or switch to the tab that already shows them, instead of replacing the page you are on. Web links on Owl's pages open in a new tab.
+- Reload sits next to Back and Forward.
+- The Invert theme was removed; it falls back to Light.
+
+### Known issues
+- The site information panel shows "verified by Windows" instead of the certificate's issuer when the engine does not report certificate details.
+- Releases are not code-signed yet (#32). Torrent file selection is not available yet (#104).
+
 ## [0.3.0] - 2026-11-13
 
 ### Added
@@ -154,7 +180,8 @@ First public release.
 - Command allow-list for web pages; native (non-forgeable) fullscreen, popup and dialog events.
 - Atomic settings and vault writes with backups and a recovery state.
 
-[Unreleased]: https://github.com/fardinahosancse/owl-browser/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/fardinahosancse/owl-browser/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/fardinahosancse/owl-browser/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/fardinahosancse/owl-browser/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/fardinahosancse/owl-browser/compare/v0.1.1...v0.1.2
