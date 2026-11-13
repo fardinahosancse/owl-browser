@@ -1349,9 +1349,11 @@ fn serve(path: &str, query: &str, ctx: &Ctx) -> (u16, &'static str, String) {
             let names: Vec<String> = ctx.extensions().into_iter().map(|e| e.0).collect();
             (200, html, pages::settings(&ctx.cfg.lock().unwrap(), &names, &ctx.dir.to_string_lossy(), (&s.name, &s.email), &th))
         }
-        "/about" => (200, html, pages::about(&th)),
         "/permissions" => (200, html, pages::permissions(&th)),
         "/owlkick" => (200, html, pages::owlkick(&th)),
+        "/about" => (200, html, pages::about(env!("CARGO_PKG_VERSION"), &th)),
+        "/privacy" => (200, html, pages::privacy(&th)),
+        "/terms" => (200, html, pages::terms(&th)),
         _ => (404, html, pages::notfound(path, &th)),
     }
 }

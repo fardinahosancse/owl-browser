@@ -320,6 +320,13 @@ Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING
   and [x25519-dalek](https://github.com/dalek-cryptography/curve25519-dalek).
 - Microsoft Edge WebView2 for the rendering engine.
 
+## Privacy policy and terms
+
+Owl collects nothing about you. [PRIVACY.md](PRIVACY.md) lists what it stores on your PC and every
+connection it makes; [TERMS.md](TERMS.md) covers the licence, the lack of warranty and your
+responsibilities. Both are also inside the browser at `owl://privacy` and `owl://terms`, next to
+`owl://about` (menu > About Owl).
+
 ## License
 
 [MIT](LICENSE) © 2026 fardinahosancse

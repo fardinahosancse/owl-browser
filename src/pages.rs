@@ -19,7 +19,7 @@ button,.btn{border:0;background:var(--ink);color:var(--on);padding:0 22px;font:7
 button:hover,.btn:hover{background:var(--red);color:var(--onred)}
 button:active,.btn:active{transform:scale(.96)}
 button.on{background:var(--red);color:var(--onred)}
-button.ghost{background:var(--soft);color:var(--ink)}button.ghost:hover{background:var(--ink);color:var(--on)}
+button.ghost,.btn.ghost{background:var(--soft);color:var(--ink)}button.ghost:hover,.btn.ghost:hover{background:var(--ink);color:var(--on)}
 :focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .sec{grid-column:1/13;margin-bottom:40px}
 .row{display:grid;grid-template-columns:56px 1fr 2fr 140px;gap:24px;padding:13px 0;border-top:1px solid var(--line);align-items:baseline;animation:rise .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*28ms);transition:background .15s,color .15s,padding .15s}
@@ -349,6 +349,164 @@ fn empty(msg: &str, link: Option<(&str, &str)>) -> String {
         Some((href, label)) => format!("<div class=empty>{msg} <a href=\"{href}\">{label}</a></div>"),
         None => format!("<div class=empty>{msg}</div>"),
     }
+}
+
+const REPO: &str = "https://github.com/fardinahosancse/owl-browser";
+
+/// Inline Markdown: escaping first, then `code`, **bold**, _em_ and [links](url). Relative links
+/// (CHANGELOG.md, LICENSE) point at the repository.
+fn md_inline(t: &str) -> String {
+    let mut out = String::new();
+    let mut rest = esc(t);
+    // links
+    while let Some(a) = rest.find('[') {
+        let Some(b) = rest[a..].find("](").map(|i| a + i) else { break };
+        let Some(c) = rest[b..].find(')').map(|i| b + i) else { break };
+        out.push_str(&rest[..a]);
+        let (label, url) = (&rest[a + 1..b], &rest[b + 2..c]);
+        let href = if url.starts_with("http") { url.to_string() } else { format!("{REPO}/blob/main/{url}") };
+        out.push_str(&format!("<a href=\"{href}\">{label}</a>"));
+        rest = rest[c + 1..].to_string();
+    }
+    out.push_str(&rest);
+    let pair = |s: String, m: &str, open: &str, close: &str| {
+        let parts: Vec<&str> = s.split(m).collect();
+        if parts.len() < 3 {
+            return s;
+        }
+        let mut r = String::new();
+        for (i, p) in parts.iter().enumerate() {
+            if i > 0 {
+                // an unmatched last marker stays as it was
+                let unmatched = i == parts.len() - 1 && (parts.len() - 1) % 2 == 1;
+                r.push_str(if unmatched { m } else if i % 2 == 1 { open } else { close });
+            }
+            r.push_str(p);
+        }
+        r
+    };
+    let out = pair(out, "`", "<code>", "</code>");
+    let out = pair(out, "**", "<b>", "</b>");
+    pair(out, "_", "<em>", "</em>")
+}
+
+/// The small Markdown subset PRIVACY.md and TERMS.md use: headings, paragraphs, lists, tables.
+fn md_to_html(md: &str) -> String {
+    let mut h = String::new();
+    let mut para: Vec<String> = vec![];
+    let mut list: Vec<String> = vec![];
+    let mut table: Vec<Vec<String>> = vec![];
+    let flush = |h: &mut String, para: &mut Vec<String>, list: &mut Vec<String>, table: &mut Vec<Vec<String>>| {
+        if !para.is_empty() {
+            h.push_str(&format!("<p>{}</p>", md_inline(&para.join(" "))));
+            para.clear();
+        }
+        if !list.is_empty() {
+            h.push_str("<ul>");
+            for i in list.iter() {
+                h.push_str(&format!("<li>{}</li>", md_inline(i)));
+            }
+            h.push_str("</ul>");
+            list.clear();
+        }
+        if !table.is_empty() {
+            h.push_str("<table>");
+            for (r, row) in table.iter().enumerate() {
+                let tag = if r == 0 { "th" } else { "td" };
+                h.push_str("<tr>");
+                for c in row {
+                    h.push_str(&format!("<{tag}>{}</{tag}>", md_inline(c)));
+                }
+                h.push_str("</tr>");
+            }
+            h.push_str("</table>");
+            table.clear();
+        }
+    };
+    for line in md.replace("\r\n", "\n").lines().skip(1) {
+        let l = line.trim_end();
+        if l.is_empty() {
+            flush(&mut h, &mut para, &mut list, &mut table);
+        } else if let Some(t) = l.strip_prefix("## ") {
+            flush(&mut h, &mut para, &mut list, &mut table);
+            h.push_str(&format!("<h2>{}</h2>", md_inline(t)));
+        } else if l.starts_with('|') {
+            let cells: Vec<String> = l.trim_matches('|').split('|').map(|c| c.trim().to_string()).collect();
+            if !cells.iter().all(|c| c.chars().all(|ch| ch == '-' || ch == ':')) {
+                table.push(cells);
+            }
+        } else if let Some(t) = l.strip_prefix("- ") {
+            list.push(t.to_string());
+        } else if l.starts_with("  ") && !list.is_empty() {
+            let last = list.last_mut().unwrap();
+            last.push(' ');
+            last.push_str(l.trim());
+        } else {
+            para.push(l.trim().to_string());
+        }
+    }
+    flush(&mut h, &mut para, &mut list, &mut table);
+    h
+}
+
+const DOC_CSS: &str = r#"<style>
+.doc{max-width:76ch}
+.doc h2{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;border-top:2px solid var(--ink);padding-top:12px;margin:36px 0 12px}
+.doc p,.doc li{font-size:16px;line-height:1.6;margin-bottom:12px}
+.doc ul{padding-left:20px;margin-bottom:12px}
+.doc table{border-collapse:collapse;width:100%;margin:8px 0 16px;font-size:14px}
+.doc th{text-align:left;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-bottom:2px solid var(--ink);padding:8px 12px 8px 0}
+.doc td{border-bottom:1px solid var(--line);padding:10px 12px 10px 0;vertical-align:top}
+.doc a{color:var(--ink);text-decoration-color:var(--red);text-underline-offset:3px}
+.docnav{display:flex;gap:0;flex-wrap:wrap;margin:0 0 40px;border:1px solid var(--ink);width:max-content}.docnav .btn{text-decoration:none}.docnav .btn+.btn{border-left:1px solid var(--ink)}.docnav .btn[aria-current]{background:var(--red);color:var(--onred)}
+</style>"#;
+
+fn doc_nav(cur: &str) -> String {
+    [("owl://about", "About"), ("owl://privacy", "Privacy"), ("owl://terms", "Terms")]
+        .iter()
+        .map(|(u, l)| format!("<a class=\"btn{}\" href=\"{u}\"{}>{l}</a>", if *l == cur { "" } else { " ghost" }, if *l == cur { " aria-current=page" } else { "" }))
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+pub fn privacy(theme: &str) -> String {
+    let body = format!("<div class=docnav>{}</div><div class=doc>{}</div>", doc_nav("Privacy"), md_to_html(include_str!("../PRIVACY.md")));
+    list_page("Privacy", &body, "", DOC_CSS, theme)
+}
+
+pub fn terms(theme: &str) -> String {
+    let body = format!("<div class=docnav>{}</div><div class=doc>{}</div>", doc_nav("Terms"), md_to_html(include_str!("../TERMS.md")));
+    list_page("Terms", &body, "", DOC_CSS, theme)
+}
+
+pub fn about(version: &str, theme: &str) -> String {
+    let css = r#"<style>
+.ab{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:56px;align-items:start}
+.ab .ver{font-size:clamp(56px,8vw,120px);font-weight:700;letter-spacing:-.05em;line-height:.9;font-family:"Space Grotesk","Helvetica Neue",Helvetica,Arial,sans-serif}
+.ab .ver em{color:var(--red);font-style:normal}
+.ab p{font-size:16px;line-height:1.6;max-width:60ch;margin-bottom:14px}
+.who{border-top:2px solid var(--ink);padding-top:14px}
+.who .k{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.who .n{font-size:28px;font-weight:700;letter-spacing:-.02em;margin:6px 0 4px}
+.who dl{display:grid;grid-template-columns:120px 1fr;margin-top:18px;border-top:1px solid var(--line)}
+.who dt,.who dd{padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}.who dt{color:var(--mute)}
+.who a{color:var(--ink);text-decoration-color:var(--red);text-underline-offset:3px}
+.cr{margin-top:28px}.cr li{font-size:14px;line-height:1.6;list-style:none;border-bottom:1px solid var(--line);padding:8px 0}
+@media(max-width:900px){.ab{grid-template-columns:1fr}}
+</style>"#;
+    let body = format!(
+        "<div class=docnav>{nav}</div><div class=ab><div><div class=ver>Owl<em>.</em> {v}</div>\
+<p style=\"margin-top:24px\">A small private browser for Windows, written in Rust around the Edge WebView2 engine. Free and open source under the MIT licence. No account, no telemetry.</p>\
+<p><a class=btn href=\"{REPO}/releases/tag/v{v}\">Release notes</a> <a class=\"btn ghost\" href=\"{REPO}\">Source code</a> <a class=\"btn ghost\" href=\"{REPO}/issues\">Report a problem</a></p>\
+<ul class=cr><li><b>Page engine</b>: Microsoft Edge WebView2</li><li><b>OwlKick</b>: adblock-rust by Brave (MPL-2.0), EasyList and EasyPrivacy</li><li><b>BitTorrent</b>: librqbit (Apache-2.0)</li><li><b>Type</b>: Space Grotesk (SIL Open Font License)</li><li><b>Icons</b>: Lucide (ISC)</li><li>Not made or endorsed by Microsoft, Brave or Cloudflare.</li></ul></div>\
+<div class=who><div class=k>Created by</div><div class=n>fardinahosancse</div><p>Designer and developer of Owl.</p>\
+<dl><dt>GitHub</dt><dd><a href=\"https://github.com/fardinahosancse\">github.com/fardinahosancse</a></dd>\
+<dt>Project</dt><dd><a href=\"{REPO}\">owl-browser</a></dd><dt>Licence</dt><dd><a href=\"{REPO}/blob/main/LICENSE\">MIT</a>, copyright 2026</dd>\
+<dt>Security</dt><dd><a href=\"{REPO}/blob/main/SECURITY.md\">Report a vulnerability privately</a></dd></dl></div></div>",
+        nav = doc_nav("About"),
+        v = esc(version)
+    );
+    list_page("About", &body, "", &format!("{DOC_CSS}{css}"), theme)
 }
 
 pub fn notfound(path: &str, theme: &str) -> String {
@@ -731,23 +889,6 @@ send({cmd:'perm_list'});
 })();
 </script>"#;
     list_page("Permissions", "<div id=pl><div class=empty>Loading...</div></div>", "<p class=lead>Sites you have allowed or blocked. Reset puts a site back to asking.</p>", js, theme)
-}
-
-pub fn about(theme: &str) -> String {
-    let body = format!(
-        "<div class=land>{}\
-<section class=\"rv\"><div class=huge>Keyboard first<em>.</em></div><div class=keys>\
-<div class=key><kbd>Ctrl T</kbd><span>New tab</span></div><div class=key><kbd>Ctrl L</kbd><span>Address bar</span></div>\
-<div class=key><kbd>Ctrl D</kbd><span>Bookmark</span></div><div class=key><kbd>Ctrl F</kbd><span>Find in page</span></div>\
-<div class=key><kbd>Ctrl Tab</kbd><span>Next tab (Ctrl 1-9 jump)</span></div><div class=key><kbd>Ctrl H</kbd><span>History</span></div>\
-<div class=key><kbd>Alt \u{2190} \u{2192}</kbd><span>Back and forward</span></div><div class=key><kbd>Ctrl Shift L</kbd><span>Lock Owl</span></div></div></section>\
-<section class=\"fin rv\"><div class=word>Owl.</div><div class=facts>\
-<div><b>About 1 MB</b><span>the whole browser</span></div><div><b>Rust</b><span>built with tao and wry</span></div>\
-<div><b>No account</b><span>nothing to sign in to</span></div><div><b>Encrypted</b><span>your data is sealed when Owl locks</span></div></div>\
-<div class=foot><span>Owl</span><span>Ultra-light browser</span></div></section></div>",
-        hdr("About")
-    );
-    page("About", &body, "", theme, "landing")
 }
 
 pub fn owlkick(theme: &str) -> String {

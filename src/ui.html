@@ -483,7 +483,7 @@ function drawMenu(open=true){
   openOvl(open);mode='menu';const m=el('div');m.id='menu';
   const c1=col('Browse');
   c1.append(item('New tab','Ctrl T',()=>{closeOvl();send({cmd:'new_tab'})}),item('Private window','',()=>{closeOvl();send({cmd:'private'})}),
-   item('History','Ctrl H',go('owl://history')),item('Bookmarks','',go('owl://bookmarks')),item('Downloads','',go('owl://downloads')),item('Passwords','',go('owl://passwords')),item('Settings','',go('owl://settings')));
+   item('History','Ctrl H',go('owl://history')),item('Bookmarks','',go('owl://bookmarks')),item('Downloads','',go('owl://downloads')),item('Passwords','',go('owl://passwords')),item('Settings','',go('owl://settings')),item('About Owl','',go('owl://about')));
   const c2=col('Page');
   const zr=el('div','zr');zr.appendChild(el('span','','Zoom'));const zd=el('div');
   const zm=el('button','','−'),zp=el('button','','+'),zv=el('button','',Math.round(a.zoom*100)+'%');zm.setAttribute('aria-label','Zoom out');zp.setAttribute('aria-label','Zoom in');zv.setAttribute('aria-label','Reset zoom');zv.type='button';zv.className='zv';zm.onclick=()=>send({cmd:'zoom',d:-.1});zp.onclick=()=>send({cmd:'zoom',d:.1});zv.style.cursor='pointer';zv.onclick=()=>send({cmd:'zoom',d:0});
