@@ -164,7 +164,7 @@ jobs:
           Set-Content release-body.md ($body -replace '(?m)^ {10}', '') -Encoding UTF8
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           tag_name: ${{ steps.v.outputs.tag }}
           # 0.x is an alpha developer preview; kept as a normal release so "latest" download links work
