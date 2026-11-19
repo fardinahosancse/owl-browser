@@ -29,10 +29,10 @@ settings, and does not port Owl.'s versions of them. Owl. keeps:
 | Owl.'s home page, same design | yes, opened at start |
 | Secure DNS: Cloudflare DNS over HTTPS, secure mode, saved in Local State | yes |
 | OwlKick request handler on every tab | built in; blocking not yet measured in CI |
-| Theme seeded with Owl.'s red | saved in the profile, **not applied yet**: the toolbar stays Chromium's default colours |
+| Theme from Owl.'s red | yes: tab strip and toolbar take a palette generated from #B8290F (CEF `set_chrome_color_scheme`), light or dark with Windows |
 | Home page saved as Chromium's home page setting | **not saved**; the page is passed at start instead |
 | Window title and product name | still "Chromium": changing it needs CEF's resources rebuilt |
-| Renderer sandbox | **off** in this step |
+| Sandbox | yes: CEF's bootstrap (`owl-chromium.exe`, Owl. icon) loads `owl-chromium.dll`; CI checks that none of the child processes (GPU, utility, renderers) run with `--no-sandbox` |
 
 Its profile lives in `%LOCALAPPDATA%\Owl\chromium`. CI builds it, launches it, takes a screenshot
 and uploads both as artifacts.
@@ -90,7 +90,6 @@ Copy `libcef.dll` and the other files from the CEF `Release` and `Resources` fol
 
 ## Next steps, in order
 
-1. Turn on the renderer sandbox (`bootstrap.exe` layout from CEF).
 2. Serve Owl.'s pages through an `owl://` scheme handler and host the HTML toolbar.
 3. Message bridge between the toolbar and Rust, then tabs.
 4. Port the features in the table one by one, keeping `src/` shared where it does not touch the engine (crypto, vault, store, OwlKick lists, download engine, torrents).

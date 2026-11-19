@@ -54,33 +54,6 @@ jobs:
           $mb = [math]::Round(((Get-ChildItem $out -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
           "owl-chromium.dll is $([math]::Round((Get-Item "$out\owl-chromium.dll").Length / 1MB, 2)) MB; with the Chromium runtime $mb MB" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
-      - name: Diagnose start-up
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "owl-cef-diag"; New-Item -ItemType Directory $env:LOCALAPPDATA -Force | Out-Null
-          $env:OWL_CEF_TRACE = Join-Path $env:RUNNER_TEMP "owl-cef-trace.txt"
-          $d = "stage\owl-chromium"
-          $rel = (Get-ChildItem $env:CEF_PATH -Recurse -Filter libcef.dll | Select-Object -First 1).DirectoryName
-          Copy-Item (Join-Path $rel "bootstrapc.exe") "$d\owl-chromium-plain.exe"; Copy-Item "$d\owl-chromium.dll" "$d\owl-chromium-plain.dll"
-          Copy-Item chromium\target\release\owl-chromium-dev.exe "$d\owl-chromium-dev.exe"
-          $dumpbin = Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio" -Recurse -Filter dumpbin.exe -ErrorAction SilentlyContinue | Where-Object FullName -match 'Hostx64\x64' | Select-Object -First 1
-          if ($dumpbin) { & $dumpbin.FullName /exports "$d\owl-chromium.dll" | Select-String "Run" }
-          foreach ($exe in "owl-chromium-plain.exe", "owl-chromium.exe") {
-            $o = Join-Path $env:RUNNER_TEMP "$exe.out.txt"; $e = Join-Path $env:RUNNER_TEMP "$exe.err.txt"
-            $p = Start-Process "$d\$exe" -ArgumentList "--enable-logging=stderr","--v=0" -PassThru -RedirectStandardOutput $o -RedirectStandardError $e
-            Start-Sleep 12; $p.Refresh()
-            "$exe : running=$(-not $p.HasExited) exit=$(if ($p.HasExited) { '0x{0:X8}' -f $p.ExitCode })"
-            Get-Content $o, $e -ErrorAction SilentlyContinue | Select-Object -First 25
-            Get-Process owl-chromium* -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 2
-          }
-          $p = Start-Process "$d\owl-chromium-dev.exe" -PassThru; Start-Sleep 12; $p.Refresh()
-          "dev (cdylib sandbox feature on, plain exe): running=$(-not $p.HasExited) exit=$(if ($p.HasExited) { '0x{0:X8}' -f $p.ExitCode })"
-          Get-Process owl-chromium* -ErrorAction SilentlyContinue | Stop-Process -Force
-          foreach ($f in (Get-ChildItem . , $d, $env:LOCALAPPDATA -Recurse -Filter debug.log -ErrorAction SilentlyContinue)) { "--- $($f.FullName)"; Get-Content $f.FullName | Select-Object -Last 30 }
-          "--- trace"; Get-Content $env:OWL_CEF_TRACE -ErrorAction SilentlyContinue
-          Remove-Item "$d\owl-chromium-plain.*", "$d\owl-chromium-dev.exe" -ErrorAction SilentlyContinue
-
       - name: Launch check
         shell: pwsh
         run: |
