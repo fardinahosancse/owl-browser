@@ -63,6 +63,8 @@ jobs:
           $rel = (Get-ChildItem $env:CEF_PATH -Recurse -Filter libcef.dll | Select-Object -First 1).DirectoryName
           Copy-Item (Join-Path $rel "bootstrapc.exe") "$d\owl-chromium-plain.exe"; Copy-Item "$d\owl-chromium.dll" "$d\owl-chromium-plain.dll"
           Copy-Item chromium\target\release\owl-chromium-dev.exe "$d\owl-chromium-dev.exe"
+          $dumpbin = Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio" -Recurse -Filter dumpbin.exe -ErrorAction SilentlyContinue | Where-Object FullName -match 'Hostx64\x64' | Select-Object -First 1
+          if ($dumpbin) { & $dumpbin.FullName /exports "$d\owl-chromium.dll" | Select-String "Run" }
           foreach ($exe in "owl-chromium-plain.exe", "owl-chromium.exe") {
             $o = Join-Path $env:RUNNER_TEMP "$exe.out.txt"; $e = Join-Path $env:RUNNER_TEMP "$exe.err.txt"
             $p = Start-Process "$d\$exe" -ArgumentList "--enable-logging=stderr","--v=0" -PassThru -RedirectStandardOutput $o -RedirectStandardError $e

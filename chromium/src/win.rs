@@ -13,3 +13,13 @@ unsafe extern "C" fn RunWinMain(instance: sys::HINSTANCE, _command_line: *const 
     };
     crate::run(args.as_main_args(), &cmd_line, sandbox_info)
 }
+
+/// The same for CEF's console bootstrap (`bootstrapc.exe`), which prints errors to the console.
+#[unsafe(no_mangle)]
+unsafe extern "C" fn RunConsoleMain(_argc: i32, _argv: *mut *mut u8, sandbox_info: *mut u8) -> i32 {
+    let args = args::Args::new();
+    let Some(cmd_line) = args.as_cmd_line() else {
+        return 1;
+    };
+    crate::run(args.as_main_args(), &cmd_line, sandbox_info)
+}
