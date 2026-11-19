@@ -20,6 +20,20 @@ settings, and does not port Owl.'s versions of them. Owl. keeps:
 - **Secure DNS**: Chromium's own DNS over HTTPS, set to Cloudflare (`cloudflare-dns.com/dns-query`)
   in secure mode, so lookups never fall back to the network's resolver.
 
+### Status, as checked by CI (Windows runner, CEF 156)
+
+| | |
+|---|---|
+| Builds with MSVC and CMake, launches, stays running (8 processes) | yes |
+| Chromium's own tabs, address bar, home button, menus | yes |
+| Owl.'s home page, same design | yes, opened at start |
+| Secure DNS: Cloudflare DNS over HTTPS, secure mode, saved in Local State | yes |
+| OwlKick request handler on every tab | built in; blocking not yet measured in CI |
+| Theme seeded with Owl.'s red | saved in the profile, **not applied yet**: the toolbar stays Chromium's default colours |
+| Home page saved as Chromium's home page setting | **not saved**; the page is passed at start instead |
+| Window title and product name | still "Chromium": changing it needs CEF's resources rebuilt |
+| Renderer sandbox | **off** in this step |
+
 Its profile lives in `%LOCALAPPDATA%\Owl\chromium`. CI builds it, launches it, takes a screenshot
 and uploads both as artifacts.
 
