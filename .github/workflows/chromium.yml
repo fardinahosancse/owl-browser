@@ -54,6 +54,29 @@ jobs:
           $mb = [math]::Round(((Get-ChildItem $out -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
           "owl-chromium.dll is $([math]::Round((Get-Item "$out\owl-chromium.dll").Length / 1MB, 2)) MB; with the Chromium runtime $mb MB" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
+      - name: Diagnose start-up
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "owl-cef-diag"; New-Item -ItemType Directory $env:LOCALAPPDATA -Force | Out-Null
+          $d = "stage\owl-chromium"
+          $rel = (Get-ChildItem $env:CEF_PATH -Recurse -Filter libcef.dll | Select-Object -First 1).DirectoryName
+          Copy-Item (Join-Path $rel "bootstrapc.exe") "$d\owl-chromium-plain.exe"; Copy-Item "$d\owl-chromium.dll" "$d\owl-chromium-plain.dll"
+          Copy-Item chromium\target\release\owl-chromium-dev.exe "$d\owl-chromium-dev.exe"
+          foreach ($exe in "owl-chromium-plain.exe", "owl-chromium.exe") {
+            $o = Join-Path $env:RUNNER_TEMP "$exe.out.txt"; $e = Join-Path $env:RUNNER_TEMP "$exe.err.txt"
+            $p = Start-Process "$d\$exe" -ArgumentList "--enable-logging=stderr","--v=0" -PassThru -RedirectStandardOutput $o -RedirectStandardError $e
+            Start-Sleep 12; $p.Refresh()
+            "$exe : running=$(-not $p.HasExited) exit=$(if ($p.HasExited) { '0x{0:X8}' -f $p.ExitCode })"
+            Get-Content $o, $e -ErrorAction SilentlyContinue | Select-Object -First 25
+            Get-Process owl-chromium* -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 2
+          }
+          $p = Start-Process "$d\owl-chromium-dev.exe" -PassThru; Start-Sleep 12; $p.Refresh()
+          "dev (cdylib sandbox feature on, plain exe): running=$(-not $p.HasExited) exit=$(if ($p.HasExited) { '0x{0:X8}' -f $p.ExitCode })"
+          Get-Process owl-chromium* -ErrorAction SilentlyContinue | Stop-Process -Force
+          Get-ChildItem $d -Filter debug.log | ForEach-Object { Get-Content $_.FullName | Select-Object -Last 20 }
+          Remove-Item "$d\owl-chromium-plain.*", "$d\owl-chromium-dev.exe" -ErrorAction SilentlyContinue
+
       - name: Launch check
         shell: pwsh
         run: |
