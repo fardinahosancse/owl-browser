@@ -4,10 +4,24 @@ This folder is an experiment on the `chromium-cef` branch: Owl. built on the **C
 Framework** (CEF, Chromium 156 through the [`cef`](https://crates.io/crates/cef) crate from the
 Tauri project) instead of **Microsoft Edge WebView2**. The shipping browser is unchanged.
 
-Today `owl-chromium.exe` opens an Owl. window (name, icon, its own profile in
-`%LOCALAPPDATA%\Owl\chromium`) with Chromium inside it, a start page with the wordmark and an
-address field, and `--url=` to open an address. CI builds it, launches it and uploads the result
-as the `owl-chromium-preview-windows-x64` artifact.
+**Approach on this branch: use what Chromium already has, keep what is Owl.'s own.**
+
+Owl. on WebView2 rebuilt many browser features itself because WebView2 is only an engine. Chromium
+(CEF "Chrome style") comes with the full browser UI, so this build uses Chromium's built-in tabs,
+address bar, downloads, passwords, history, bookmarks, find in page, dialogs, permissions and
+settings, and does not port Owl.'s versions of them. Owl. keeps:
+
+- **The Owl. look**: Chromium's theme is seeded with Owl.'s red (#B8290F), the window has the Owl. icon.
+- **The same home page**: `home.html` is Owl.'s classic home page, generated from Owl.'s own page
+  code (`dump_home_for_chromium` test, then `make-home.py`), set as Chromium's home page and start page.
+- **OwlKick**: adblock-rust checks every request against Owl.'s tracker list and any lists in
+  `%LOCALAPPDATA%\Owlilters`, in Chromium's request handler, for every tab including ones the
+  user opens. `OWL_KICK_OFF=1` turns it off for testing.
+- **Secure DNS**: Chromium's own DNS over HTTPS, set to Cloudflare (`cloudflare-dns.com/dns-query`)
+  in secure mode, so lookups never fall back to the network's resolver.
+
+Its profile lives in `%LOCALAPPDATA%\Owl\chromium`. CI builds it, launches it, takes a screenshot
+and uploads both as artifacts.
 
 ## Good to know first
 

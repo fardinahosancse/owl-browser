@@ -1143,4 +1143,15 @@ mod preview {
         let html = super::home_calm(&s, &c, 42, 1337, 4380, "navy");
         std::fs::write(format!("{dir}/calm-navy.html"), html).unwrap();
     }
+
+    /// Writes Owl.'s classic home page for the Chromium (CEF) build: no browsing data, no app
+    /// connection, so the same design opens as a plain page (run with --ignored).
+    #[test]
+    #[ignore]
+    fn dump_home_for_chromium() {
+        let Ok(path) = std::env::var("OWL_CEF_HOME") else { return };
+        let s = crate::Store::default();
+        let c = crate::Config::default();
+        std::fs::write(path, super::newtab(&s, &c, 0, 0, 0, 0, "light")).unwrap();
+    }
 }
