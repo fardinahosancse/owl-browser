@@ -1,0 +1,72 @@
+name: Chromium preview (CEF)
+
+# Builds the experimental Owl. on Chromium (chromium/) on the branch that carries it. It needs
+# MSVC and CMake, which GitHub's Windows runners have, and downloads the CEF binary distribution
+# (about 150 MB) that the cef crate is pinned to.
+
+on:
+  push:
+    branches: [chromium-cef]
+    paths: ["chromium/**", ".github/workflows/chromium.yml", "assets/wordmark.d", "assets/owl.ico"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and launch (Windows, CEF)
+    runs-on: windows-latest
+    env:
+      CEF_PATH: ${{ github.workspace }}\cef-dist
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: chromium
+
+      - name: Build
+        working-directory: chromium
+        run: cargo build --release
+
+      - name: Stage Chromium runtime next to the executable
+        shell: pwsh
+        run: |
+          $out = "stage\owl-chromium"; New-Item -ItemType Directory $out -Force | Out-Null
+          Copy-Item chromium\target\release\owl-chromium.exe $out
+          $lib = Get-ChildItem $env:CEF_PATH -Recurse -Filter libcef.dll | Select-Object -First 1
+          if (-not $lib) { throw "libcef.dll not found under $env:CEF_PATH" }
+          "CEF runtime in $($lib.DirectoryName)"
+          Get-ChildItem $lib.DirectoryName -File | Where-Object { $_.Extension -in ".dll", ".bin", ".json" } | Copy-Item -Destination $out
+          foreach ($f in "icudtl.dat", "*.pak") { Get-ChildItem $env:CEF_PATH -Recurse -Filter $f | Copy-Item -Destination $out }
+          $loc = Get-ChildItem $env:CEF_PATH -Recurse -Directory -Filter locales | Select-Object -First 1
+          if ($loc) { Copy-Item $loc.FullName "$out\locales" -Recurse }
+          $mb = [math]::Round(((Get-ChildItem $out -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
+          "owl-chromium.exe is $([math]::Round((Get-Item "$out\owl-chromium.exe").Length / 1MB, 2)) MB; with the Chromium runtime $mb MB" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - name: Launch check
+        shell: pwsh
+        run: |
+          # starts Chromium with a throwaway profile, waits, and checks it is still running and wrote its profile
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "owl-cef-profile"
+          New-Item -ItemType Directory $env:LOCALAPPDATA -Force | Out-Null
+          $p = Start-Process stage\owl-chromium\owl-chromium.exe -ArgumentList "--url=about:blank" -PassThru
+          Start-Sleep 20
+          $p.Refresh()
+          $alive = -not $p.HasExited
+          $kids = (Get-Process owl-chromium -ErrorAction SilentlyContinue | Measure-Object).Count
+          $prof = Test-Path (Join-Path $env:LOCALAPPDATA "Owl\chromium")
+          "alive=$alive processes=$kids profile=$prof" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          Get-Process owl-chromium -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $alive) { throw "owl-chromium exited early with code $($p.ExitCode)" }
+          if (-not $prof) { throw "no Chromium profile was created" }
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: owl-chromium-preview-windows-x64
+          path: stage/owl-chromium
+          if-no-files-found: error
+          retention-days: 14
