@@ -142,7 +142,7 @@ wrap_client! {
 
 wrap_display_handler! {
     struct OwlDisplayHandler {
-        /// appended to every window title
+        // appended to every window title
         suffix: String,
     }
 
