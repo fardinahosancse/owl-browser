@@ -32,20 +32,27 @@ jobs:
         working-directory: chromium
         run: cargo build --release
 
-      - name: Stage Chromium runtime next to the executable
+      - name: Stage the sandboxed layout (bootstrap exe + Owl. DLL + Chromium runtime)
         shell: pwsh
         run: |
           $out = "stage\owl-chromium"; New-Item -ItemType Directory $out -Force | Out-Null
-          Copy-Item chromium\target\release\owl-chromium.exe $out
           $lib = Get-ChildItem $env:CEF_PATH -Recurse -Filter libcef.dll | Select-Object -First 1
           if (-not $lib) { throw "libcef.dll not found under $env:CEF_PATH" }
-          "CEF runtime in $($lib.DirectoryName)"
-          Get-ChildItem $lib.DirectoryName -File | Where-Object { $_.Extension -in ".dll", ".bin", ".json" } | Copy-Item -Destination $out
-          foreach ($f in "icudtl.dat", "*.pak") { Get-ChildItem $env:CEF_PATH -Recurse -Filter $f | Copy-Item -Destination $out }
-          $loc = Get-ChildItem $env:CEF_PATH -Recurse -Directory -Filter locales | Select-Object -First 1
-          if ($loc) { Copy-Item $loc.FullName "$out\locales" -Recurse }
+          $rel = $lib.DirectoryName
+          # CEF's bootstrap sets up the sandbox and loads the DLL with its own name
+          Copy-Item (Join-Path $rel "bootstrap.exe") "$out\owl-chromium.exe"
+          Copy-Item chromium\target\release\owl_chromium.dll "$out\owl-chromium.dll"
+          Get-ChildItem $rel -File | Where-Object { $_.Extension -in ".dll", ".bin", ".json" -and $_.Name -notlike "bootstrap*" } | Copy-Item -Destination $out
+          $res = Get-ChildItem $env:CEF_PATH -Recurse -Filter icudtl.dat | Select-Object -First 1
+          Get-ChildItem $res.DirectoryName -File | Copy-Item -Destination $out
+          if (Test-Path (Join-Path $res.DirectoryName "locales")) { Copy-Item (Join-Path $res.DirectoryName "locales") "$out\locales" -Recurse -Force }
+          # the Owl. icon and name on the executable
+          npm install --no-save --silent rcedit@4.0.1 | Out-Null
+          & node_modules\rcedit\bin\rcedit-x64.exe "$out\owl-chromium.exe" --set-icon assets\owl.ico --set-version-string ProductName "Owl." --set-version-string FileDescription "Owl. (Chromium preview)" --set-version-string CompanyName "Owl."
+          if ($LASTEXITCODE -ne 0) { throw "rcedit failed" }
+          Get-ChildItem $out | Select-Object Name, Length | Format-Table -AutoSize | Out-String | Write-Host
           $mb = [math]::Round(((Get-ChildItem $out -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
-          "owl-chromium.exe is $([math]::Round((Get-Item "$out\owl-chromium.exe").Length / 1MB, 2)) MB; with the Chromium runtime $mb MB" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "owl-chromium.dll is $([math]::Round((Get-Item "$out\owl-chromium.dll").Length / 1MB, 2)) MB; with the Chromium runtime $mb MB" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
       - name: Launch check
         shell: pwsh
@@ -78,6 +85,12 @@ jobs:
             New-Item -ItemType Directory shots -Force | Out-Null; $bmp.Save("shots\owl-chromium.png"); $bmp.Dispose()
             "window title: $($w.MainWindowTitle)" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           }
+          $cl = Get-CimInstance Win32_Process -Filter "Name='owl-chromium.exe'" | Select-Object -ExpandProperty CommandLine
+          $kidsCl = $cl | Where-Object { $_ -match '--type=' }
+          $unsandboxed = ($kidsCl | Where-Object { $_ -match '--no-sandbox' }).Count
+          "child processes: $($kidsCl.Count); without sandbox: $unsandboxed" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          $kidsCl | ForEach-Object { "  " + (($_ -split ' ') | Where-Object { $_ -match '^--type=' }) }
+          if ($unsandboxed -gt 0) { throw "some Chromium processes run without the sandbox" }
           $p.Refresh()
           $alive = -not $p.HasExited
           $kids = (Get-Process owl-chromium -ErrorAction SilentlyContinue | Measure-Object).Count

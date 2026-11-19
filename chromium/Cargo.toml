@@ -10,13 +10,24 @@ license = "MIT"
 # experiment is evaluated. Build it with `cargo build --release` from this folder; it needs the
 # MSVC toolchain and CMake (see README.md here).
 
+# The browser itself is a DLL: CEF's sandbox bootstrap (owl-chromium.exe) loads it.
+[lib]
+name = "owl_chromium"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+# Development build without the sandbox: cargo run --no-default-features --bin owl-chromium-dev
 [[bin]]
-name = "owl-chromium"
+name = "owl-chromium-dev"
 path = "src/main.rs"
+
+[features]
+default = ["sandbox"]
+# Chromium's sandbox for renderer and other child processes (Windows: through bootstrap.exe)
+sandbox = ["cef/sandbox"]
 
 [dependencies]
 # Pinned to one CEF release: the crate version carries the CEF version (156.0.31 = Chromium 156).
-# Without the "sandbox" feature the renderer sandbox is off; see README.md for what that means.
 cef = { version = "=156.7.0", default-features = false }
 # OwlKick: the same blocker engine as the WebView2 build
 adblock = { version = "0.13", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }

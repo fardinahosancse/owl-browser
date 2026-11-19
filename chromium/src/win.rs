@@ -1,0 +1,15 @@
+//! The entry point CEF's `bootstrap.exe` calls when the sandbox is on. The bootstrap executable
+//! (shipped as `owl-chromium.exe`) sets up Chromium's sandbox, then loads `owl-chromium.dll` (this
+//! crate) and calls `RunWinMain` for the browser process and for every child process.
+
+use cef::*;
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn RunWinMain(instance: sys::HINSTANCE, _command_line: *const u8, _command_show: i32, sandbox_info: *mut u8) -> i32 {
+    let main_args = MainArgs { instance };
+    let args = args::Args::from(main_args);
+    let Some(cmd_line) = args.as_cmd_line() else {
+        return 1;
+    };
+    crate::run(args.as_main_args(), &cmd_line, sandbox_info)
+}
