@@ -99,7 +99,9 @@ wrap_window_delegate! {
 }
 
 wrap_browser_view_delegate! {
-    struct OwlBrowserViewDelegate;
+    struct OwlBrowserViewDelegate {
+        runtime_style: RuntimeStyle,
+    }
 
     impl ViewDelegate {}
 
@@ -117,7 +119,7 @@ wrap_browser_view_delegate! {
         }
 
         fn browser_runtime_style(&self) -> RuntimeStyle {
-            RuntimeStyle::DEFAULT
+            self.runtime_style
         }
     }
 }
@@ -129,7 +131,7 @@ wrap_client! {
 
     impl Client {
         fn display_handler(&self) -> Option<DisplayHandler> {
-            Some(OwlDisplayHandler::new())
+            Some(OwlDisplayHandler::new("Owl.".to_string()))
         }
 
         fn life_span_handler(&self) -> Option<LifeSpanHandler> {
@@ -139,7 +141,10 @@ wrap_client! {
 }
 
 wrap_display_handler! {
-    struct OwlDisplayHandler;
+    struct OwlDisplayHandler {
+        /// appended to every window title
+        suffix: String,
+    }
 
     impl DisplayHandler {
         fn on_title_change(&self, browser: Option<&mut Browser>, title: Option<&CefString>) {
@@ -147,7 +152,7 @@ wrap_display_handler! {
             let mut browser = browser.cloned();
             if let Some(window) = browser_view_get_for_browser(browser.as_mut()).and_then(|v| v.window()) {
                 let t = title.map(CefString::to_string).unwrap_or_default();
-                let t = if t.is_empty() { "Owl.".to_string() } else { format!("{t} - Owl.") };
+                let t = if t.is_empty() { self.suffix.clone() } else { format!("{t} - {}", self.suffix) };
                 window.set_title(Some(&CefString::from(t.as_str())));
             }
         }
@@ -201,7 +206,7 @@ wrap_browser_process_handler! {
 
             let settings = BrowserSettings::default();
             let mut client = self.default_client();
-            let mut delegate = OwlBrowserViewDelegate::new();
+            let mut delegate = OwlBrowserViewDelegate::new(RuntimeStyle::DEFAULT);
             let browser_view = browser_view_create(client.as_mut(), Some(&url), Some(&settings), None, None, Some(&mut delegate));
             let mut window = OwlWindowDelegate::new(RefCell::new(browser_view));
             window_create_top_level(Some(&mut window));
