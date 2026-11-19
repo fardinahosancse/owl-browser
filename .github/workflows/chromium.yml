@@ -53,8 +53,19 @@ jobs:
           # starts Chromium with a throwaway profile, waits, and checks it is still running and wrote its profile
           $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "owl-cef-profile"
           New-Item -ItemType Directory $env:LOCALAPPDATA -Force | Out-Null
+          # first start writes the profile and Owl.'s settings; the second start shows them applied
+          $p = Start-Process stage\owl-chromium\owl-chromium.exe -PassThru -RedirectStandardError (Join-Path $env:RUNNER_TEMP "cef-err1.txt")
+          Start-Sleep 20
+          Get-Process owl-chromium -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 3
+          $root = Join-Path $env:LOCALAPPDATA "Owl\chromium"
+          $ls = Get-Content (Join-Path $root "Local State") -Raw -ErrorAction SilentlyContinue
+          $pf = Get-ChildItem $root -Recurse -Filter Preferences -ErrorAction SilentlyContinue | Select-Object -First 1
+          $pr = if ($pf) { Get-Content $pf.FullName -Raw } else { "" }
+          "Secure DNS saved: $([bool]($ls -match 'cloudflare-dns.com')); mode secure: $([bool]($ls -match '\"mode\":\"secure\"'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "Theme colour saved: $([bool]($pr -match 'user_color')); home page saved: $([bool]($pr -match 'home.html'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          Get-Content (Join-Path $env:RUNNER_TEMP "cef-err1.txt") -ErrorAction SilentlyContinue | Select-String "preference" | ForEach-Object { "  $_" }
           $p = Start-Process stage\owl-chromium\owl-chromium.exe -PassThru
-          Start-Sleep 25
+          Start-Sleep 20
           # a screenshot of the window, for the artifact
           Add-Type -AssemblyName System.Drawing
           Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h,out RECT r);[DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h,IntPtr dc,uint f);[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int c);public struct RECT{public int L,T,R,B;}' -Name W -Namespace CI
