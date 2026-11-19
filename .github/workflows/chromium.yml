@@ -59,6 +59,7 @@ jobs:
         continue-on-error: true
         run: |
           $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "owl-cef-diag"; New-Item -ItemType Directory $env:LOCALAPPDATA -Force | Out-Null
+          $env:OWL_CEF_TRACE = Join-Path $env:RUNNER_TEMP "owl-cef-trace.txt"
           $d = "stage\owl-chromium"
           $rel = (Get-ChildItem $env:CEF_PATH -Recurse -Filter libcef.dll | Select-Object -First 1).DirectoryName
           Copy-Item (Join-Path $rel "bootstrapc.exe") "$d\owl-chromium-plain.exe"; Copy-Item "$d\owl-chromium.dll" "$d\owl-chromium-plain.dll"
@@ -77,6 +78,7 @@ jobs:
           "dev (cdylib sandbox feature on, plain exe): running=$(-not $p.HasExited) exit=$(if ($p.HasExited) { '0x{0:X8}' -f $p.ExitCode })"
           Get-Process owl-chromium* -ErrorAction SilentlyContinue | Stop-Process -Force
           foreach ($f in (Get-ChildItem . , $d, $env:LOCALAPPDATA -Recurse -Filter debug.log -ErrorAction SilentlyContinue)) { "--- $($f.FullName)"; Get-Content $f.FullName | Select-Object -Last 30 }
+          "--- trace"; Get-Content $env:OWL_CEF_TRACE -ErrorAction SilentlyContinue
           Remove-Item "$d\owl-chromium-plain.*", "$d\owl-chromium-dev.exe" -ErrorAction SilentlyContinue
 
       - name: Launch check

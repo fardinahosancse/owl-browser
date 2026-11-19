@@ -6,6 +6,7 @@ use cef::*;
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn RunWinMain(instance: sys::HINSTANCE, _command_line: *const u8, _command_show: i32, sandbox_info: *mut u8) -> i32 {
+    crate::trace("RunWinMain");
     let main_args = MainArgs { instance };
     let args = args::Args::from(main_args);
     let Some(cmd_line) = args.as_cmd_line() else {
@@ -17,7 +18,9 @@ unsafe extern "C" fn RunWinMain(instance: sys::HINSTANCE, _command_line: *const 
 /// The same for CEF's console bootstrap (`bootstrapc.exe`), which prints errors to the console.
 #[unsafe(no_mangle)]
 unsafe extern "C" fn RunConsoleMain(_argc: i32, _argv: *mut *mut u8, sandbox_info: *mut u8) -> i32 {
+    crate::trace("RunConsoleMain");
     let args = args::Args::new();
+    crate::trace("RunConsoleMain: args read");
     let Some(cmd_line) = args.as_cmd_line() else {
         return 1;
     };

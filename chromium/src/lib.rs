@@ -321,13 +321,27 @@ wrap_app! {
     }
 }
 
+/// Start-up trace for diagnosing, only when OWL_CEF_TRACE names a file.
+pub fn trace(msg: &str) {
+    if let Ok(p) = std::env::var("OWL_CEF_TRACE") {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+            let _ = writeln!(f, "[{}] {msg}", std::process::id());
+        }
+    }
+}
+
 /// Starts the browser process, or runs a child process's job. `sandbox_info` comes from
 /// `bootstrap.exe` (sandboxed) or is null (development build without the sandbox).
 pub fn run(main_args: &MainArgs, cmd_line: &CommandLine, sandbox_info: *mut u8) -> i32 {
+    trace("run: start");
     let _ = api_hash(sys::CEF_API_VERSION_LAST, 0);
+    trace("run: api_hash done");
     // renderer, GPU and other child processes run their job and return here
     let is_browser = cmd_line.has_switch(Some(&CefString::from("type"))) != 1;
+    trace(&format!("run: execute_process (browser={is_browser}, sandbox={})", !sandbox_info.is_null()));
     let code = execute_process(Some(main_args), None, sandbox_info);
+    trace(&format!("run: execute_process returned {code}"));
     if !is_browser {
         return code.max(0);
     }
@@ -341,6 +355,7 @@ pub fn run(main_args: &MainArgs, cmd_line: &CommandLine, sandbox_info: *mut u8) 
         ..Default::default()
     };
     let mut app = OwlApp::new();
+    trace("run: initialize");
     if initialize(Some(main_args), Some(&settings), Some(&mut app), sandbox_info) != 1 {
         eprintln!("Chromium (CEF) could not start");
         return 1;
