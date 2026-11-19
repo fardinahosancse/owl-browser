@@ -76,7 +76,7 @@ jobs:
           $p = Start-Process "$d\owl-chromium-dev.exe" -PassThru; Start-Sleep 12; $p.Refresh()
           "dev (cdylib sandbox feature on, plain exe): running=$(-not $p.HasExited) exit=$(if ($p.HasExited) { '0x{0:X8}' -f $p.ExitCode })"
           Get-Process owl-chromium* -ErrorAction SilentlyContinue | Stop-Process -Force
-          Get-ChildItem $d -Filter debug.log | ForEach-Object { Get-Content $_.FullName | Select-Object -Last 20 }
+          foreach ($f in (Get-ChildItem . , $d, $env:LOCALAPPDATA -Recurse -Filter debug.log -ErrorAction SilentlyContinue)) { "--- $($f.FullName)"; Get-Content $f.FullName | Select-Object -Last 30 }
           Remove-Item "$d\owl-chromium-plain.*", "$d\owl-chromium-dev.exe" -ErrorAction SilentlyContinue
 
       - name: Launch check
