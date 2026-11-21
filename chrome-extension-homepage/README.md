@@ -5,6 +5,12 @@ Opera and Arc. It is the same page as in Owl.: a big Space Grotesk clock, a line
 of the day has passed, the pages you left, where your time goes, how many trackers were blocked,
 running downloads, and a private search line. Light and Dark themes, or follow the system.
 
+| Light | Dark |
+|---|---|
+| ![Calm home in the Light theme](screenshots/light.jpg) | ![Calm home in the Dark theme](screenshots/dark.jpg) |
+
+![Settings: name, theme, search engine, OwlKick, time online](screenshots/settings.jpg)
+
 ## Install
 
 1. Download or clone this repository.
