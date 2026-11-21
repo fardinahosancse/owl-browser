@@ -57,31 +57,6 @@ jobs:
           $mb = [math]::Round(((Get-ChildItem $out -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
           "owl-chromium.dll is $([math]::Round((Get-Item "$out\owl-chromium.dll").Length / 1MB, 2)) MB; with the Chromium runtime $mb MB" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
-      - name: Diagnose start-up
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "owl-cef-diag"; New-Item -ItemType Directory $env:LOCALAPPDATA -Force | Out-Null
-          $env:OWL_CEF_TRACE = Join-Path $env:RUNNER_TEMP "owl-cef-trace.txt"
-          $d = "stage\owl-chromium"
-          $rel = (Get-ChildItem $env:CEF_PATH -Recurse -Filter libcef.dll | Select-Object -First 1).DirectoryName
-          Copy-Item (Join-Path $rel "bootstrapc.exe") "$d\owl-chromium-c.exe"; Copy-Item "$d\owl-chromium.dll" "$d\owl-chromium-c.dll"
-          foreach ($combo in @("1,1,default", "0,1,default", "1,0,default", "1,1,alloy", "0,0,default")) {
-            $f, $b, $w = $combo -split ","
-            $env:OWL_FRAMELESS = $f; $env:OWL_BOX = $b; $env:OWL_WSTYLE = $w
-            Remove-Item $env:OWL_CEF_TRACE -ErrorAction SilentlyContinue
-            Remove-Item (Join-Path $env:LOCALAPPDATA "Owl") -Recurse -Force -ErrorAction SilentlyContinue
-            $e = Join-Path $env:RUNNER_TEMP "c.err.txt"
-            $p = Start-Process "$d\owl-chromium-c.exe" -ArgumentList "--enable-logging=stderr","--v=0" -PassThru -RedirectStandardError $e
-            Start-Sleep 15; $p.Refresh()
-            $last = (Get-Content $env:OWL_CEF_TRACE -ErrorAction SilentlyContinue | Select-String "shell:" | Select-Object -Last 1)
-            "combo frameless=$f box=$b style=$w : running=$(-not $p.HasExited) exit=$(if ($p.HasExited) { '0x{0:X8}' -f $p.ExitCode }) last=[$last]"
-            Get-Content $e -ErrorAction SilentlyContinue | Select-String "FATAL|Check failed|PANIC" | Select-Object -First 3 | ForEach-Object { "    $_" }
-            Get-Process owl-chromium* -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 2
-          }
-          Remove-Item Env:OWL_FRAMELESS, Env:OWL_BOX, Env:OWL_WSTYLE -ErrorAction SilentlyContinue
-          Remove-Item "$d\owl-chromium-c.*" -ErrorAction SilentlyContinue
-
       - name: Launch check
         shell: pwsh
         run: |

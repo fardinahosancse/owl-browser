@@ -54,7 +54,7 @@ thread_local! {
     static SHELL: RefCell<Shell> = RefCell::new(Shell { tool_h: TOOL_BASE, ..Default::default() });
 }
 
-/// Diagnosis switches (environment): OWL_FRAMELESS=0, OWL_BOX=0, OWL_WSTYLE=alloy
+/// Diagnosis switches (environment): OWL_FRAMELESS=0, OWL_BOX=0
 fn flag(name: &str, default: bool) -> bool {
     std::env::var(name).map(|v| v != "0").unwrap_or(default)
 }
@@ -742,7 +742,9 @@ wrap_window_delegate! {
         }
 
         fn window_runtime_style(&self) -> RuntimeStyle {
-            if std::env::var("OWL_WSTYLE").as_deref() == Ok("alloy") { RuntimeStyle::ALLOY } else { RuntimeStyle::DEFAULT }
+            // the window itself must be Alloy style: a Chrome-style Views window crashes when a
+            // BrowserView is added to it (CEF 156); the tabs inside stay Chrome style
+            RuntimeStyle::ALLOY
         }
     }
 }
