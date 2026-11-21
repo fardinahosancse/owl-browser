@@ -5,9 +5,9 @@ Opera and Arc. It is the same page as in Owl.: a big Space Grotesk clock (24-hou
 line showing how much of the day has passed, a private search line with shortcuts to your most
 visited sites, the weather, the pages you left and where your time goes today. Quick buttons sit
 together at the top right; your favourites and the Wi-Fi and volume controls sit in a dock at the
-very bottom. A **Report** shows your day, week and month. One theme: Owl.'s own.
+very bottom. A **Report** shows your day, week and month. Light and Dark themes, or follow the system.
 
-| 24-hour | 12-hour, volume open |
+| Light, 24-hour | Dark, 12-hour, volume open |
 |---|---|
 | ![Calm home in the Light theme](screenshots/light.jpg) | ![Calm home in the Dark theme with the volume control open](screenshots/volume.jpg) |
 
@@ -84,7 +84,7 @@ from the browser's history, so they go back as far as it does.
 
 ### Settings
 
-Your name for the greeting, clock (24-hour or 12-hour), search engine,
+Your name for the greeting, theme (System, Light, Dark), clock (24-hour or 12-hour), search engine,
 shortcuts, favourites and Wi-Fi and volume on or off, weather (off, your location, or a city; °C or
 °F), and clearing the time-online numbers.
 
@@ -113,8 +113,8 @@ Font License, `OFL.txt`), `icons/`.
 
 ## Changes
 
-- **1.3.0**: one theme, Owl.'s default (Light, Dark and System are gone); the home page Owl. on
-  Chromium opens.
+- **1.3.1**: the Light, Dark and System themes are back (Settings > Theme). Owl. on Chromium
+  still shows only Owl.'s own theme.
 - **1.2.0**: real icons throughout (quick buttons, weather, Wi-Fi, volume, folders); quick buttons
   together at the top; favourites and quick controls in a dock at the bottom; shortcuts to the most
   visited sites; Wi-Fi name and signal and Windows volume through an optional helper; the link to

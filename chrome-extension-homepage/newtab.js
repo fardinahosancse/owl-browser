@@ -477,9 +477,15 @@
   const name = () => (localStorage.getItem("owl.name") || "").trim().split(/\s+/)[0] || "";
   const showName = () => ($("cn").textContent = name() ? ", " + name() : "");
   showName();
-  const applyTheme = () => {}; // one theme: Owl.'s default
+  function applyTheme() {
+    const pick = localStorage.getItem("owl.theme") || "system";
+    const dark = pick === "dark" || (pick === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  }
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
   // segmented choices: [selector attribute, storage key, default, after]
   const SEGS = [
+    ["themePick", "owl.theme", "system", applyTheme],
     ["clock", "owl.clock", "24", tick],
     ["search", "owl.search", "ddg", null],
     ["unit", "owl.unit", "c", () => weather(true)],
