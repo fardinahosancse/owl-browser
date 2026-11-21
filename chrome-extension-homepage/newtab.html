@@ -12,30 +12,37 @@
 <div class="cw">
   <div class="ct">
     <span class="brand">Owl<em>.</em></span>
-    <span class="tr2"><span id="cd"></span><button type="button" id="gear" aria-label="Home page settings" aria-expanded="false" title="Settings">Settings</button></span>
+    <span class="tr2"><span id="cd"></span><a href="report.html" class="toplink">Report</a><button type="button" id="gear" aria-label="Home page settings" aria-expanded="false">Settings</button></span>
   </div>
+  <nav class="bm" id="bm" aria-label="Bookmarks bar"></nav>
 
   <div class="cm">
     <div>
       <div class="gr"><span id="cg">Hello</span><span id="cn"></span><em>.</em></div>
-      <div class="ck" id="ck" aria-label="Time"><b id="chh">00</b>:<span id="cmm">00</span></div>
+      <div class="ck" id="ck" aria-label="Time"><b id="chh">00</b>:<span id="cmm">00</span><small id="cap"></small></div>
       <div class="day" aria-hidden="true">
         <div class="tr"></div><div class="fl" id="dfl"></div><div class="nw" id="dnw"></div>
-        <span class="hr h0">00</span><span class="hr h1">06</span><span class="hr h2">12</span><span class="hr h3">18</span><span class="hr h4">24</span>
+        <span class="hr h0" id="h0">00</span><span class="hr h1" id="h1">06</span><span class="hr h2" id="h2">12</span><span class="hr h3" id="h3">18</span><span class="hr h4" id="h4">24</span>
       </div>
       <form class="cs" id="cf2"><input id="cq" autofocus autocomplete="off" spellcheck="false" aria-label="Search or address" placeholder="Search privately or type an address"></form>
-      <p class="story" id="st" aria-live="polite">You have spent <b id="stoday">0m</b> online today. OwlKick stopped <b id="sbk">0</b> requests today and <b id="stot">0</b> in all.<span id="sdl"></span></p>
+      <p class="story" id="st" aria-live="polite">You have spent <b id="stoday">0m</b> online today<span id="stop"></span>.<span id="sdl"></span></p>
       <p class="hint" id="hint">Everything you do here stays on this computer.</p>
     </div>
     <div class="side">
+      <section id="wx" class="wx" hidden>
+        <h2><span>Weather</span><span id="wxplace"></span></h2>
+        <div class="wxm"><b id="wxt"></b><div><span id="wxc"></span><small id="wxhl"></small></div></div>
+        <div class="wxd" id="wxd"></div>
+      </section>
       <section><h2>Pick up where you left off</h2><div id="recent"><p class="quiet">Pages you open will gather here, newest first.</p></div></section>
-      <section id="spentbox" hidden><h2>Where your time goes</h2><div id="spent"></div></section>
+      <section id="spentbox" hidden><h2><span>Where your time goes today</span><a href="report.html">Detailed report</a></h2><div id="spent"></div></section>
     </div>
   </div>
 
   <div class="cf">
     <span id="cpart"></span>
     <nav>
+      <a href="report.html">Report</a>
       <a href="chrome://downloads" data-chrome>Downloads</a>
       <a href="chrome://history" data-chrome>History</a>
       <a href="chrome://bookmarks" data-chrome>Bookmarks</a>
@@ -43,24 +50,32 @@
     </nav>
   </div>
 </div>
+<div class="bmpop" id="bmpop" hidden></div>
 
 <aside id="pane" hidden aria-label="Home page settings">
   <h2>Home page</h2>
   <label class="fld">Your name<input id="pname" maxlength="40" autocomplete="off" placeholder="Shown in the greeting"></label>
   <div class="fld">Theme
-    <div class="seg" role="group" aria-label="Theme">
-      <button type="button" data-theme-pick="system">System</button><button type="button" data-theme-pick="light">Light</button><button type="button" data-theme-pick="dark">Dark</button>
-    </div>
+    <div class="seg" role="group" aria-label="Theme"><button type="button" data-theme-pick="system">System</button><button type="button" data-theme-pick="light">Light</button><button type="button" data-theme-pick="dark">Dark</button></div>
+  </div>
+  <div class="fld">Clock
+    <div class="seg two" role="group" aria-label="Clock format"><button type="button" data-clock="24">24-hour</button><button type="button" data-clock="12">12-hour</button></div>
   </div>
   <div class="fld">Search with
-    <div class="seg two" role="group" aria-label="Search engine">
-      <button type="button" data-search="ddg">DuckDuckGo</button><button type="button" data-search="browser">Browser default</button>
-    </div>
+    <div class="seg two" role="group" aria-label="Search engine"><button type="button" data-search="ddg">DuckDuckGo</button><button type="button" data-search="browser">Browser default</button></div>
   </div>
-  <div class="row"><div><b>OwlKick</b><p>Block ads and trackers with Owl.'s tracker list.</p></div><button type="button" class="tg" id="kick" role="switch" aria-checked="true"></button></div>
+  <div class="row"><div><b>Bookmarks bar</b><p>Your browser's bookmarks bar, kept in step as it syncs.</p></div><button type="button" class="tg" id="bmon" role="switch" aria-checked="true" aria-label="Bookmarks bar"></button></div>
+  <div class="fld wxset">Weather
+    <div class="seg three" role="group" aria-label="Weather"><button type="button" data-wx="off">Off</button><button type="button" data-wx="here">My location</button><button type="button" data-wx="city">A city</button></div>
+    <form id="cityf" class="cityf" hidden><input id="city" autocomplete="off" placeholder="Search a city, for example Dhaka"><button type="submit" class="ghost">Find</button></form>
+    <div id="cityr" class="cityr"></div>
+    <div class="seg two" role="group" aria-label="Units"><button type="button" data-unit="c">°C</button><button type="button" data-unit="f">°F</button></div>
+    <p class="small" id="wxnote">Forecasts come from Open-Meteo (free, no account). Only the place is sent, never your browsing.</p>
+  </div>
   <div class="row"><div><b>Time online</b><p>Kept on this computer only.</p></div><button type="button" class="ghost" id="clear">Clear</button></div>
   <button type="button" class="done" id="done">Done</button>
 </aside>
+<script src="common.js"></script>
 <script src="newtab.js"></script>
 </body>
 </html>

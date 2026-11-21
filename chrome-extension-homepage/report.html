@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Report</title>
+<link rel="icon" href="icons/icon32.png">
+<link rel="stylesheet" href="newtab.css">
+<link rel="stylesheet" href="report.css">
+<script src="theme.js"></script>
+</head>
+<body class="calm rp">
+<div class="rw">
+  <div class="ct">
+    <a class="brand" href="newtab.html">Owl<em>.</em> <i>/</i> Report</a>
+    <span class="tr2"><a href="newtab.html" class="toplink">Home</a></span>
+  </div>
+
+  <div class="rh1">
+    <h1 id="title">Today<em>.</em></h1>
+    <div class="ctl">
+      <div class="seg three" role="group" aria-label="Period"><button type="button" data-p="day">Day</button><button type="button" data-p="week">Week</button><button type="button" data-p="month">Month</button></div>
+      <div class="nav2"><button type="button" class="ghost" id="prev" aria-label="Earlier">&#8592;</button><button type="button" class="ghost" id="next" aria-label="Later">&#8594;</button></div>
+    </div>
+  </div>
+  <p class="range" id="range"></p>
+
+  <div class="kpis" id="kpis"></div>
+
+  <section class="blk">
+    <h2><span id="charth">Time online per day</span><span id="chartn"></span></h2>
+    <div class="chart" id="chart" role="img" aria-label="Time online chart"></div>
+  </section>
+
+  <div class="two">
+    <section class="blk"><h2><span>Where your time went</span><span>time</span></h2><div id="bytime"></div></section>
+    <section class="blk"><h2><span>Most visited</span><span>visits</span></h2><div id="byvisit"></div></section>
+  </div>
+
+  <div class="two">
+    <section class="blk spot" id="spot"></section>
+    <section class="blk"><h2><span>Facts</span></h2><div id="facts"></div></section>
+  </div>
+
+  <p class="note">Time online counts the site in front of you while you use the computer, from the day this extension was installed. Visits come from the browser's history. Nothing leaves this computer.</p>
+</div>
+<script src="common.js"></script>
+<script src="report.js"></script>
+</body>
+</html>

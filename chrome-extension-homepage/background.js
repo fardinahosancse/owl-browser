@@ -1,14 +1,17 @@
-// Owl. Calm Home, background worker. Keeps the numbers the home page shows, all on this computer:
-//  - time online per day and per site: the site in the focused tab, while you are not idle;
-//  - OwlKick: how many requests the tracker rules blocked, today and in all.
-// Nothing is ever sent anywhere.
+// Owl. Calm Home, background worker. Counts time online, all on this computer:
+// the site in the focused tab, while you are not idle, per day and per site. Nothing is sent anywhere.
+//
+// storage.local:
+//   days  { "YYYY-MM-DD": { host: seconds } }   kept 400 days, for the reports
+//   daily { "YYYY-MM-DD": seconds }             total per day
+//   hours { "YYYY-MM-DD": [24 x seconds] }      when in the day, kept 400 days
+//   usage { host: seconds }                     all time, for the home page
+//   cur   { host, since }                       the stretch that is running now
 
 const IDLE_AFTER = 60; // seconds without input before the clock stops
+const KEEP_DAYS = 400;
 
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const hostOf = (u) => {
   try {
     const x = new URL(u);
@@ -18,32 +21,49 @@ const hostOf = (u) => {
   }
 };
 
-// ---------- time online ----------
 // The worker can be stopped at any moment, so the running stretch lives in storage too.
-async function flush(nextHost) {
+let busy = Promise.resolve();
+function flush(nextHost) {
+  busy = busy.then(() => doFlush(nextHost)).catch(() => {});
+  return busy;
+}
+async function doFlush(nextHost) {
   const now = Date.now();
-  const { cur, usage = {}, daily = {} } = await chrome.storage.local.get(["cur", "usage", "daily"]);
+  const st = await chrome.storage.local.get(["cur", "usage", "daily", "days", "hours"]);
+  const usage = st.usage || {}, daily = st.daily || {}, days = st.days || {}, hours = st.hours || {};
+  const cur = st.cur;
   if (cur && cur.host && cur.since) {
-    const secs = Math.min(Math.round((now - cur.since) / 1000), 15 * 60); // a lost event never counts hours
-    if (secs > 0) {
-      usage[cur.host] = (usage[cur.host] || 0) + secs;
-      const d = today();
-      daily[d] = (daily[d] || 0) + secs;
-      // keep 60 days and 500 sites
-      const days = Object.keys(daily).sort();
-      while (days.length > 60) delete daily[days.shift()];
-      const sites = Object.entries(usage).sort((a, b) => b[1] - a[1]);
-      if (sites.length > 500) for (const [h] of sites.slice(500)) delete usage[h];
+    // a lost event never counts hours: at most 15 minutes per stretch
+    let from = Math.max(cur.since, now - 15 * 60_000);
+    while (from < now) {
+      // split at the hour so the per-hour and per-day numbers are right across midnight
+      const d = new Date(from);
+      const next = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours() + 1).getTime();
+      const to = Math.min(now, next);
+      const secs = Math.round((to - from) / 1000);
+      if (secs > 0) {
+        const k = dayKey(d);
+        usage[cur.host] = (usage[cur.host] || 0) + secs;
+        daily[k] = (daily[k] || 0) + secs;
+        (days[k] = days[k] || {})[cur.host] = (days[k][cur.host] || 0) + secs;
+        (hours[k] = hours[k] || new Array(24).fill(0))[d.getHours()] += secs;
+      }
+      from = to;
     }
+    for (const o of [daily, days, hours]) {
+      const ks = Object.keys(o).sort();
+      while (ks.length > KEEP_DAYS) delete o[ks.shift()];
+    }
+    const sites = Object.entries(usage).sort((a, b) => b[1] - a[1]);
+    if (sites.length > 1000) for (const [h] of sites.slice(1000)) delete usage[h];
   }
   const next = nextHost === undefined ? (cur && cur.host) || "" : nextHost;
-  await chrome.storage.local.set({ usage, daily, cur: { host: next, since: next ? now : 0 } });
+  await chrome.storage.local.set({ usage, daily, days, hours, cur: { host: next, since: next ? now : 0 } });
 }
 
 async function focusedHost() {
   try {
-    const state = await chrome.idle.queryState(IDLE_AFTER);
-    if (state !== "active") return "";
+    if ((await chrome.idle.queryState(IDLE_AFTER)) !== "active") return "";
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     const win = tab && (await chrome.windows.get(tab.windowId));
     return tab && win && win.focused ? hostOf(tab.url || "") : "";
@@ -61,52 +81,20 @@ chrome.windows.onFocusChanged.addListener(follow);
 chrome.idle.setDetectionInterval(IDLE_AFTER);
 chrome.idle.onStateChanged.addListener(follow);
 
-// ---------- OwlKick ----------
-// Matched rules are only kept by the browser for a few minutes, so they are counted every minute.
-async function countBlocks() {
-  try {
-    const { kickSeen = Date.now() - 60_000, kickDay = today(), kickToday = 0, kickTotal = 0 } = await chrome.storage.local.get(["kickSeen", "kickDay", "kickToday", "kickTotal"]);
-    const { rulesMatchedInfo } = await chrome.declarativeNetRequest.getMatchedRules({ minTimeStamp: kickSeen + 1 });
-    const n = rulesMatchedInfo.length;
-    const last = rulesMatchedInfo.reduce((m, r) => Math.max(m, r.timeStamp), kickSeen);
-    const d = today();
-    await chrome.storage.local.set({
-      kickSeen: last,
-      kickDay: d,
-      kickToday: (kickDay === d ? kickToday : 0) + n,
-      kickTotal: kickTotal + n,
-    });
-  } catch {
-    // rate limited or not allowed: try again next minute
-  }
-}
-
 chrome.alarms.create("tick", { periodInMinutes: 1 });
-chrome.alarms.onAlarm.addListener(async (a) => {
-  if (a.name !== "tick") return;
-  await follow();
-  await countBlocks();
+chrome.alarms.onAlarm.addListener((a) => {
+  if (a.name === "tick") follow();
 });
 
-// the home page asks for fresh numbers when it opens
+// pages ask for fresh numbers when they open
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg === "refresh") {
-    Promise.all([follow(), countBlocks()]).then(() => reply(true));
-    return true;
-  }
-  if (msg && msg.kick !== undefined) {
-    chrome.declarativeNetRequest
-      .updateEnabledRulesets(msg.kick ? { enableRulesetIds: ["owlkick"] } : { disableRulesetIds: ["owlkick"] })
-      .then(() => chrome.storage.local.set({ kickOn: !!msg.kick }))
-      .then(() => reply(true));
+    follow().then(() => reply(true));
     return true;
   }
 });
 
-// show the number blocked on each tab on the toolbar icon
+// 1.0 blocked trackers; 1.1 does not, so its old counters are removed once
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.declarativeNetRequest.setExtensionActionOptions({ displayActionCountAsBadgeText: true }).catch(() => {});
-  chrome.storage.local.get("kickOn").then(({ kickOn }) => {
-    if (kickOn === undefined) chrome.storage.local.set({ kickOn: true });
-  });
+  chrome.storage.local.remove(["kickSeen", "kickDay", "kickToday", "kickTotal", "kickOn"]);
 });

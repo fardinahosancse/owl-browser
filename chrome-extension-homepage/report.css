@@ -1,0 +1,41 @@
+/* Report page: same tokens and type as the home page */
+.rw{padding:28px 48px 56px;max-width:1400px;margin:0 auto}
+.rp .ct .brand{color:var(--ink)}.rp .ct .brand i{font-style:normal;color:var(--red);margin:0 4px}
+.rh1{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;margin-top:34px}
+.rh1 h1{font:700 clamp(40px,5vw,72px)/.95 "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:-.04em;animation:up .6s cubic-bezier(.2,.7,.2,1) both}
+.rh1 h1 em{font-style:normal;color:var(--red)}
+.ctl{display:flex;gap:10px;align-items:center}
+.ctl .seg{width:300px}
+.nav2{display:flex;gap:4px}.nav2 .ghost{min-width:40px;min-height:34px;font-size:16px}.nav2 .ghost:disabled{opacity:.35;cursor:default}
+.range{color:var(--mute);margin:8px 0 26px;font-size:14px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);border-top:2px solid var(--ink);margin-bottom:34px}
+.kpis div{padding:16px 18px 18px 0;border-right:1px solid var(--line);animation:up .6s calc(.05s + var(--i,0)*.05s) cubic-bezier(.2,.7,.2,1) both}
+.kpis div+div{padding-left:18px}.kpis div:last-child{border-right:0}
+.kpis b{display:block;font:500 clamp(30px,3.6vw,52px)/1 "Space Grotesk","Helvetica Neue",Arial,sans-serif;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.kpis span{display:block;margin-top:8px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.kpis small{display:block;margin-top:4px;font-size:12px;color:var(--mute)}.kpis small.up{color:var(--red)}
+.blk{margin-bottom:38px}
+.blk h2{display:flex;justify-content:space-between;gap:12px;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding-bottom:10px;border-bottom:2px solid var(--ink);margin-bottom:6px}
+.blk h2 span:last-child{color:var(--mute)}
+.chart{display:flex;align-items:flex-end;gap:4px;height:220px;padding-top:16px;border-bottom:1px solid var(--line)}
+.chart .c{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;height:100%;position:relative}
+.chart .c i{display:block;background:var(--ink);height:var(--h);min-height:2px;transform-origin:bottom;animation:bar .7s calc(var(--i)*.02s) cubic-bezier(.2,.7,.2,1) both}
+.chart .c.now i{background:var(--red)}.chart .c.z i{background:var(--line)}
+.chart .c:hover i{background:var(--red)}
+.chart .c span{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--mute);white-space:nowrap}
+.chart .c em{position:absolute;bottom:calc(var(--h) + 4px);left:50%;transform:translateX(-50%);font-style:normal;font-size:10px;color:var(--mute);white-space:nowrap;opacity:0;transition:opacity .15s}
+.chart .c:hover em{opacity:1}
+.chart{margin-bottom:30px}
+@keyframes bar{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:48px}
+.row2{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.row2 img{width:16px;height:16px}.row2 span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row2 b{font-variant-numeric:tabular-nums}
+.row2 i{grid-column:2/-1;height:3px;background:var(--soft);position:relative}.row2 i::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--w);background:var(--red);transform-origin:left;animation:grow .8s .2s cubic-bezier(.2,.7,.2,1) both}
+.spot .big{font:500 clamp(34px,4vw,56px)/1 "Space Grotesk","Helvetica Neue",Arial,sans-serif;letter-spacing:-.03em;margin:14px 0 6px}
+.spot p{font-size:15px;line-height:1.5;max-width:52ch}.spot .sub{color:var(--mute);font-size:13px;margin-top:8px}
+.spot .pick{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}.spot .pick .ghost.on{background:var(--red);color:var(--onred)}
+.fact{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}.fact span{color:var(--mute)}.fact b{text-align:right}
+.note{font-size:12px;color:var(--mute);max-width:80ch}
+.empty{color:var(--mute);font-size:14px;padding:14px 0}
+@media(max-width:900px){.rw{padding:20px}.kpis{grid-template-columns:1fr 1fr}.kpis div:nth-child(2){border-right:0}.two{grid-template-columns:1fr;gap:0}.ctl{flex-wrap:wrap}.ctl .seg{width:100%}}
+@media(prefers-reduced-motion:reduce){.chart .c i,.kpis div,.rh1 h1,.row2 i::after{animation:none}}
