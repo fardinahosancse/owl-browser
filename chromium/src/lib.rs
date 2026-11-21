@@ -271,6 +271,8 @@ pub fn trace(msg: &str) {
 /// `bootstrap.exe` (sandboxed) or is null (development build without the sandbox).
 pub fn run(main_args: &MainArgs, cmd_line: &CommandLine, sandbox_info: *mut u8) -> i32 {
     trace("run: start");
+    // a Rust panic anywhere is written to the trace (the process aborts right after)
+    std::panic::set_hook(Box::new(|info| trace(&format!("PANIC: {info}"))));
     let _ = api_hash(sys::CEF_API_VERSION_LAST, 0);
     trace("run: api_hash done");
     // renderer, GPU and other child processes run their job and return here

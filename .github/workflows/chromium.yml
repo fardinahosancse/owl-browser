@@ -57,6 +57,24 @@ jobs:
           $mb = [math]::Round(((Get-ChildItem $out -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
           "owl-chromium.dll is $([math]::Round((Get-Item "$out\owl-chromium.dll").Length / 1MB, 2)) MB; with the Chromium runtime $mb MB" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
+      - name: Diagnose start-up
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "owl-cef-diag"; New-Item -ItemType Directory $env:LOCALAPPDATA -Force | Out-Null
+          $env:OWL_CEF_TRACE = Join-Path $env:RUNNER_TEMP "owl-cef-trace.txt"
+          $d = "stage\owl-chromium"
+          $rel = (Get-ChildItem $env:CEF_PATH -Recurse -Filter libcef.dll | Select-Object -First 1).DirectoryName
+          Copy-Item (Join-Path $rel "bootstrapc.exe") "$d\owl-chromium-c.exe"; Copy-Item "$d\owl-chromium.dll" "$d\owl-chromium-c.dll"
+          $o = Join-Path $env:RUNNER_TEMP "c.out.txt"; $e = Join-Path $env:RUNNER_TEMP "c.err.txt"
+          $p = Start-Process "$d\owl-chromium-c.exe" -ArgumentList "--enable-logging=stderr","--v=0" -PassThru -RedirectStandardOutput $o -RedirectStandardError $e
+          Start-Sleep 20; $p.Refresh()
+          "console run: running=$(-not $p.HasExited) exit=$(if ($p.HasExited) { '0x{0:X8}' -f $p.ExitCode })"
+          Get-Process owl-chromium* -ErrorAction SilentlyContinue | Stop-Process -Force
+          "--- stderr (errors)"; Get-Content $e -ErrorAction SilentlyContinue | Select-String "ERROR|FATAL|panick|PANIC" | Select-Object -First 30
+          "--- trace"; Get-Content $env:OWL_CEF_TRACE -ErrorAction SilentlyContinue | Select-Object -Last 40
+          Remove-Item "$d\owl-chromium-c.*" -ErrorAction SilentlyContinue
+
       - name: Launch check
         shell: pwsh
         run: |

@@ -177,6 +177,7 @@ fn show_active() {
 }
 
 pub fn new_tab(url: &str) {
+    crate::trace(&format!("shell: new_tab {url}"));
     let mut client = Some(TabClient::new());
     let mut delegate = TabViewDelegate::new(RuntimeStyle::DEFAULT);
     let settings = BrowserSettings { background_color: 0xFFFF_FFFF, ..Default::default() };
@@ -663,6 +664,7 @@ wrap_window_delegate! {
 
     impl WindowDelegate {
         fn on_window_created(&self, window: Option<&mut Window>) {
+            crate::trace("shell: window created");
             let Some(window) = window else { return };
             window.set_title(Some(&s("Owl.")));
             if let Some(mut img) = image_create() {
@@ -702,8 +704,11 @@ wrap_window_delegate! {
                 s.content = content;
                 s.toolbar = tb;
             });
+            crate::trace("shell: views added");
             new_tab(&self.start);
+            crate::trace("shell: first tab");
             window.show();
+            crate::trace("shell: shown");
         }
 
         fn on_window_destroyed(&self, _window: Option<&mut Window>) {
@@ -736,6 +741,7 @@ wrap_window_delegate! {
 
 /// Opens the Owl. window with its first tab.
 pub fn open(start: &str) {
+    crate::trace("shell: open");
     let mut w = OwlWindow::new(start.to_string());
     window_create_top_level(Some(&mut w));
 }
