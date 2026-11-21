@@ -77,14 +77,17 @@ jobs:
           $p = Start-Process stage\owl-chromium\owl-chromium.exe -PassThru
           Start-Sleep 20
           # a screenshot of the window, for the artifact
-          Add-Type -AssemblyName System.Drawing
+          Add-Type -AssemblyName System.Drawing, System.Windows.Forms
           Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h,out RECT r);[DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h,IntPtr dc,uint f);[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int c);public struct RECT{public int L,T,R,B;}' -Name W -Namespace CI
           $w = Get-Process owl-chromium -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
           if ($w) {
             [CI.W]::ShowWindow($w.MainWindowHandle, 3) | Out-Null; Start-Sleep 3
             $r = New-Object CI.W+RECT; [CI.W]::GetWindowRect($w.MainWindowHandle, [ref]$r) | Out-Null
-            $bmp = New-Object System.Drawing.Bitmap ($r.R - $r.L), ($r.B - $r.T); $g = [System.Drawing.Graphics]::FromImage($bmp); $dc = $g.GetHdc()
-            [CI.W]::PrintWindow($w.MainWindowHandle, $dc, 2) | Out-Null; $g.ReleaseHdc($dc); $g.Dispose()
+            # a screen capture: the window's GPU-composited content is not seen by PrintWindow
+            Start-Sleep 4
+            $scr = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $scr.Width, $scr.Height; $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.CopyFromScreen($scr.X, $scr.Y, 0, 0, $bmp.Size); $g.Dispose()
             New-Item -ItemType Directory shots -Force | Out-Null; $bmp.Save("shots\owl-chromium.png"); $bmp.Dispose()
             "window title: $($w.MainWindowTitle)" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           }
