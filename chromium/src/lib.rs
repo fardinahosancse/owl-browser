@@ -21,6 +21,7 @@
 //! runs the same code unsandboxed, which is handy while developing.
 
 mod rules;
+mod shell;
 #[cfg(all(target_os = "windows", feature = "sandbox"))]
 mod win;
 
@@ -28,15 +29,13 @@ use adblock::{lists::ParseOptions, request::Request as KickRequest, Engine, Filt
 use cef::*;
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
-use std::sync::{Arc, Mutex};
 
-const HOME_HTML: &str = include_str!("../home.html");
 /// Owl.'s brand red, the seed Chromium builds its colours from (Settings > Appearance > Theme).
 const OWL_RED: u32 = 0xFFB8_290F;
 const CLOUDFLARE_DOH: &str = "https://cloudflare-dns.com/dns-query";
 
 /// Requests OwlKick blocked since start.
-static BLOCKED: AtomicU64 = AtomicU64::new(0);
+pub(crate) static BLOCKED: AtomicU64 = AtomicU64::new(0);
 
 fn owl_dir() -> std::path::PathBuf {
     let base = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".into());
@@ -48,13 +47,6 @@ fn profile_dir() -> String {
     let dir = owl_dir().join("chromium");
     let _ = std::fs::create_dir_all(&dir);
     dir.to_string_lossy().into_owned()
-}
-
-/// Owl.'s home page, written next to the profile and opened as a file address.
-fn home_url() -> String {
-    let path = owl_dir().join("chromium").join("home.html");
-    let _ = std::fs::write(&path, HOME_HTML);
-    format!("file:///{}", path.to_string_lossy().replace('\\', "/"))
 }
 
 // ---------- OwlKick ----------
@@ -186,67 +178,14 @@ wrap_request_handler! {
     }
 }
 
-// ---------- browser windows ----------
-
-/// Browsers that are open; when the last one closes the message loop ends.
-struct Browsers {
-    list: Vec<Browser>,
-}
-
-wrap_client! {
-    struct OwlClient {
-        browsers: Arc<Mutex<Browsers>>,
-    }
-
-    impl Client {
-        fn life_span_handler(&self) -> Option<LifeSpanHandler> {
-            Some(OwlLifeSpanHandler::new(self.browsers.clone()))
-        }
-
-        fn request_handler(&self) -> Option<RequestHandler> {
-            Some(OwlRequestHandler::new(std::env::var("OWL_KICK_OFF").is_err()))
-        }
-    }
-}
-
-wrap_life_span_handler! {
-    struct OwlLifeSpanHandler {
-        browsers: Arc<Mutex<Browsers>>,
-    }
-
-    impl LifeSpanHandler {
-        fn on_after_created(&self, browser: Option<&mut Browser>) {
-            if let Some(b) = browser.cloned() {
-                self.browsers.lock().unwrap().list.push(b);
-            }
-        }
-
-        fn do_close(&self, _browser: Option<&mut Browser>) -> i32 {
-            0
-        }
-
-        fn on_before_close(&self, browser: Option<&mut Browser>) {
-            let mut all = self.browsers.lock().unwrap();
-            if let Some(mut b) = browser.cloned() {
-                if let Some(i) = all.list.iter().position(|x| x.is_same(Some(&mut b)) != 0) {
-                    all.list.remove(i);
-                }
-            }
-            if all.list.is_empty() {
-                quit_message_loop();
-            }
-        }
-    }
-}
-
 fn value_of(set: impl FnOnce(&Value)) -> Value {
     let v = value_create().expect("value");
     set(&v);
     v
 }
 
-/// Owl.'s choices on top of Chromium's own settings: theme, home page, Secure DNS.
-fn apply_owl_settings(home: &str) {
+/// Owl.'s choices on top of Chromium's own settings: one light colour scheme, Secure DNS.
+fn apply_owl_settings() {
     let s = |x: &str| value_of(|v| {
         v.set_string(Some(&CefString::from(x)));
     });
@@ -265,14 +204,9 @@ fn apply_owl_settings(home: &str) {
     }
     // the rest belong to the profile
     if let Some(ctx) = request_context_get_global_context() {
-        // Chromium's own theme: colours generated from Owl.'s red, light or dark as Windows is
-        ctx.set_chrome_color_scheme(ColorVariant::TONAL_SPOT, OWL_RED);
-        for (name, mut value) in [
-            ("homepage", s(home)),
-            ("homepage_is_newtabpage", b(false)),
-            ("browser.show_home_button", b(true)),
-            ("signin.allowed", b(false)),
-        ] {
+        // Owl. has one theme, light: Chromium's own pages and controls follow it
+        ctx.set_chrome_color_scheme(ColorVariant::LIGHT, OWL_RED);
+        for (name, mut value) in [("signin.allowed", b(false))] {
             let mut err = CefString::from("");
             if ctx.set_preference(Some(&CefString::from(name)), Some(&mut value), Some(&mut err)) != 1 {
                 eprintln!("preference {name}: {err}");
@@ -283,30 +217,16 @@ fn apply_owl_settings(home: &str) {
 
 wrap_browser_process_handler! {
     struct OwlBrowserProcessHandler {
-        client: RefCell<Option<Client>>,
+        tag: u8,
     }
 
     impl BrowserProcessHandler {
         fn on_context_initialized(&self) {
-            *self.client.borrow_mut() = Some(OwlClient::new(Arc::new(Mutex::new(Browsers { list: vec![] }))));
-            let home = home_url();
-            apply_owl_settings(&home);
-
-            // --url=... opens that address; otherwise Owl.'s home page
+            apply_owl_settings();
+            // --url=... opens that address; otherwise Owl.'s home page (the bundled Calm Home)
             let cmd = command_line_get_global().expect("no command line");
             let url = CefString::from(&cmd.switch_value(Some(&CefString::from("url")))).to_string();
-            let url = if url.is_empty() { home } else { url };
-
-            // Chrome style in its own window: Chromium's tab strip, address bar, menus and pages
-            let window_info = WindowInfo { runtime_style: RuntimeStyle::CHROME, ..Default::default() }.set_as_popup(Default::default(), "Owl.");
-            let settings = BrowserSettings::default();
-            let mut client = self.default_client();
-            browser_host_create_browser(Some(&window_info), client.as_mut(), Some(&CefString::from(url.as_str())), Some(&settings), None, None);
-        }
-
-        fn default_client(&self) -> Option<Client> {
-            // tabs and windows Chromium opens itself use this client too, so OwlKick covers them
-            self.client.borrow().clone()
+            shell::open(if url.is_empty() { "chrome://newtab/" } else { &url });
         }
     }
 }
@@ -315,8 +235,24 @@ wrap_app! {
     struct OwlApp;
 
     impl App {
+        fn on_before_command_line_processing(&self, process_type: Option<&CefString>, command_line: Option<&mut CommandLine>) {
+            // the browser process loads Owl. Calm Home (in the "home" folder next to Owl.) as the
+            // new tab page, with its real history, bookmarks and storage
+            if process_type.map(|p| p.to_string()).unwrap_or_default().is_empty() {
+                if let Some(cl) = command_line {
+                    if let Some(dir) = std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.join("home"))) {
+                        if dir.join("manifest.json").is_file() {
+                            cl.append_switch_with_value(Some(&CefString::from("load-extension")), Some(&CefString::from(dir.to_string_lossy().as_ref())));
+                            cl.append_switch_with_value(Some(&CefString::from("disable-features")), Some(&CefString::from("DisableLoadExtensionCommandLineSwitch")));
+                        }
+                    }
+                    cl.append_switch(Some(&CefString::from("hide-crash-restore-bubble")));
+                }
+            }
+        }
+
         fn browser_process_handler(&self) -> Option<BrowserProcessHandler> {
-            Some(OwlBrowserProcessHandler::new(RefCell::new(None)))
+            Some(OwlBrowserProcessHandler::new(0))
         }
     }
 }

@@ -7,7 +7,7 @@ name: Chromium preview (CEF)
 on:
   push:
     branches: [chromium-cef]
-    paths: ["chromium/**", ".github/workflows/chromium.yml", "assets/wordmark.d", "assets/owl.ico"]
+    paths: ["chromium/**", ".github/workflows/chromium.yml", "assets/**", "src/ui.html", "chrome-extension-homepage/**"]
   workflow_dispatch:
 
 permissions:
@@ -46,6 +46,9 @@ jobs:
           $res = Get-ChildItem $env:CEF_PATH -Recurse -Filter icudtl.dat | Select-Object -First 1
           Get-ChildItem $res.DirectoryName -File | Copy-Item -Destination $out
           if (Test-Path (Join-Path $res.DirectoryName "locales")) { Copy-Item (Join-Path $res.DirectoryName "locales") "$out\locales" -Recurse -Force }
+          # Owl. Calm Home, the home and new tab page, loaded by Owl. from the "home" folder
+          New-Item -ItemType Directory "$out\home" -Force | Out-Null
+          Get-ChildItem chrome-extension-homepage -Exclude screenshots, windows-helper, README.md, .gitignore, .gitattributes | Copy-Item -Destination "$out\home" -Recurse -Force
           # the Owl. icon and name on the executable
           npm install --no-save --silent rcedit@4.0.1 | Out-Null
           & node_modules\rcedit\bin\rcedit-x64.exe "$out\owl-chromium.exe" --set-icon assets\owl.ico --set-version-string ProductName "Owl." --set-version-string FileDescription "Owl. (Chromium preview)" --set-version-string CompanyName "Owl."
