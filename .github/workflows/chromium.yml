@@ -74,6 +74,7 @@ jobs:
           "Secure DNS saved: $([bool]($ls -match 'cloudflare-dns.com')); mode secure: $([bool]($ls -match '\"mode\":\"secure\"'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           "Theme colour saved: $([bool]($pr -match 'user_color')); home page saved: $([bool]($pr -match 'home.html'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           Get-Content (Join-Path $env:RUNNER_TEMP "cef-err1.txt") -ErrorAction SilentlyContinue | Select-String "preference" | ForEach-Object { "  $_" }
+          $env:OWL_CEF_TRACE = Join-Path $env:RUNNER_TEMP "owl-cef-trace2.txt"
           $p = Start-Process stage\owl-chromium\owl-chromium.exe -PassThru
           Start-Sleep 20
           # a screenshot of the window, for the artifact
@@ -97,6 +98,7 @@ jobs:
           "child processes: $($kidsCl.Count); without sandbox: $unsandboxed" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           $kidsCl | ForEach-Object { "  " + (($_ -split ' ') | Where-Object { $_ -match '^--type=' }) }
           if ($unsandboxed -gt 0) { throw "some Chromium processes run without the sandbox" }
+          "--- trace"; Get-Content $env:OWL_CEF_TRACE -ErrorAction SilentlyContinue | Where-Object { $_ -notmatch "run:|RunWinMain|RunConsole" } | Select-Object -Last 40
           $p.Refresh()
           $alive = -not $p.HasExited
           $kids = (Get-Process owl-chromium -ErrorAction SilentlyContinue | Measure-Object).Count

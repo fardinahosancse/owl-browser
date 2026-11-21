@@ -380,6 +380,7 @@ wrap_display_handler! {
             _line: ::std::os::raw::c_int,
         ) -> ::std::os::raw::c_int {
             let m = message.map(CefString::to_string).unwrap_or_default();
+            crate::trace(&format!("toolbar console: {}", m.chars().take(120).collect::<String>()));
             match m.strip_prefix(self.prefix.as_str()) {
                 Some(body) => {
                     if let Ok(v) = serde_json::from_str::<Value>(body) {
@@ -478,6 +479,7 @@ wrap_display_handler! {
         fn on_title_change(&self, browser: Option<&mut Browser>, title: Option<&CefString>) {
             let Some(id) = browser.map(|b| b.identifier()) else { return };
             let t = title.map(CefString::to_string).unwrap_or_default();
+            crate::trace(&format!("tab {id} title {t}"));
             let active = with(|s| {
                 if let Some(tab) = s.tabs.iter_mut().find(|x| x.id == id) {
                     tab.title = t.clone();
@@ -498,6 +500,7 @@ wrap_display_handler! {
             }
             let Some(id) = browser.map(|b| b.identifier()) else { return };
             let u = url.map(CefString::to_string).unwrap_or_default();
+            crate::trace(&format!("tab {id} address {u}"));
             with(|s| {
                 if let Some(tab) = s.tabs.iter_mut().find(|x| x.id == id) {
                     tab.url = u;
@@ -639,6 +642,7 @@ wrap_browser_view_delegate! {
         fn on_browser_created(&self, browser_view: Option<&mut BrowserView>, browser: Option<&mut Browser>) {
             let (Some(view), Some(b)) = (browser_view, browser) else { return };
             let id = b.identifier();
+            crate::trace(&format!("tab browser created {id}"));
             let mut created = View::from(&*view);
             let views: Vec<(usize, BrowserView)> = with(|s| s.tabs.iter().enumerate().filter(|(_, t)| t.id == 0).map(|(i, t)| (i, t.view.clone())).collect());
             for (i, v) in views {
