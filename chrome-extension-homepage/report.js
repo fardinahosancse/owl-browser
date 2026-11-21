@@ -3,6 +3,7 @@
 (function () {
   const { p2, ext, dayKey, hostOf, dur, el, favicon, site, clock12 } = Owl;
   const $ = (i) => document.getElementById(i);
+  document.querySelectorAll("[data-ic]").forEach((e) => e.insertAdjacentHTML("afterbegin", Icons.svg(e.dataset.ic)));
   const DAY = 86400e3;
   let period = new URLSearchParams(location.search).get("p") || localStorage.getItem("owl.rp") || "week";
   let offset = 0;

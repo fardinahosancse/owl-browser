@@ -2,13 +2,14 @@
   "manifest_version": 3,
   "name": "Owl. Calm Home",
   "short_name": "Owl. Home",
-  "version": "1.1.1",
-  "description": "Owl.'s calm home page for any Chromium browser: a big clock, the line of your day, your bookmarks bar, the weather, the pages you left, and day, week and month reports of where your time goes. Everything stays on this computer.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtqnIVRe0Kn01xn2jQx9RTP8/Qc8B/jK8bQ7WOc52zps6/+4zNJ8loHAH3e9Wg/wmTXmISQZEZ35yLC5KRrvk3Kk9fxSERc5PTJ5o77zcpiqdR2/2Uhfp3LdXOxyDfYCmJPDnJdOwZQHR6ck3JeswlfY5ab/UjJk/5zHImb008uEiA+CYFBByQsQAOEwyJaGU1+NOOCyyNAy/PB5DlDObi3sxvq/UmH8+CDr43KJDlwAzUKoPdL1ZYSl9hoXfLlb2FS+ZGM1jRcPHIuiCviMav4Hl9GXDAkh5HfS9AmTMlqj6j+d+oBMU5fhyWr5WdW5Uh+O/53O7pTf6rvghK6PRtwIDAQAB",
+  "version": "1.2.0",
+  "description": "Owl.'s calm home page for any Chromium browser: a big clock, the line of your day, your favourites, shortcuts, the weather, Wi-Fi and volume, the pages you left, and day, week and month reports of where your time goes. Everything stays on this computer.",
   "homepage_url": "https://github.com/fardinahosancse/owl-browser",
   "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
   "chrome_url_overrides": { "newtab": "newtab.html" },
   "background": { "service_worker": "background.js" },
-  "permissions": ["storage", "history", "downloads", "tabs", "idle", "alarms", "search", "bookmarks", "favicon", "geolocation"],
+  "permissions": ["storage", "history", "downloads", "tabs", "idle", "alarms", "search", "bookmarks", "favicon", "geolocation", "topSites", "nativeMessaging"],
   "host_permissions": ["https://api.open-meteo.com/*", "https://geocoding-api.open-meteo.com/*"],
   "content_security_policy": {
     "extension_pages": "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src https://api.open-meteo.com https://geocoding-api.open-meteo.com; object-src 'none'; base-uri 'none'"

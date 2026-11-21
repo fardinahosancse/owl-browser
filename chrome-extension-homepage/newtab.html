@@ -12,9 +12,17 @@
 <div class="cw">
   <div class="ct">
     <span class="brand">Owl<em>.</em></span>
-    <span class="tr2"><span id="cd"></span><a href="report.html" class="toplink">Report</a><button type="button" id="gear" aria-label="Home page settings" aria-expanded="false">Settings</button></span>
+    <span class="tr2">
+      <span id="cd"></span>
+      <nav class="qb" aria-label="Quick buttons">
+        <a href="report.html" class="ib" data-ic="report" title="Report: your day, week and month" aria-label="Report"></a>
+        <a href="chrome://downloads" class="ib" data-ic="downloads" data-chrome title="Downloads" aria-label="Downloads"></a>
+        <a href="chrome://history" class="ib" data-ic="history" data-chrome title="History" aria-label="History"></a>
+        <a href="chrome://bookmarks" class="ib" data-ic="bookmarks" data-chrome title="Bookmarks" aria-label="Bookmarks"></a>
+        <button type="button" class="ib" id="gear" data-ic="settings" title="Home page settings" aria-label="Home page settings" aria-expanded="false"></button>
+      </nav>
+    </span>
   </div>
-  <nav class="bm" id="bm" aria-label="Bookmarks bar"></nav>
 
   <div class="cm">
     <div>
@@ -24,33 +32,34 @@
         <div class="tr"></div><div class="fl" id="dfl"></div><div class="nw" id="dnw"></div>
         <span class="hr h0" id="h0">00</span><span class="hr h1" id="h1">06</span><span class="hr h2" id="h2">12</span><span class="hr h3" id="h3">18</span><span class="hr h4" id="h4">24</span>
       </div>
-      <form class="cs" id="cf2"><input id="cq" autofocus autocomplete="off" spellcheck="false" aria-label="Search or address" placeholder="Search privately or type an address"></form>
+      <form class="cs" id="cf2"><span class="si" data-ic="search"></span><input id="cq" autofocus autocomplete="off" spellcheck="false" aria-label="Search or address" placeholder="Search privately or type an address"></form>
+      <nav class="sc" id="sc" aria-label="Shortcuts" hidden></nav>
       <p class="story" id="st" aria-live="polite">You have spent <b id="stoday">0m</b> online today<span id="stop"></span>.<span id="sdl"></span></p>
       <p class="hint" id="hint">Everything you do here stays on this computer.</p>
     </div>
     <div class="side">
       <section id="wx" class="wx" hidden>
         <h2><span>Weather</span><span id="wxplace"></span></h2>
-        <div class="wxm"><b id="wxt"></b><div><span id="wxc"></span><small id="wxhl"></small></div></div>
+        <div class="wxm"><span class="wxi" id="wxi"></span><b id="wxt"></b><div><span id="wxc"></span><small id="wxhl"></small></div></div>
         <div class="wxd" id="wxd"></div>
       </section>
       <section><h2>Pick up where you left off</h2><div id="recent"><p class="quiet">Pages you open will gather here, newest first.</p></div></section>
       <section id="spentbox" hidden><h2><span>Where your time goes today</span><a href="report.html">Detailed report</a></h2><div id="spent"></div></section>
     </div>
   </div>
-
-  <div class="cf">
-    <span id="cpart"></span>
-    <nav>
-      <a href="report.html">Report</a>
-      <a href="chrome://downloads" data-chrome>Downloads</a>
-      <a href="chrome://history" data-chrome>History</a>
-      <a href="chrome://bookmarks" data-chrome>Bookmarks</a>
-      <a href="chrome://settings" data-chrome>Settings</a>
-    </nav>
-  </div>
+  <p class="cpart" id="cpart"></p>
 </div>
-<div class="bmpop" id="bmpop" hidden></div>
+
+<!-- the dock: favourites on the left, quick controls on the right, at the very bottom -->
+<footer class="dock" id="dock">
+  <nav class="bm" id="bm" aria-label="Favourites"></nav>
+  <div class="qc" id="qc" aria-label="Quick controls">
+    <button type="button" class="qi" id="qnet" aria-haspopup="true" aria-expanded="false"><span class="qic" id="qneti"></span><span class="qt" id="qnett">Network</span></button>
+    <button type="button" class="qi" id="qvol" aria-haspopup="true" aria-expanded="false"><span class="qic" id="qvoli"></span><span class="qt" id="qvolt">Volume</span></button>
+  </div>
+</footer>
+<div class="pop" id="bmpop" hidden></div>
+<div class="pop up" id="qpop" hidden></div>
 
 <aside id="pane" hidden aria-label="Home page settings">
   <h2>Home page</h2>
@@ -64,18 +73,21 @@
   <div class="fld">Search with
     <div class="seg two" role="group" aria-label="Search engine"><button type="button" data-search="ddg">DuckDuckGo</button><button type="button" data-search="browser">Browser default</button></div>
   </div>
-  <div class="row"><div><b>Bookmarks bar</b><p>Your browser's bookmarks bar, kept in step as it syncs.</p></div><button type="button" class="tg" id="bmon" role="switch" aria-checked="true" aria-label="Bookmarks bar"></button></div>
+  <div class="row"><div><b>Shortcuts</b><p>Your most visited sites under the search line.</p></div><button type="button" class="tg" id="scon" role="switch" aria-checked="true" aria-label="Shortcuts"></button></div>
+  <div class="row"><div><b>Favourites</b><p>Your browser's bookmarks bar, at the bottom, kept in step as it syncs.</p></div><button type="button" class="tg" id="bmon" role="switch" aria-checked="true" aria-label="Favourites"></button></div>
+  <div class="row"><div><b>Wi-Fi and volume</b><p id="qcnote">Needs the small Windows helper; see below.</p></div><button type="button" class="tg" id="qcon" role="switch" aria-checked="true" aria-label="Wi-Fi and volume"></button></div>
   <div class="fld wxset">Weather
     <div class="seg three" role="group" aria-label="Weather"><button type="button" data-wx="off">Off</button><button type="button" data-wx="here">My location</button><button type="button" data-wx="city">A city</button></div>
     <form id="cityf" class="cityf" hidden><input id="city" autocomplete="off" placeholder="Search a city, for example Dhaka"><button type="submit" class="ghost">Find</button></form>
     <div id="cityr" class="cityr"></div>
     <div class="seg two" role="group" aria-label="Units"><button type="button" data-unit="c">°C</button><button type="button" data-unit="f">°F</button></div>
-    <p class="small" id="wxnote">The weather appears at the top of the right-hand column of the home page. Forecasts come from Open-Meteo (free, no account). Only the place is sent, never your browsing.</p>
+    <p class="small" id="wxnote">The weather appears at the top of the right-hand column. Forecasts come from Open-Meteo (free, no account). Only the place is sent, never your browsing.</p>
   </div>
   <div class="row"><div><b>Time online</b><p>Kept on this computer only.</p></div><button type="button" class="ghost" id="clear">Clear</button></div>
   <button type="button" class="done" id="done">Done</button>
 </aside>
 <script src="common.js"></script>
+<script src="icons.js"></script>
 <script src="newtab.js"></script>
 </body>
 </html>

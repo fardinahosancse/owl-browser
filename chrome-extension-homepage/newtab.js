@@ -3,6 +3,7 @@
 (function () {
   const { p2, ext, dayKey, hostOf, dur, el, favicon, clock12, stale, RELOAD } = Owl;
   const $ = (i) => document.getElementById(i);
+  document.querySelectorAll("[data-ic]").forEach((e) => e.insertAdjacentHTML("afterbegin", Icons.svg(e.dataset.ic)));
 
   const part = (h) => (h < 5 ? "Night" : h < 12 ? "Morning" : h < 17 ? "Afternoon" : h < 21 ? "Evening" : "Night");
   const greet = (h) => (h < 5 ? "Still up" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 21 ? "Good evening" : "Good night");
@@ -53,7 +54,9 @@
     for (const c of list) {
       if (c.url) pop.append(bmLink(c));
       else {
-        const f = el("button", "bmi folder", c.title || "Folder");
+        const f = el("button", "bmi folder");
+        f.innerHTML = Icons.svg("folder");
+        f.append(el("span", "", c.title || "Folder"));
         f.type = "button";
         f.onclick = (e) => {
           e.stopPropagation();
@@ -63,8 +66,8 @@
       }
     }
     const r = btn.getBoundingClientRect();
-    pop.style.setProperty("--x", Math.min(r.left, innerWidth - 340) + "px");
-    pop.style.setProperty("--y", r.bottom + 6 + "px");
+    pop.style.setProperty("--x", Math.max(8, Math.min(r.left, innerWidth - 340)) + "px");
+    pop.style.setProperty("--b", innerHeight - r.top + 8 + "px");
     pop.hidden = false;
     btn.setAttribute("aria-expanded", "true");
   }
@@ -78,7 +81,8 @@
   async function bookmarks() {
     const bar = $("bm");
     if (!ext || !chrome.bookmarks || localStorage.getItem("owl.bm") === "off") {
-      bar.hidden = true;
+      bar.replaceChildren();
+      dockState();
       return;
     }
     const [root] = await chrome.bookmarks.getTree();
@@ -88,7 +92,9 @@
     for (const n of items) {
       if (n.url) bar.append(bmLink(n));
       else if (n.children) {
-        const b = el("button", "bmi folder", n.title || "Folder");
+        const b = el("button", "bmi folder");
+        b.innerHTML = Icons.svg("folder");
+        b.append(el("span", "", n.title || "Folder"));
         b.type = "button";
         b.setAttribute("aria-haspopup", "true");
         b.setAttribute("aria-expanded", "false");
@@ -96,8 +102,186 @@
         bar.append(b);
       }
     }
-    bar.hidden = !items.length;
+    if (!items.length) bar.append(el("span", "quiet", "Add sites to your bookmarks bar and they appear here."));
+    dockState();
   }
+  // the dock shows when it has favourites or quick controls
+  function dockState() {
+    const any = $("bm").childElementCount > 0 || !$("qc").hidden;
+    $("dock").hidden = !any;
+    document.body.classList.toggle("docked", any);
+  }
+
+  // ---------- shortcuts: the browser's most visited sites ----------
+  async function shortcuts() {
+    const box = $("sc");
+    if (!ext || !chrome.topSites || localStorage.getItem("owl.sc") === "off") return void (box.hidden = true);
+    const top = (await chrome.topSites.get()).filter((t) => /^https?:/.test(t.url)).slice(0, 8);
+    box.replaceChildren(
+      ...top.map((t, i) => {
+        const a = el("a", "tile");
+        a.href = t.url;
+        a.title = t.title + "\n" + t.url;
+        a.style.setProperty("--d", i);
+        const img = el("img");
+        img.alt = "";
+        img.src = favicon(t.url, 64);
+        a.append(img, el("span", "", (t.title || hostOf(t.url)).slice(0, 40)));
+        return a;
+      })
+    );
+    box.hidden = !top.length;
+  }
+
+  // ---------- quick controls: Wi-Fi and volume through the Windows helper ----------
+  const qpop = $("qpop");
+  let port = null, qs = null, qOpen = "", volTimer = 0;
+  const qcOff = () => !ext || !chrome.runtime.connectNative || localStorage.getItem("owl.qc") === "off";
+  function helperMissing() {
+    qs = null;
+    $("qneti").innerHTML = Icons.svg("plug");
+    $("qnett").textContent = "Connect Wi-Fi and volume";
+    $("qvol").hidden = true;
+    $("qcnote").textContent = "Not connected yet: run windows-helper\\install.ps1 from the extension folder once.";
+    if (qOpen === "net") drawPop();
+  }
+  function connectHelper() {
+    $("qc").hidden = qcOff();
+    dockState();
+    if (qcOff() || port) return;
+    try {
+      port = chrome.runtime.connectNative("com.owl.calmhome");
+    } catch {
+      port = null;
+      return helperMissing();
+    }
+    port.onMessage.addListener((m) => {
+      if (m && m.ok) {
+        qs = m;
+        drawQuick();
+      }
+    });
+    port.onDisconnect.addListener(() => {
+      void chrome.runtime.lastError;
+      port = null;
+      helperMissing();
+    });
+    port.postMessage({ cmd: "status" });
+  }
+  function drawQuick() {
+    if (!qs) return;
+    const n = qs.network || {}, v = qs.volume || {};
+    $("qvol").hidden = false;
+    $("qcnote").textContent = "Connected to the Windows helper.";
+    if (n.kind === "wifi") {
+      $("qneti").innerHTML = Icons.svg(Icons.wifi(n.signal));
+      $("qnett").textContent = n.name + (n.signal != null ? " · " + n.signal + "%" : "");
+    } else if (n.kind === "ethernet") {
+      $("qneti").innerHTML = Icons.svg("ethernet");
+      $("qnett").textContent = n.name || "Ethernet";
+    } else {
+      $("qneti").innerHTML = Icons.svg("offline");
+      $("qnett").textContent = "Not connected";
+    }
+    $("qnet").title = n.kind === "wifi" ? "Wi-Fi: " + n.name + (n.signal != null ? ", signal " + n.signal + "%" : "") : $("qnett").textContent;
+    if (v.error) {
+      $("qvoli").innerHTML = Icons.svg("volume0");
+      $("qvolt").textContent = "No sound device";
+    } else {
+      $("qvoli").innerHTML = Icons.svg(Icons.volume(v.level, v.muted));
+      $("qvolt").textContent = v.muted ? "Muted" : v.level + "%";
+    }
+    $("qvol").title = "Windows volume";
+    if (qOpen) drawPop();
+  }
+  function kv(a, b) {
+    const r = el("div", "kv");
+    r.append(el("span", "", a), el("b", "", b));
+    return r;
+  }
+  function drawPop() {
+    const n = (qs && qs.network) || {}, v = (qs && qs.volume) || {};
+    qpop.replaceChildren();
+    if (qOpen === "net") {
+      if (!qs) {
+        qpop.append(el("b", "", "Wi-Fi and volume"), el("p", "", "Browsers keep extensions away from Windows, so a small helper reads the Wi-Fi name and signal and sets the volume. Install it once:"));
+        const steps = el("ol");
+        ["Open the extension's folder, then windows-helper.", "Right-click install.ps1 and choose Run with PowerShell.", "Open a new tab."].forEach((t) => steps.append(el("li", "", t)));
+        qpop.append(steps, el("p", "small", "It only answers this page, opens no network connection and writes nothing. uninstall.ps1 removes it."));
+      } else {
+        const sig = n.signal;
+        qpop.append(el("b", "", n.kind === "wifi" ? "Wi-Fi" : n.kind === "ethernet" ? "Ethernet" : "Network"));
+        qpop.append(kv("Network", n.name || "not connected"));
+        if (n.kind === "wifi") qpop.append(kv("Signal", sig != null ? sig + "% " + (sig >= 70 ? "strong" : sig >= 45 ? "good" : sig >= 20 ? "weak" : "very weak") : "unknown"));
+        if (navigator.connection && navigator.connection.downlink) qpop.append(kv("Speed estimate", navigator.connection.downlink + " Mbit/s"));
+        if (n.kind === "wifi" && sig != null) {
+          const m = el("div", "meter");
+          m.style.setProperty("--w", sig + "%");
+          qpop.append(m);
+        }
+        if (n.note) qpop.append(el("p", "small", n.note));
+      }
+    } else if (qOpen === "vol") {
+      qpop.append(el("b", "", "Volume"));
+      const line = el("div", "volrow");
+      const mute = el("button", "ib");
+      mute.type = "button";
+      mute.innerHTML = Icons.svg(Icons.volume(v.level, v.muted));
+      mute.title = v.muted ? "Unmute" : "Mute";
+      mute.setAttribute("aria-label", mute.title);
+      mute.onclick = (e) => {
+        e.stopPropagation();
+        if (port) port.postMessage({ cmd: "mute", on: !v.muted });
+      };
+      const r = el("input");
+      r.type = "range";
+      r.min = 0;
+      r.max = 100;
+      r.value = v.level || 0;
+      r.setAttribute("aria-label", "Windows volume");
+      r.style.setProperty("--v", (v.level || 0) + "%");
+      const out = el("b", "", (v.muted ? 0 : v.level || 0) + "%");
+      r.oninput = () => {
+        out.textContent = r.value + "%";
+        r.style.setProperty("--v", r.value + "%");
+        clearTimeout(volTimer);
+        volTimer = setTimeout(() => port && port.postMessage({ cmd: "volume", level: +r.value }), 60);
+      };
+      line.append(mute, r, out);
+      qpop.append(line, el("p", "small", "Changes the Windows volume of the default speakers or headphones."));
+    }
+  }
+  function toggleQ(which, btn) {
+    if (qOpen === which && !qpop.hidden) return closeQ();
+    qOpen = which;
+    drawPop();
+    const r = btn.getBoundingClientRect();
+    qpop.style.setProperty("--r", Math.max(8, innerWidth - r.right) + "px");
+    qpop.style.setProperty("--b", innerHeight - r.top + 8 + "px");
+    qpop.hidden = false;
+    document.querySelectorAll(".qi").forEach((b) => b.setAttribute("aria-expanded", b === btn));
+    if (port) port.postMessage({ cmd: "status" });
+  }
+  function closeQ() {
+    qOpen = "";
+    qpop.hidden = true;
+    document.querySelectorAll(".qi").forEach((b) => b.setAttribute("aria-expanded", "false"));
+  }
+  $("qnet").addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleQ("net", $("qnet"));
+  });
+  $("qvol").addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleQ("vol", $("qvol"));
+  });
+  qpop.addEventListener("click", (e) => e.stopPropagation());
+  document.addEventListener("click", () => {
+    if (!qpop.hidden) closeQ();
+  });
+  setInterval(() => port && !document.hidden && port.postMessage({ cmd: "status" }), 5000);
+  // screenshots only: newtab.html#demo shows made-up quick-control values instead of real ones
+  if (location.hash === "#demo") window.owlDemo = (m) => ((qs = m), drawQuick());
   if (ext && chrome.bookmarks) {
     for (const ev of ["onCreated", "onRemoved", "onChanged", "onMoved", "onChildrenReordered", "onImportEnded"]) {
       if (chrome.bookmarks[ev]) chrome.bookmarks[ev].addListener(() => bookmarks());
@@ -177,6 +361,7 @@
   function wxMessage(text, settings) {
     const box = $("wx");
     $("wxplace").textContent = "";
+    $("wxi").replaceChildren();
     $("wxt").textContent = "";
     $("wxc").textContent = text;
     $("wxhl").textContent = "";
@@ -214,7 +399,7 @@
     } catch {}
     if (!data) {
       try {
-        const u = `https://api.open-meteo.com/v1/forecast?latitude=${place.lat}&longitude=${place.lon}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=4&temperature_unit=${unit}`;
+        const u = `https://api.open-meteo.com/v1/forecast?latitude=${place.lat}&longitude=${place.lon}&current=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=4&temperature_unit=${unit}`;
         data = await (await fetch(u)).json();
         localStorage.setItem("owl.wxcache", JSON.stringify({ key, t: Date.now(), data }));
       } catch {
@@ -223,13 +408,17 @@
     }
     const deg = "°";
     $("wxplace").textContent = place.name || (data.timezone || "").split("/").pop().replace(/_/g, " ");
+    $("wxi").innerHTML = Icons.svg(Icons.weather(data.current.weather_code, data.current.is_day === 0), "ic wxic");
     $("wxt").textContent = Math.round(data.current.temperature_2m) + deg;
     $("wxc").textContent = WMO[data.current.weather_code] || "";
     $("wxhl").textContent = `High ${Math.round(data.daily.temperature_2m_max[0])}${deg} · Low ${Math.round(data.daily.temperature_2m_min[0])}${deg}`;
     $("wxd").replaceChildren(
       ...data.daily.time.slice(1, 4).map((t, i) => {
         const d = el("div");
+        const ic = el("span", "dic");
+        ic.innerHTML = Icons.svg(Icons.weather(data.daily.weather_code[i + 1], false));
         d.append(
+          ic,
           el("span", "", new Date(t + "T12:00").toLocaleDateString("en", { weekday: "short" })),
           el("b", "", `${Math.round(data.daily.temperature_2m_max[i + 1])}${deg} / ${Math.round(data.daily.temperature_2m_min[i + 1])}${deg}`),
           el("small", "", WMO[data.daily.weather_code[i + 1]] || "")
@@ -243,6 +432,8 @@
   recent();
   numbers();
   bookmarks();
+  shortcuts();
+  connectHelper();
   weather();
   setInterval(numbers, 30000);
   setInterval(() => weather(), 30 * 60e3);
@@ -269,7 +460,8 @@
       $("cq").focus();
     }
     if (e.key === "Escape") {
-      if (!pop.hidden) closePop();
+      if (!qpop.hidden) closeQ();
+      else if (!pop.hidden) closePop();
       else if (!$("pane").hidden) closePane();
     }
   });
@@ -310,6 +502,8 @@
     }
     $("cityf").hidden = (localStorage.getItem("owl.wx") || "off") !== "city";
     $("bmon").setAttribute("aria-checked", localStorage.getItem("owl.bm") !== "off");
+    $("scon").setAttribute("aria-checked", localStorage.getItem("owl.sc") !== "off");
+    $("qcon").setAttribute("aria-checked", localStorage.getItem("owl.qc") !== "off");
   }
   for (const [k, store, , after] of SEGS) {
     document.querySelectorAll(`[${attr(k)}]`).forEach((b) =>
@@ -320,6 +514,21 @@
       })
     );
   }
+  const flip = (k) => localStorage.setItem(k, localStorage.getItem(k) === "off" ? "on" : "off");
+  $("scon").addEventListener("click", () => {
+    flip("owl.sc");
+    showSegs();
+    shortcuts();
+  });
+  $("qcon").addEventListener("click", () => {
+    flip("owl.qc");
+    showSegs();
+    if (qcOff() && port) {
+      port.disconnect();
+      port = null;
+    }
+    connectHelper();
+  });
   $("bmon").addEventListener("click", () => {
     localStorage.setItem("owl.bm", localStorage.getItem("owl.bm") === "off" ? "on" : "off");
     showSegs();

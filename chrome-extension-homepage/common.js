@@ -34,7 +34,7 @@ const Owl = (() => {
   // The page files can be newer than what the browser has loaded: when the extension folder is
   // updated in place, the browser uses the new pages at once but keeps the old manifest (and its
   // permissions) until the extension is reloaded on the extensions page.
-  const VERSION = "1.1.1";
+  const VERSION = "1.2.0";
   const stale = () => ext && chrome.runtime.getManifest && chrome.runtime.getManifest().version !== VERSION;
   const RELOAD = "Owl. Calm Home was updated. Open the extensions page and press Reload on Owl. Calm Home to finish the update.";
   return { p2, ext, dayKey, hostOf, dur, el, favicon, site, clock12, stale, RELOAD };
