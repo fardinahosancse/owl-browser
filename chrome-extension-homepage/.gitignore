@@ -1,0 +1,5 @@
+# written by Chrome when the folder is loaded unpacked
+_metadata/
+
+# do not commit the generated host manifest (it holds this PC's path)
+com.owl.calmhome.json
