@@ -54,6 +54,11 @@ thread_local! {
     static SHELL: RefCell<Shell> = RefCell::new(Shell { tool_h: TOOL_BASE, ..Default::default() });
 }
 
+/// Diagnosis switches (environment): OWL_FRAMELESS=0, OWL_BOX=0, OWL_WSTYLE=alloy
+fn flag(name: &str, default: bool) -> bool {
+    std::env::var(name).map(|v| v != "0").unwrap_or(default)
+}
+
 fn with<R>(f: impl FnOnce(&mut Shell) -> R) -> R {
     SHELL.with(|s| f(&mut s.borrow_mut()))
 }
@@ -681,7 +686,7 @@ wrap_window_delegate! {
             window.set_background_color(0xFFFF_FFFF);
             crate::trace("shell: background set");
             // page above, toolbar below
-            let layout = window.set_to_box_layout(Some(&BoxLayoutSettings { horizontal: 0, ..Default::default() }));
+            let layout = if flag("OWL_BOX", true) { window.set_to_box_layout(Some(&BoxLayoutSettings { horizontal: 0, ..Default::default() })) } else { None };
             crate::trace(&format!("shell: box layout {}", layout.is_some()));
             let tb = browser_view_create(
                 Some(&mut ToolbarClient::new(MSG_PREFIX.to_string())),
@@ -729,7 +734,7 @@ wrap_window_delegate! {
         }
 
         fn is_frameless(&self, _window: Option<&mut Window>) -> i32 {
-            1
+            flag("OWL_FRAMELESS", true) as i32
         }
 
         fn initial_show_state(&self, _window: Option<&mut Window>) -> ShowState {
@@ -737,7 +742,7 @@ wrap_window_delegate! {
         }
 
         fn window_runtime_style(&self) -> RuntimeStyle {
-            RuntimeStyle::DEFAULT
+            if std::env::var("OWL_WSTYLE").as_deref() == Ok("alloy") { RuntimeStyle::ALLOY } else { RuntimeStyle::DEFAULT }
         }
     }
 }
