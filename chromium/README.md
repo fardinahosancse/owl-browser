@@ -4,35 +4,40 @@ This folder is an experiment on the `chromium-cef` branch: Owl. built on the **C
 Framework** (CEF, Chromium 156 through the [`cef`](https://crates.io/crates/cef) crate from the
 Tauri project) instead of **Microsoft Edge WebView2**. The shipping browser is unchanged.
 
-**Approach on this branch: use what Chromium already has, keep what is Owl.'s own.**
+**Approach on this branch: Owl.'s own interface on Chromium.**
 
-Owl. on WebView2 rebuilt many browser features itself because WebView2 is only an engine. Chromium
-(CEF "Chrome style") comes with the full browser UI, so this build uses Chromium's built-in tabs,
-address bar, downloads, passwords, history, bookmarks, find in page, dialogs, permissions and
-settings, and does not port Owl.'s versions of them. Owl. keeps:
+The window looks and works like Owl. on WebView2, not like Chrome:
 
-- **The Owl. look**: Chromium's theme is seeded with Owl.'s red (#B8290F), the window has the Owl. icon.
-- **The same home page**: `home.html` is Owl.'s classic home page, generated from Owl.'s own page
-  code (`dump_home_for_chromium` test, then `make-home.py`), set as Chromium's home page and start page.
-- **OwlKick**: adblock-rust checks every request against Owl.'s tracker list and any lists in
-  `%LOCALAPPDATA%\Owlilters`, in Chromium's request handler, for every tab including ones the
-  user opens. `OWL_KICK_OFF=1` turns it off for testing.
-- **Secure DNS**: Chromium's own DNS over HTTPS, set to Cloudflare (`cloudflare-dns.com/dns-query`)
-  in secure mode, so lookups never fall back to the network's resolver.
+- a frameless window with Owl.'s toolbar at the bottom: the same `src/ui.html` (tab strip, Owl. mark,
+  back, forward, reload, home, address bar, buttons, menu, window controls), talking to Rust over the
+  same messages as the WebView2 build;
+- one Chromium view per tab above it (only the active one shown); pop-ups open as Owl. tabs;
+- **Owl. Calm Home** (`chrome-extension-homepage/`) as the home and new tab page, copied into the
+  profile with `home-shim.js`, which stands in for the extension APIs it uses. Owl. records the pages
+  you visit itself and feeds them to the page (`owl-data.js`) for recent pages, shortcuts and reports;
+- one theme: Owl.'s default (white, black, Owl. red);
+- **OwlKick** on every request of every tab, **Secure DNS** (Cloudflare over HTTPS, secure mode), the
+  renderer **sandbox**, and the Owl. icon and name.
 
-### Status, as checked by CI (Windows runner, CEF 156)
+Shortcuts: Ctrl+T new tab, Ctrl+W close, Ctrl+R or F5 reload, Ctrl+L address bar, Ctrl+Tab next tab.
+
+### Status of this initial version (checked in CI)
 
 | | |
 |---|---|
-| Builds with MSVC and CMake, launches, stays running (8 processes) | yes |
-| Chromium's own tabs, address bar, home button, menus | yes |
-| Owl.'s home page, same design | yes, opened at start |
-| Secure DNS: Cloudflare DNS over HTTPS, secure mode, saved in Local State | yes |
-| OwlKick request handler on every tab | built in; blocking not yet measured in CI |
-| Theme from Owl.'s red | yes: tab strip and toolbar take a palette generated from #B8290F (CEF `set_chrome_color_scheme`), light or dark with Windows |
-| Home page saved as Chromium's home page setting | **not saved**; the page is passed at start instead |
-| Window title and product name | still "Chromium": changing it needs CEF's resources rebuilt |
-| Sandbox | yes: CEF's bootstrap (`owl-chromium.exe`, Owl. icon) loads `owl-chromium.dll`; CI checks that none of the child processes (GPU, utility, renderers) run with `--no-sandbox` |
+| Builds, starts, stays running, all child processes sandboxed | yes |
+| Owl.'s toolbar at the bottom, frameless window, Owl. icon | yes |
+| Calm Home as start page, tab title and buttons follow the page | yes |
+| Tabs: new, close, switch, reorder; back, forward, reload, stop; address bar and search | built, not yet clicked through in CI |
+| Window dragging from the tab strip | built (draggable regions), not yet tried |
+| Time online on Calm Home | not yet: it needs the extension's background counter, which Owl. does not run here |
+| Favourites, downloads list, passwords, settings pages | not yet: CEF's Alloy style has no Chrome pages; Owl.'s own versions still need porting |
+| Wi-Fi and volume on Calm Home | not yet |
+
+Why Alloy style: in CEF 156 a Chrome-style Views window crashes as soon as a view is added to it,
+and Chrome-style tabs are not created inside an Alloy-style window. So the window, toolbar and tabs
+are all Alloy style. Alloy has no Chrome UI, no extension system and no `chrome://` pages, which is
+why Calm Home runs as Owl.'s own page.
 
 Its profile lives in `%LOCALAPPDATA%\Owl\chromium`. CI builds it, launches it, takes a screenshot
 and uploads both as artifacts.
