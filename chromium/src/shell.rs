@@ -1,7 +1,7 @@
 //! The Owl. window on Chromium: Owl.'s own interface, not Chrome's.
 //!
 //! One frameless window built from CEF Views:
-//!   - a content panel that holds one Chromium BrowserView per tab (only the active one visible);
+//!   - one Chromium BrowserView per tab, stacked in the window column (only the active one visible);
 //!   - Owl.'s toolbar at the bottom: the same `ui.html` as the WebView2 build (tabs, address bar,
 //!     buttons, window controls, menu), in its own BrowserView.
 //! The toolbar talks to Rust the way it does in the WebView2 build (`window.ipc.postMessage`); here
@@ -40,7 +40,8 @@ struct Tab {
 #[derive(Default)]
 struct Shell {
     window: Option<Window>,
-    content: Option<Panel>,
+    /// the window's column: tab views (only the active one visible) above the toolbar
+    layout: Option<BoxLayout>,
     toolbar: Option<BrowserView>,
     tool_h: i32,
     tabs: Vec<Tab>,
@@ -163,12 +164,12 @@ fn active_browser() -> Option<Browser> {
 /// Show only the active tab's view.
 fn show_active() {
     // copied out first: CEF calls below can run layout callbacks that read the shared state
-    let (views, active, content) = with(|s| (s.tabs.iter().map(|t| t.view.clone()).collect::<Vec<_>>(), s.active, s.content.clone()));
+    let (views, active, win) = with(|s| (s.tabs.iter().map(|t| t.view.clone()).collect::<Vec<_>>(), s.active, s.window.clone()));
     for (i, v) in views.iter().enumerate() {
         v.set_visible((i == active) as i32);
     }
-    if let Some(c) = content {
-        c.layout();
+    if let Some(w) = win {
+        w.layout();
     }
     if let Some(v) = views.get(active) {
         v.request_focus();
@@ -182,10 +183,14 @@ pub fn new_tab(url: &str) {
     let mut delegate = TabViewDelegate::new(RuntimeStyle::DEFAULT);
     let settings = BrowserSettings { background_color: 0xFFFF_FFFF, ..Default::default() };
     let Some(view) = browser_view_create(client.as_mut(), Some(&s(url)), Some(&settings), None, None, Some(&mut delegate)) else { return };
-    let content = with(|s| s.content.clone());
-    if let Some(c) = content {
+    let (win, layout, at) = with(|s| (s.window.clone(), s.layout.clone(), s.tabs.len() as i32));
+    if let Some(w) = win {
         let mut v = View::from(&view);
-        c.add_child_view(Some(&mut v));
+        // above the toolbar, which stays the last child
+        w.add_child_view_at(Some(&mut v), at);
+        if let Some(l) = layout {
+            l.set_flex_for_view(Some(&mut v), 1);
+        }
     }
     with(|s| {
         // id 0 until Chromium has created the browser (see on_browser_created)
@@ -211,10 +216,10 @@ fn close_tab(id: i32) {
             h.close_browser(1);
         }
     }
-    let content = with(|s| s.content.clone());
-    if let Some(c) = content {
+    let win = with(|s| s.window.clone());
+    if let Some(w) = win {
         let mut v = View::from(&view);
-        c.remove_child_view(Some(&mut v));
+        w.remove_child_view(Some(&mut v));
     }
     if last {
         // the last tab: Owl. opens home rather than an empty window, like the WebView2 build
@@ -678,8 +683,6 @@ wrap_window_delegate! {
             // page above, toolbar below
             let layout = window.set_to_box_layout(Some(&BoxLayoutSettings { horizontal: 0, ..Default::default() }));
             crate::trace(&format!("shell: box layout {}", layout.is_some()));
-            let content = panel_create(None);
-            crate::trace(&format!("shell: content panel {}", content.is_some()));
             let tb = browser_view_create(
                 Some(&mut ToolbarClient::new(MSG_PREFIX.to_string())),
                 Some(&s(&toolbar_url())),
@@ -689,15 +692,6 @@ wrap_window_delegate! {
                 Some(&mut ToolbarBrowserViewDelegate::new(RuntimeStyle::DEFAULT)),
             );
             crate::trace(&format!("shell: toolbar view {}", tb.is_some()));
-            if let Some(c) = &content {
-                c.set_to_fill_layout();
-                crate::trace("shell: fill layout");
-                let mut v = View::from(c);
-                window.add_child_view(Some(&mut v));
-                if let Some(l) = &layout {
-                    l.set_flex_for_view(Some(&mut v), 1);
-                }
-            }
             if let Some(t) = &tb {
                 let mut v = View::from(t);
                 window.add_child_view(Some(&mut v));
@@ -705,9 +699,10 @@ wrap_window_delegate! {
                     l.set_flex_for_view(Some(&mut v), 0);
                 }
             }
+            crate::trace("shell: toolbar added");
             with(|s| {
                 s.window = Some(window.clone());
-                s.content = content;
+                s.layout = layout;
                 s.toolbar = tb;
             });
             crate::trace("shell: views added");
@@ -721,7 +716,7 @@ wrap_window_delegate! {
             with(|s| {
                 s.tabs.clear();
                 s.toolbar = None;
-                s.content = None;
+                s.layout = None;
                 s.window = None;
             });
             quit_message_loop();
