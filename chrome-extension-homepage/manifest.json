@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Owl. Calm Home",
+  "short_name": "Owl. Home",
+  "version": "1.0.0",
+  "description": "Owl.'s calm home page for any Chromium browser: a big clock, the line of your day, the pages you left, where your time goes, and OwlKick tracker blocking. Everything stays on this computer.",
+  "homepage_url": "https://github.com/fardinahosancse/owl-browser",
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "chrome_url_overrides": { "newtab": "newtab.html" },
+  "background": { "service_worker": "background.js" },
+  "permissions": [
+    "storage",
+    "history",
+    "downloads",
+    "tabs",
+    "idle",
+    "alarms",
+    "search",
+    "declarativeNetRequest",
+    "declarativeNetRequestFeedback"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "declarative_net_request": {
+    "rule_resources": [{ "id": "owlkick", "enabled": true, "path": "owlkick-rules.json" }]
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'"
+  }
+}
