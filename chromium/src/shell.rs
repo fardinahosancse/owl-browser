@@ -565,7 +565,7 @@ wrap_keyboard_handler! {
             &self,
             _browser: Option<&mut Browser>,
             event: Option<&KeyEvent>,
-            _os_event: Option<&mut MSG>,
+            _os_event: Option<&mut cef::sys::MSG>,
             _is_keyboard_shortcut: Option<&mut ::std::os::raw::c_int>,
         ) -> ::std::os::raw::c_int {
             let Some(e) = event else { return 0 };
