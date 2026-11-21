@@ -23,9 +23,115 @@ const OWL_THEME: &str = ":root{--bg:#fff;--ink:#111;--mute:#595959;--soft:#f2f2f
 /// The toolbar's height without the menu or a notice open (the WebView2 build's UI_BASE).
 const TOOL_BASE: i32 = 72;
 const MSG_PREFIX: &str = "\u{1}owl:";
-/// The home page is the bundled Owl. Calm Home extension (its fixed ID), the new tab page.
-const HOME_EXT: &str = "chrome-extension://lejabghpgomlgigjhibhnocaddmlofid/newtab.html";
-const NEW_TAB: &str = "chrome://newtab/";
+const SHIM_JS: &str = include_str!("../home-shim.js");
+
+/// Owl. Calm Home, Owl.'s home and new tab page. It ships in the "home" folder next to Owl.; at
+/// start it is copied into the profile (which is writable), where Owl. also keeps owl-data.js:
+/// the visits the page shows as recent pages, shortcuts and reports.
+static HOME_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+fn home_dir() -> &'static std::path::Path {
+    HOME_DIR.get_or_init(|| std::path::PathBuf::from(crate::profile_dir()).join("home"))
+}
+
+fn file_url(p: &std::path::Path) -> String {
+    format!("file:///{}", p.to_string_lossy().replace('\\', "/"))
+}
+
+fn home_url() -> String {
+    file_url(&home_dir().join("newtab.html"))
+}
+
+fn copy_dir(from: &std::path::Path, to: &std::path::Path) {
+    let _ = std::fs::create_dir_all(to);
+    for e in std::fs::read_dir(from).into_iter().flatten().flatten() {
+        let (a, b) = (e.path(), to.join(e.file_name()));
+        if a.is_dir() {
+            copy_dir(&a, &b);
+        } else {
+            let _ = std::fs::copy(&a, &b);
+        }
+    }
+}
+
+/// Puts the home page in place: the bundled files, the stand-in for extension APIs, and the data.
+pub fn prepare_home() {
+    let src = std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.join("home")));
+    let dst = home_dir();
+    if let Some(src) = src.filter(|s| s.join("newtab.html").is_file()) {
+        copy_dir(&src, dst);
+    }
+    let _ = std::fs::write(dst.join("owl-shim.js"), SHIM_JS);
+    for page in ["newtab.html", "report.html"] {
+        let f = dst.join(page);
+        if let Ok(html) = std::fs::read_to_string(&f) {
+            if !html.contains("owl-shim.js") {
+                let html = html.replacen(r#"<script src="common.js"></script>"#, r#"<script src="owl-data.js"></script><script src="owl-shim.js"></script><script src="common.js"></script>"#, 1);
+                let _ = std::fs::write(&f, html);
+            }
+        }
+    }
+    HISTORY.with(|h| *h.borrow_mut() = std::fs::read_to_string(history_file()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default());
+    write_data();
+}
+
+// ---------- the visits Owl. keeps for its home page ----------
+
+thread_local! {
+    static HISTORY: RefCell<Vec<Value>> = const { RefCell::new(Vec::new()) };
+}
+
+fn history_file() -> std::path::PathBuf {
+    std::path::PathBuf::from(crate::profile_dir()).join("owl-history.json")
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+
+fn record_visit(url: &str, title: &str) {
+    if !(url.starts_with("http://") || url.starts_with("https://")) || url.len() > 2048 {
+        return;
+    }
+    let t = now_ms();
+    let changed = HISTORY.with(|h| {
+        let mut h = h.borrow_mut();
+        // a page that changes its title, or a reload, within a minute is the same visit
+        if let Some(last) = h.iter_mut().rev().find(|v| v["url"] == url) {
+            if t.saturating_sub(last["t"].as_u64().unwrap_or(0)) < 60_000 {
+                last["title"] = json!(title);
+                return true;
+            }
+        }
+        h.push(json!({"url": url, "title": title, "t": t}));
+        let n = h.len();
+        if n > 20_000 {
+            h.drain(..n - 20_000);
+        }
+        true
+    });
+    if changed {
+        let all = HISTORY.with(|h| h.borrow().clone());
+        let _ = std::fs::write(history_file(), serde_json::to_string(&all).unwrap_or_default());
+        write_data();
+    }
+}
+
+/// owl-data.js: the visits and the most visited pages, read by the home page's stand-in.
+fn write_data() {
+    let all = HISTORY.with(|h| h.borrow().clone());
+    let mut count: std::collections::HashMap<String, (u64, String)> = std::collections::HashMap::new();
+    for v in all.iter().rev().take(5000) {
+        let u = v["url"].as_str().unwrap_or("").to_string();
+        let e = count.entry(u).or_insert((0, v["title"].as_str().unwrap_or("").to_string()));
+        e.0 += 1;
+    }
+    let mut top: Vec<(String, (u64, String))> = count.into_iter().collect();
+    top.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
+    let top: Vec<Value> = top.into_iter().take(8).map(|(u, (_, t))| json!({"url": u, "title": t})).collect();
+    let data = json!({"history": all, "top": top});
+    let _ = std::fs::write(home_dir().join("owl-data.js"), format!("window.OWL_DATA={data};"));
+}
 
 struct Tab {
     view: BrowserView,
@@ -69,24 +175,20 @@ fn s(x: &str) -> CefString {
 
 /// What the address bar shows: Owl.'s own name for the home page, the real address otherwise.
 fn display(url: &str) -> String {
-    if url.starts_with(HOME_EXT) || url.starts_with("chrome://newtab") || url.starts_with("chrome://new-tab-page") {
-        "owl://newtab".into()
-    } else {
-        url.to_string()
+    let home = file_url(home_dir());
+    match url.strip_prefix(home.as_str()) {
+        Some(rest) if rest.starts_with("/newtab.html") => "owl://newtab".into(),
+        Some(rest) if rest.starts_with("/report.html") => "owl://report".into(),
+        _ => url.to_string(),
     }
 }
 
 /// Owl.'s own addresses mapped to what Chromium has.
 fn internal(url: &str) -> String {
     match url.trim_end_matches('/') {
-        "owl://newtab" | "owl://home" | "" => NEW_TAB.into(),
-        "owl://downloads" => "chrome://downloads/".into(),
-        "owl://history" => "chrome://history/".into(),
-        "owl://bookmarks" => "chrome://bookmarks/".into(),
-        "owl://passwords" => "chrome://password-manager/".into(),
-        "owl://settings" | "owl://permissions" => "chrome://settings/".into(),
-        "owl://about" => "chrome://version/".into(),
-        "owl://report" => HOME_EXT.replace("newtab.html", "report.html"),
+        "owl://report" | "owl://history" => file_url(&home_dir().join("report.html")),
+        // the rest of Owl.'s pages are not in this initial build yet: home for now
+        u if u.starts_with("owl://") || u.is_empty() => home_url(),
         _ => url.to_string(),
     }
 }
@@ -95,7 +197,7 @@ fn internal(url: &str) -> String {
 fn normalize(input: &str) -> String {
     let t = input.trim();
     if t.is_empty() {
-        return NEW_TAB.into();
+        return home_url();
     }
     if t.starts_with("owl://") {
         return internal(t);
@@ -185,7 +287,7 @@ fn show_active() {
 pub fn new_tab(url: &str) {
     crate::trace(&format!("shell: new_tab {url}"));
     let mut client = Some(TabClient::new());
-    let mut delegate = TabViewDelegate::new(RuntimeStyle::DEFAULT);
+    let mut delegate = TabViewDelegate::new(RuntimeStyle::ALLOY);
     let settings = BrowserSettings { background_color: 0xFFFF_FFFF, ..Default::default() };
     let Some(view) = browser_view_create(client.as_mut(), Some(&s(url)), Some(&settings), None, None, Some(&mut delegate)) else { return };
     let (win, layout, at) = with(|s| (s.window.clone(), s.layout.clone(), s.tabs.len() as i32));
@@ -228,7 +330,7 @@ fn close_tab(id: i32) {
     }
     if last {
         // the last tab: Owl. opens home rather than an empty window, like the WebView2 build
-        new_tab(NEW_TAB);
+        new_tab(&home_url());
     } else {
         show_active();
     }
@@ -262,7 +364,7 @@ fn command(v: Value) {
         "open_owl" => new_tab(&internal(&st("url"))),
         "new_tab" => {
             let u = st("url");
-            new_tab(&if u.is_empty() { NEW_TAB.to_string() } else { normalize(&u) });
+            new_tab(&if u.is_empty() { home_url() } else { normalize(&u) });
         }
         "close" => {
             let id = v["id"].as_i64().map(|x| x as i32).unwrap_or_else(|| with(|s| s.tabs.get(s.active).map(|t| t.id).unwrap_or(0)));
@@ -314,9 +416,9 @@ fn command(v: Value) {
             "reload" => command(json!({"cmd": "reload"})),
             "back" => command(json!({"cmd": "back"})),
             "forward" => command(json!({"cmd": "forward"})),
-            "new" => new_tab(NEW_TAB),
+            "new" => new_tab(&home_url()),
             "close" => command(json!({"cmd": "close"})),
-            "history" => new_tab("chrome://history/"),
+            "history" => new_tab(&internal("owl://history")),
             _ => {}
         },
         "devtools" => {
@@ -480,6 +582,10 @@ wrap_display_handler! {
             let Some(id) = browser.map(|b| b.identifier()) else { return };
             let t = title.map(CefString::to_string).unwrap_or_default();
             crate::trace(&format!("tab {id} title {t}"));
+            let url = with(|s| s.tabs.iter().find(|x| x.id == id).map(|x| x.url.clone()).unwrap_or_default());
+            if !t.is_empty() {
+                record_visit(&url, &t);
+            }
             let active = with(|s| {
                 if let Some(tab) = s.tabs.iter_mut().find(|x| x.id == id) {
                     tab.title = t.clone();
@@ -589,7 +695,7 @@ wrap_keyboard_handler! {
             let ctrl = e.modifiers & 4 != 0; // EVENTFLAG_CONTROL_DOWN
             let k = e.windows_key_code;
             let hit = match (ctrl, k) {
-                (true, 0x54) => { new_tab(NEW_TAB); true }                     // Ctrl+T
+                (true, 0x54) => { new_tab(&home_url()); true }                     // Ctrl+T
                 (true, 0x57) => { command(json!({"cmd": "close"})); true }     // Ctrl+W
                 (true, 0x52) | (false, 0x74) => { command(json!({"cmd": "reload"})); true } // Ctrl+R, F5
                 (true, 0x4C) => { tool_js("owl.focusAddr()"); if let Some(t) = with(|s| s.toolbar.clone()) { t.request_focus(); } true } // Ctrl+L
@@ -698,7 +804,7 @@ wrap_window_delegate! {
                 Some(&BrowserSettings { background_color: 0xFFFF_FFFF, ..Default::default() }),
                 None,
                 None,
-                Some(&mut ToolbarBrowserViewDelegate::new(RuntimeStyle::DEFAULT)),
+                Some(&mut ToolbarBrowserViewDelegate::new(RuntimeStyle::ALLOY)),
             );
             crate::trace(&format!("shell: toolbar view {}", tb.is_some()));
             if let Some(t) = &tb {
@@ -756,6 +862,9 @@ wrap_window_delegate! {
 /// Opens the Owl. window with its first tab.
 pub fn open(start: &str) {
     crate::trace("shell: open");
+    prepare_home();
+    let start = if start.is_empty() { home_url() } else { start.to_string() };
+    let start = start.as_str();
     let mut w = OwlWindow::new(start.to_string());
     window_create_top_level(Some(&mut w));
 }

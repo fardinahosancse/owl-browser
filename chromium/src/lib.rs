@@ -43,7 +43,7 @@ fn owl_dir() -> std::path::PathBuf {
 }
 
 /// %LOCALAPPDATA%\Owl\chromium: its own Chromium profile, apart from the WebView2 build's data.
-fn profile_dir() -> String {
+pub(crate) fn profile_dir() -> String {
     let dir = owl_dir().join("chromium");
     let _ = std::fs::create_dir_all(&dir);
     dir.to_string_lossy().into_owned()
@@ -226,7 +226,7 @@ wrap_browser_process_handler! {
             // --url=... opens that address; otherwise Owl.'s home page (the bundled Calm Home)
             let cmd = command_line_get_global().expect("no command line");
             let url = CefString::from(&cmd.switch_value(Some(&CefString::from("url")))).to_string();
-            shell::open(if url.is_empty() { "chrome://newtab/" } else { &url });
+            shell::open(&url);
         }
     }
 }
@@ -236,16 +236,8 @@ wrap_app! {
 
     impl App {
         fn on_before_command_line_processing(&self, process_type: Option<&CefString>, command_line: Option<&mut CommandLine>) {
-            // the browser process loads Owl. Calm Home (in the "home" folder next to Owl.) as the
-            // new tab page, with its real history, bookmarks and storage
             if process_type.map(|p| p.to_string()).unwrap_or_default().is_empty() {
                 if let Some(cl) = command_line {
-                    if let Some(dir) = std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.join("home"))) {
-                        if dir.join("manifest.json").is_file() {
-                            cl.append_switch_with_value(Some(&CefString::from("load-extension")), Some(&CefString::from(dir.to_string_lossy().as_ref())));
-                            cl.append_switch_with_value(Some(&CefString::from("disable-features")), Some(&CefString::from("DisableLoadExtensionCommandLineSwitch")));
-                        }
-                    }
                     cl.append_switch(Some(&CefString::from("hide-crash-restore-bubble")));
                 }
             }
