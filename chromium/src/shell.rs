@@ -672,10 +672,14 @@ wrap_window_delegate! {
                 window.set_window_app_icon(Some(&mut img));
                 window.set_window_icon(Some(&mut img));
             }
+            crate::trace("shell: icon set");
             window.set_background_color(0xFFFF_FFFF);
+            crate::trace("shell: background set");
             // page above, toolbar below
             let layout = window.set_to_box_layout(Some(&BoxLayoutSettings { horizontal: 0, ..Default::default() }));
+            crate::trace(&format!("shell: box layout {}", layout.is_some()));
             let content = panel_create(None);
+            crate::trace(&format!("shell: content panel {}", content.is_some()));
             let tb = browser_view_create(
                 Some(&mut ToolbarClient::new(MSG_PREFIX.to_string())),
                 Some(&s(&toolbar_url())),
@@ -684,8 +688,10 @@ wrap_window_delegate! {
                 None,
                 Some(&mut ToolbarBrowserViewDelegate::new(RuntimeStyle::DEFAULT)),
             );
+            crate::trace(&format!("shell: toolbar view {}", tb.is_some()));
             if let Some(c) = &content {
                 c.set_to_fill_layout();
+                crate::trace("shell: fill layout");
                 let mut v = View::from(c);
                 window.add_child_view(Some(&mut v));
                 if let Some(l) = &layout {
