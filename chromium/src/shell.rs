@@ -694,7 +694,9 @@ wrap_window_delegate! {
             crate::trace(&format!("shell: toolbar view {}", tb.is_some()));
             if let Some(t) = &tb {
                 let mut v = View::from(t);
+                crate::trace("shell: toolbar as view");
                 window.add_child_view(Some(&mut v));
+                crate::trace("shell: toolbar child added");
                 if let Some(l) = &layout {
                     l.set_flex_for_view(Some(&mut v), 0);
                 }
