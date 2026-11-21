@@ -290,7 +290,13 @@ pub fn new_tab(url: &str) {
     let mut delegate = TabViewDelegate::new(RuntimeStyle::ALLOY);
     let settings = BrowserSettings { background_color: 0xFFFF_FFFF, ..Default::default() };
     let Some(view) = browser_view_create(client.as_mut(), Some(&s(url)), Some(&settings), None, None, Some(&mut delegate)) else { return };
-    let (win, layout, at) = with(|s| (s.window.clone(), s.layout.clone(), s.tabs.len() as i32));
+    // recorded first: Chromium reports the new browser while the view is being added
+    let at = with(|s| {
+        s.tabs.push(Tab { view: view.clone(), id: 0, title: String::new(), url: url.to_string(), loading: true, back: false, fwd: false });
+        s.active = s.tabs.len() - 1;
+        (s.tabs.len() - 1) as i32
+    });
+    let (win, layout) = with(|s| (s.window.clone(), s.layout.clone()));
     if let Some(w) = win {
         let mut v = View::from(&view);
         // above the toolbar, which stays the last child
@@ -299,11 +305,6 @@ pub fn new_tab(url: &str) {
             l.set_flex_for_view(Some(&mut v), 1);
         }
     }
-    with(|s| {
-        // id 0 until Chromium has created the browser (see on_browser_created)
-        s.tabs.push(Tab { view, id: 0, title: String::new(), url: url.to_string(), loading: true, back: false, fwd: false });
-        s.active = s.tabs.len() - 1;
-    });
     show_active();
 }
 
