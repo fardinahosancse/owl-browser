@@ -751,14 +751,15 @@ wrap_browser_view_delegate! {
             crate::trace(&format!("tab browser created {id}"));
             let mut created = View::from(&*view);
             let views: Vec<(usize, BrowserView)> = with(|s| s.tabs.iter().enumerate().filter(|(_, t)| t.id == 0).map(|(i, t)| (i, t.view.clone())).collect());
-            for (i, v) in views {
-                if View::from(&v).is_same(Some(&mut created)) != 0 {
-                    with(|s| {
-                        if let Some(t) = s.tabs.get_mut(i) {
-                            t.id = id;
-                        }
-                    });
-                }
+            // the tab whose view this is; tabs are created one at a time, so the first one still
+            // waiting for its browser is the fallback
+            let i = views.iter().find(|(_, v)| View::from(v).is_same(Some(&mut created)) != 0).or(views.first()).map(|(i, _)| *i);
+            if let Some(i) = i {
+                with(|s| {
+                    if let Some(t) = s.tabs.get_mut(i) {
+                        t.id = id;
+                    }
+                });
             }
             push();
         }
@@ -796,7 +797,7 @@ wrap_window_delegate! {
             window.set_background_color(0xFFFF_FFFF);
             crate::trace("shell: background set");
             // page above, toolbar below
-            let layout = if flag("OWL_BOX", true) { window.set_to_box_layout(Some(&BoxLayoutSettings { horizontal: 0, ..Default::default() })) } else { None };
+            let layout = if flag("OWL_BOX", true) { window.set_to_box_layout(Some(&BoxLayoutSettings { horizontal: 0, cross_axis_alignment: AxisAlignment::STRETCH, ..Default::default() })) } else { None };
             crate::trace(&format!("shell: box layout {}", layout.is_some()));
             let tb = browser_view_create(
                 Some(&mut ToolbarClient::new(MSG_PREFIX.to_string())),
