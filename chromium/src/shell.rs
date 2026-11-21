@@ -62,6 +62,14 @@ pub fn prepare_home() {
         copy_dir(&src, dst);
     }
     let _ = std::fs::write(dst.join("owl-shim.js"), SHIM_JS);
+    // Owl. has one theme: the extension's Light, Dark and System choice is not offered here
+    let _ = std::fs::write(dst.join("theme.js"), "document.documentElement.dataset.theme = \"light\";
+");
+    if let Ok(html) = std::fs::read_to_string(dst.join("newtab.html")) {
+        if let (Some(a), Some(b)) = (html.find("<div class=\"fld\">Theme"), html.find("<div class=\"fld\">Clock")) {
+            let _ = std::fs::write(dst.join("newtab.html"), format!("{}{}", &html[..a], &html[b..]));
+        }
+    }
     for page in ["newtab.html", "report.html"] {
         let f = dst.join(page);
         if let Ok(html) = std::fs::read_to_string(&f) {
