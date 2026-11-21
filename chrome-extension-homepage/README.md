@@ -26,6 +26,10 @@ Screenshots use sample data on example sites.
 4. Choose **Load unpacked** and pick the `chrome-extension-homepage` folder.
 5. Open a new tab. If the browser asks whether to keep the new tab page, choose **Keep it**.
 
+**Updating:** after the folder changes (a new download or `git pull`), open the extensions page
+and press **Reload** on Owl. Calm Home. The browser picks up new page files at once but keeps the
+old permissions until you reload; the home page says so when that is needed.
+
 ## What it does, and where the numbers come from
 
 | On the page | Source |
@@ -83,6 +87,9 @@ Font License, `OFL.txt`), `icons/`.
 
 ## Changes
 
+- **1.1.1**: the weather spot (top of the right-hand column) explains why there is no weather
+  instead of staying empty; the page notices when the extension still needs a reload after an
+  update; choosing a city closes the settings so you see the weather.
 - **1.1.0**: Report (day, week, month, YouTube spotlight, facts); weather by location or city;
   bookmarks bar read live from the browser; 12-hour clock option; OwlKick blocking removed (use
   your browser's or another blocker's).

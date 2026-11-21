@@ -1,7 +1,7 @@
 // Owl. Calm Home: the page. Everything it shows comes from this browser and stays on this
 // computer; only the weather asks Open-Meteo, and only for the place you chose.
 (function () {
-  const { p2, ext, dayKey, hostOf, dur, el, favicon, clock12 } = Owl;
+  const { p2, ext, dayKey, hostOf, dur, el, favicon, clock12, stale, RELOAD } = Owl;
   const $ = (i) => document.getElementById(i);
 
   const part = (h) => (h < 5 ? "Night" : h < 12 ? "Morning" : h < 17 ? "Afternoon" : h < 21 ? "Evening" : "Night");
@@ -152,6 +152,7 @@
       $("spentbox").hidden = false;
     }
     const hints = [];
+    if (stale()) hints.push(RELOAD);
     if (!localStorage.getItem("owl.name")) hints.push("Add your name in Settings for a personal greeting.");
     if (!localStorage.getItem("owl.wx")) hints.push("Turn on the weather in Settings: your location or any city.");
     hints.push("Open the Report for your day, week and month.");
@@ -173,18 +174,37 @@
   };
   const here = () =>
     new Promise((ok, no) => navigator.geolocation.getCurrentPosition((p) => ok({ lat: +p.coords.latitude.toFixed(2), lon: +p.coords.longitude.toFixed(2), name: "" }), no, { timeout: 10000, maximumAge: 3600e3 }));
+  function wxMessage(text, settings) {
+    const box = $("wx");
+    $("wxplace").textContent = "";
+    $("wxt").textContent = "";
+    $("wxc").textContent = text;
+    $("wxhl").textContent = "";
+    const d = [];
+    if (settings) {
+      const b = el("button", "ghost", "Weather settings");
+      b.type = "button";
+      b.onclick = () => openPane(true);
+      d.push(b);
+    }
+    $("wxd").replaceChildren(...d);
+    box.classList.add("msg");
+    box.hidden = false;
+  }
   async function weather(force) {
     const mode = localStorage.getItem("owl.wx") || "off";
     const box = $("wx");
+    box.classList.remove("msg");
     if (mode === "off") return void (box.hidden = true);
+    if (stale()) return wxMessage(RELOAD, false);
     let place = mode === "city" ? wxPlace() : null;
     try {
       if (mode === "here") place = await here();
     } catch {
       $("wxnote").textContent = "Your browser did not share the location. Allow it, or pick a city.";
-      return void (box.hidden = true);
+      return wxMessage("Your browser did not share your location. Allow it, or choose a city.", true);
     }
-    if (!place) return void (box.hidden = true);
+    if (!place) return wxMessage("Choose a city for the weather.", true);
     const unit = localStorage.getItem("owl.unit") === "f" ? "fahrenheit" : "celsius";
     const key = `${place.lat},${place.lon},${unit}`;
     let data;
@@ -198,7 +218,7 @@
         data = await (await fetch(u)).json();
         localStorage.setItem("owl.wxcache", JSON.stringify({ key, t: Date.now(), data }));
       } catch {
-        return void (box.hidden = true);
+        return wxMessage("The weather could not be loaded. It tries again in a few minutes.", true);
       }
     }
     const deg = "°";
@@ -310,6 +330,7 @@
     const q = $("city").value.trim();
     if (!q) return;
     const box = $("cityr");
+    if (stale()) return void box.replaceChildren(el("p", "small", RELOAD));
     box.replaceChildren(el("p", "small", "Looking..."));
     try {
       const r = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=en&format=json`)).json();
@@ -326,7 +347,7 @@
         box.append(b);
       }
     } catch {
-      box.replaceChildren(el("p", "small", "Could not reach Open-Meteo. Try again later."));
+      box.replaceChildren(el("p", "small", "Could not reach Open-Meteo. Check the connection, or that no other extension blocks open-meteo.com, then try again."));
     }
   });
   $("clear").addEventListener("click", async () => {
@@ -340,11 +361,12 @@
     localStorage.setItem("owl.name", $("pname").value.trim());
     showName();
   });
-  function openPane() {
+  function openPane(toWeather) {
     $("pane").hidden = false;
     $("gear").setAttribute("aria-expanded", "true");
     showSegs();
-    $("pname").focus();
+    if (toWeather === true) document.querySelector(".wxset").scrollIntoView({ block: "center" });
+    (toWeather === true ? document.querySelector("[data-wx].on") || document.querySelector("[data-wx]") : $("pname")).focus();
   }
   function closePane() {
     $("pane").hidden = true;
@@ -353,6 +375,10 @@
     numbers();
   }
   $("gear").addEventListener("click", () => ($("pane").hidden ? openPane() : closePane()));
+  // after choosing a city, close settings so the weather is seen where it appears
+  $("cityr").addEventListener("click", (e) => {
+    if (e.target.closest("button")) setTimeout(closePane, 400);
+  });
   $("done").addEventListener("click", closePane);
   applyTheme();
 })();

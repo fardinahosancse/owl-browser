@@ -92,6 +92,7 @@ body.calm{padding:0;overflow-x:hidden}
 .side h2{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
 .side h2 a{color:var(--mute);letter-spacing:.12em;border-bottom:1px solid var(--line)}.side h2 a:hover{color:var(--ink);border-color:var(--red)}
 /* weather */
+.wx.msg .wxm{padding:10px 0}.wx.msg #wxc{font-size:14px;font-weight:400;color:var(--mute);max-width:40ch}.wx.msg .wxd{border:0;display:block}
 .wx{opacity:0;animation:up .8s .2s cubic-bezier(.2,.7,.2,1) forwards}.wx[hidden]{display:none}
 .wx h2 span:last-child{color:var(--mute)}
 .wxm{display:flex;gap:18px;align-items:center;padding:12px 0 10px}
