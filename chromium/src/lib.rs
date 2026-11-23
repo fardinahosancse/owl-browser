@@ -229,6 +229,7 @@ wrap_browser_process_handler! {
     impl BrowserProcessHandler {
         fn on_context_initialized(&self) {
             apply_owl_settings();
+            chrome::accept_home_takeover();
             *self.client.borrow_mut() = Some(chrome::new_client());
             // --url=... opens that address; otherwise the new tab page, Owl. Calm Home
             let cmd = command_line_get_global().expect("no command line");
@@ -306,7 +307,6 @@ pub fn run(main_args: &MainArgs, cmd_line: &CommandLine, sandbox_info: *mut u8) 
         persist_session_cookies: 1,
         ..Default::default()
     };
-    chrome::accept_home_takeover(&root);
     let mut app = OwlApp::new();
     trace("run: initialize");
     if initialize(Some(main_args), Some(&settings), Some(&mut app), sandbox_info) != 1 {

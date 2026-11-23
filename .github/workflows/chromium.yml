@@ -81,7 +81,7 @@ jobs:
           $pr = if ($pf) { Get-Content $pf.FullName -Raw } else { "" }
           "Secure DNS saved: $([bool]($ls -match 'cloudflare-dns.com')); mode secure: $([bool]($ls -match '\"mode\":\"secure\"'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           "Owl. theme installed: $([bool]($pr -match '\"theme\":\{[^}]*\"id\":\"[a-p]{32}'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
-          "--- first start"; Get-Content $env:OWL_CEF_TRACE -ErrorAction SilentlyContinue | Where-Object { $_ -match "browser created|extensions:" }
+          "--- first start"; Get-Content $env:OWL_CEF_TRACE -ErrorAction SilentlyContinue | Where-Object { $_ -match "browser created|extensions:|takeover" }
           $ack = Get-Content (Join-Path $root "Default\Preferences") -Raw -ErrorAction SilentlyContinue
           "new tab takeover accepted: $([bool]($ack -match 'ack_ntp_bubble\":true'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           Get-Content (Join-Path $env:RUNNER_TEMP "cef-err1.txt") -ErrorAction SilentlyContinue | Select-String "preference" | ForEach-Object { "  $_" }

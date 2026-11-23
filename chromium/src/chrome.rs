@@ -23,28 +23,28 @@ pub(crate) fn beside_exe(name: &str) -> Option<std::path::PathBuf> {
 const HOME_ID: &str = "lejabghpgomlgigjhibhnocaddmlofid";
 
 /// Chromium asks "Change back to Google?" the first time an extension takes over the new tab page.
-/// Calm Home is Owl.'s own new tab page, so the profile records that question as answered
-/// before Chromium starts.
-pub(crate) fn accept_home_takeover(profile: &str) {
-    let path = std::path::Path::new(profile).join("Default").join("Preferences");
-    let _ = std::fs::create_dir_all(path.parent().unwrap());
-    let mut prefs: serde_json::Value = std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|t| serde_json::from_str(&t).ok())
-        .unwrap_or_else(|| serde_json::json!({}));
-    let Some(root) = prefs.as_object_mut() else { return };
-    let ext = root.entry("extensions").or_insert_with(|| serde_json::json!({}));
-    let Some(ext) = ext.as_object_mut() else { return };
-    let set = ext.entry("settings").or_insert_with(|| serde_json::json!({}));
-    let Some(set) = set.as_object_mut() else { return };
-    let home = set.entry(HOME_ID).or_insert_with(|| serde_json::json!({}));
-    let Some(home) = home.as_object_mut() else { return };
-    if home.get("ack_ntp_bubble") == Some(&serde_json::Value::Bool(true)) {
+/// Calm Home is Owl.'s own new tab page, so Owl. records that question as answered. Chromium
+/// installs a command-line extension afresh on every start, so this runs each time, after the
+/// extensions are loaded and before the first window opens.
+pub(crate) fn accept_home_takeover() {
+    let Some(ctx) = request_context_get_global_context() else { return };
+    let name = CefString::from("extensions.settings");
+    let key = CefString::from(HOME_ID);
+    let Some(mut all) = ctx.preference(Some(&name)).and_then(|v| v.dictionary()).and_then(|d| d.copy(0)) else {
+        crate::trace("takeover: no extensions.settings");
         return;
-    }
-    home.insert("ack_ntp_bubble".into(), serde_json::Value::Bool(true));
-    home.insert("ack_settings_bubble".into(), serde_json::Value::Bool(true));
-    let _ = std::fs::write(&path, prefs.to_string());
+    };
+    let Some(mut home) = all.dictionary(Some(&key)).and_then(|d| d.copy(0)) else {
+        crate::trace("takeover: Calm Home not loaded yet");
+        return;
+    };
+    home.set_bool(Some(&CefString::from("ack_ntp_bubble")), 1);
+    all.set_dictionary(Some(&key), Some(&mut home));
+    let Some(mut value) = value_create() else { return };
+    value.set_dictionary(Some(&mut all));
+    let mut err = CefString::from("");
+    let ok = ctx.set_preference(Some(&name), Some(&mut value), Some(&mut err));
+    crate::trace(&format!("takeover accepted: {ok} {err}"));
 }
 
 /// The extensions Owl. loads on every start: its home page and its theme.
