@@ -208,6 +208,8 @@ fn apply_owl_settings() {
         ctx.set_chrome_color_scheme(ColorVariant::LIGHT, 0);
         for (name, mut value) in [
             ("browser.theme.is_grayscale2", b(true)),
+            // no "Customize Chromium" footer under Calm Home
+            ("NewTabPage.FooterVisible", b(false)),
             ("signin.allowed", b(false)),
             // the Home button opens Owl. Calm Home (the new tab page)
             ("browser.show_home_button", b(true)),
