@@ -3,8 +3,7 @@
 //! Tabs, the address bar, menus, downloads, passwords, history, bookmarks, settings and
 //! extensions are Chromium's own. Owl. changes how they look and what they show:
 //!
-//! - the Owl. theme (`theme/` next to the exe, a Chrome theme in Owl.'s white, paper grey and ink),
-//!   with Owl.'s red as the accent Chromium builds its own colours from;
+//! - one theme, Owl.'s: Chromium's grey scheme in light mode (white, paper grey, ink);
 //! - Owl. Calm Home (`home/` next to the exe, the same extension as in chrome-extension-homepage)
 //!   as the new tab and home page, with its full access to history, bookmarks and downloads;
 //! - Chrome extras Owl. does not use are hidden: the profile avatar, the media and battery saver
@@ -47,9 +46,9 @@ pub(crate) fn accept_home_takeover() {
     crate::trace(&format!("takeover accepted: {ok} {err}"));
 }
 
-/// The extensions Owl. loads on every start: its home page and its theme.
+/// The extensions Owl. loads on every start: its home page.
 pub(crate) fn owl_extensions() -> String {
-    ["home", "theme"]
+    ["home"]
         .iter()
         .filter_map(|n| beside_exe(n))
         .map(|p| p.to_string_lossy().into_owned())
@@ -72,6 +71,8 @@ wrap_life_span_handler! {
                 let url = b.main_frame().map(|f| CefString::from(&f.url()).to_string()).unwrap_or_default();
                 crate::trace(&format!("browser created: id {} popup {} url {url}", b.identifier(), b.is_popup()));
                 self.browsers.lock().unwrap().list.push(b);
+                // on the very first start Calm Home finishes loading after Chromium is ready
+                accept_home_takeover();
             }
         }
 

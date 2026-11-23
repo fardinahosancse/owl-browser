@@ -10,8 +10,8 @@ The window is Chromium's real tabbed browser (CEF "Chrome style"): its tabs, add
 downloads, passwords, history, bookmarks, settings, `chrome://` pages and extensions. Owl. changes
 how it looks and what it shows (`src/chrome.rs`):
 
-- the **Owl. theme** (`theme/`, a Chrome theme): white toolbar and tabs on paper grey, ink text,
-  Owl.'s red as the accent Chromium builds its own colours from; one theme, light;
+- **one theme, Owl.'s**: Chromium's grey scheme in light mode, so tabs, toolbar, menus and
+  Chromium's own pages are white, paper grey and ink like Owl.; Owl. red stays on Calm Home;
 - **Owl. Calm Home** (`chrome-extension-homepage/`, loaded as the real extension) as the new tab and
   home page, with its time online, reports, favourites, shortcuts and weather; Owl. keeps it light
   and drops its Theme row;

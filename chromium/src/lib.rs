@@ -6,7 +6,7 @@
 //! passwords, history, bookmarks, find in page, dialogs and settings are Chromium's built-in ones.
 //! Owl. adds what is its own on top:
 //!
-//! - the Owl. look: an Owl. Chrome theme (white, paper grey, ink) with Owl.'s red as the accent,
+//! - the Owl. look: Chromium's grey scheme in light mode (white, paper grey, ink), one theme,
 //!   Chrome extras Owl. does not use hidden, and the Owl. icon on the window (see `chrome.rs`);
 //! - Owl. Calm Home, the same extension as chrome-extension-homepage, as the new tab and home page;
 //! - OwlKick: every request is checked with adblock-rust against Owl.'s tracker list and any
@@ -31,8 +31,6 @@ use cef::*;
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
-/// Owl.'s brand red, the seed Chromium builds its colours from (Settings > Appearance > Theme).
-const OWL_RED: u32 = 0xFFB8_290F;
 const CLOUDFLARE_DOH: &str = "https://cloudflare-dns.com/dns-query";
 
 /// Requests OwlKick blocked since start.
@@ -205,9 +203,11 @@ fn apply_owl_settings() {
     }
     // the rest belong to the profile
     if let Some(ctx) = request_context_get_global_context() {
-        // Owl. has one theme, light: Chromium's own pages and controls follow it
-        ctx.set_chrome_color_scheme(ColorVariant::LIGHT, OWL_RED);
+        // Owl. has one theme, light and monochrome like Owl.'s paper and ink: Chromium's grey
+        // scheme in light mode, for the tabs, toolbar, menus and Chromium's own pages
+        ctx.set_chrome_color_scheme(ColorVariant::LIGHT, 0);
         for (name, mut value) in [
+            ("browser.theme.is_grayscale2", b(true)),
             ("signin.allowed", b(false)),
             // the Home button opens Owl. Calm Home (the new tab page)
             ("browser.show_home_button", b(true)),
@@ -252,7 +252,7 @@ wrap_app! {
             if process_type.map(|p| p.to_string()).unwrap_or_default().is_empty() {
                 if let Some(cl) = command_line {
                     cl.append_switch(Some(&CefString::from("hide-crash-restore-bubble")));
-                    // Owl. Calm Home and the Owl. theme, from the folders next to the exe
+                    // Owl. Calm Home, from the folder next to the exe
                     let ext = chrome::owl_extensions();
                     if !ext.is_empty() {
                         cl.append_switch_with_value(Some(&CefString::from("load-extension")), Some(&CefString::from(ext.as_str())));

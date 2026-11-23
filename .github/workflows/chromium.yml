@@ -54,8 +54,6 @@ jobs:
           $nt = Get-Content "$out\home\newtab.html" -Raw
           $nt = [regex]::Replace($nt, '(?s)\s*<div class="fld">Theme.*?</div>\s*</div>', '')
           Set-Content "$out\home\newtab.html" $nt -Encoding utf8 -NoNewline
-          # the Owl. theme for Chromium's tabs, toolbar and menus
-          Copy-Item chromium\theme "$out\theme" -Recurse -Force
           # the Owl. icon and name on the executable
           npm install --no-save --silent rcedit@4.0.1 | Out-Null
           & node_modules\rcedit\bin\rcedit-x64.exe "$out\owl-chromium.exe" --set-icon assets\owl.ico --set-version-string ProductName "Owl." --set-version-string FileDescription "Owl. (Chromium preview)" --set-version-string CompanyName "Owl."
@@ -80,7 +78,7 @@ jobs:
           $pf = Get-ChildItem $root -Recurse -Filter Preferences -ErrorAction SilentlyContinue | Select-Object -First 1
           $pr = if ($pf) { Get-Content $pf.FullName -Raw } else { "" }
           "Secure DNS saved: $([bool]($ls -match 'cloudflare-dns.com')); mode secure: $([bool]($ls -match '\"mode\":\"secure\"'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
-          "Owl. theme installed: $([bool]($pr -match '\"theme\":\{[^}]*\"id\":\"[a-p]{32}'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "Owl. grey light theme saved: $([bool]($pr -match 'is_grayscale2\":true'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           "--- first start"; Get-Content $env:OWL_CEF_TRACE -ErrorAction SilentlyContinue | Where-Object { $_ -match "browser created|extensions:|takeover" }
           $ack = Get-Content (Join-Path $root "Default\Preferences") -Raw -ErrorAction SilentlyContinue
           "new tab takeover accepted: $([bool]($ack -match 'ack_ntp_bubble\":true'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
