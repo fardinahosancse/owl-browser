@@ -306,6 +306,7 @@ pub fn run(main_args: &MainArgs, cmd_line: &CommandLine, sandbox_info: *mut u8) 
         persist_session_cookies: 1,
         ..Default::default()
     };
+    chrome::accept_home_takeover(&root);
     let mut app = OwlApp::new();
     trace("run: initialize");
     if initialize(Some(main_args), Some(&settings), Some(&mut app), sandbox_info) != 1 {

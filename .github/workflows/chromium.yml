@@ -71,6 +71,7 @@ jobs:
           $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "owl-cef-profile"
           New-Item -ItemType Directory $env:LOCALAPPDATA -Force | Out-Null
           # first start writes the profile and Owl.'s settings; the second start shows them applied
+          $env:OWL_CEF_TRACE = Join-Path $env:RUNNER_TEMP "owl-cef-trace1.txt"
           $p = Start-Process stage\owl-chromium\owl-chromium.exe -PassThru -RedirectStandardError (Join-Path $env:RUNNER_TEMP "cef-err1.txt")
           Start-Sleep 20
           Get-Process owl-chromium -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 3
@@ -79,7 +80,10 @@ jobs:
           $pf = Get-ChildItem $root -Recurse -Filter Preferences -ErrorAction SilentlyContinue | Select-Object -First 1
           $pr = if ($pf) { Get-Content $pf.FullName -Raw } else { "" }
           "Secure DNS saved: $([bool]($ls -match 'cloudflare-dns.com')); mode secure: $([bool]($ls -match '\"mode\":\"secure\"'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
-          "Theme colour saved: $([bool]($pr -match 'user_color')); home button on: $([bool]($pr -match '\"show_home_button\":true')); Owl. theme installed: $([bool]($pr -match '\"theme\":\{[^}]*\"id\":\"[a-p]{32}'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "Owl. theme installed: $([bool]($pr -match '\"theme\":\{[^}]*\"id\":\"[a-p]{32}'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "--- first start"; Get-Content $env:OWL_CEF_TRACE -ErrorAction SilentlyContinue | Where-Object { $_ -match "browser created|extensions:" }
+          $ack = Get-Content (Join-Path $root "Default\Preferences") -Raw -ErrorAction SilentlyContinue
+          "new tab takeover accepted: $([bool]($ack -match 'ack_ntp_bubble\":true'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           Get-Content (Join-Path $env:RUNNER_TEMP "cef-err1.txt") -ErrorAction SilentlyContinue | Select-String "preference" | ForEach-Object { "  $_" }
           $env:OWL_CEF_TRACE = Join-Path $env:RUNNER_TEMP "owl-cef-trace2.txt"
           $p = Start-Process stage\owl-chromium\owl-chromium.exe -PassThru

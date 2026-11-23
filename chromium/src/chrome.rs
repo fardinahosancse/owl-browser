@@ -19,6 +19,34 @@ pub(crate) fn beside_exe(name: &str) -> Option<std::path::PathBuf> {
     dir.join("manifest.json").is_file().then_some(dir)
 }
 
+/// Owl. Calm Home's ID (fixed by the "key" in its manifest).
+const HOME_ID: &str = "lejabghpgomlgigjhibhnocaddmlofid";
+
+/// Chromium asks "Change back to Google?" the first time an extension takes over the new tab page.
+/// Calm Home is Owl.'s own new tab page, so the profile records that question as answered
+/// before Chromium starts.
+pub(crate) fn accept_home_takeover(profile: &str) {
+    let path = std::path::Path::new(profile).join("Default").join("Preferences");
+    let _ = std::fs::create_dir_all(path.parent().unwrap());
+    let mut prefs: serde_json::Value = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    let Some(root) = prefs.as_object_mut() else { return };
+    let ext = root.entry("extensions").or_insert_with(|| serde_json::json!({}));
+    let Some(ext) = ext.as_object_mut() else { return };
+    let set = ext.entry("settings").or_insert_with(|| serde_json::json!({}));
+    let Some(set) = set.as_object_mut() else { return };
+    let home = set.entry(HOME_ID).or_insert_with(|| serde_json::json!({}));
+    let Some(home) = home.as_object_mut() else { return };
+    if home.get("ack_ntp_bubble") == Some(&serde_json::Value::Bool(true)) {
+        return;
+    }
+    home.insert("ack_ntp_bubble".into(), serde_json::Value::Bool(true));
+    home.insert("ack_settings_bubble".into(), serde_json::Value::Bool(true));
+    let _ = std::fs::write(&path, prefs.to_string());
+}
+
 /// The extensions Owl. loads on every start: its home page and its theme.
 pub(crate) fn owl_extensions() -> String {
     ["home", "theme"]
@@ -41,6 +69,8 @@ wrap_life_span_handler! {
     impl LifeSpanHandler {
         fn on_after_created(&self, browser: Option<&mut Browser>) {
             if let Some(b) = browser.cloned() {
+                let url = b.main_frame().map(|f| CefString::from(&f.url()).to_string()).unwrap_or_default();
+                crate::trace(&format!("browser created: id {} popup {} url {url}", b.identifier(), b.is_popup()));
                 self.browsers.lock().unwrap().list.push(b);
             }
         }
