@@ -6,8 +6,9 @@
 //! passwords, history, bookmarks, find in page, dialogs and settings are Chromium's built-in ones.
 //! Owl. adds what is its own on top:
 //!
-//! - the Owl. look: Chromium's theme is seeded with Owl.'s red, and the window carries the Owl. icon;
-//! - the same home page as Owl. (`home.html`, generated from Owl.'s page code by `make-home.py`);
+//! - the Owl. look: an Owl. Chrome theme (white, paper grey, ink) with Owl.'s red as the accent,
+//!   Chrome extras Owl. does not use hidden, and the Owl. icon on the window (see `chrome.rs`);
+//! - Owl. Calm Home, the same extension as chrome-extension-homepage, as the new tab and home page;
 //! - OwlKick: every request is checked with adblock-rust against Owl.'s tracker list and any
 //!   EasyList/EasyPrivacy files in `%LOCALAPPDATA%\Owl\filters`, and blocked before it leaves;
 //! - Secure DNS: Chromium's own DNS over HTTPS, pointed at Cloudflare 1.1.1.1 in secure mode.
@@ -21,7 +22,7 @@
 //! runs the same code unsandboxed, which is handy while developing.
 
 mod rules;
-mod shell;
+mod chrome;
 #[cfg(all(target_os = "windows", feature = "sandbox"))]
 mod win;
 
@@ -206,7 +207,12 @@ fn apply_owl_settings() {
     if let Some(ctx) = request_context_get_global_context() {
         // Owl. has one theme, light: Chromium's own pages and controls follow it
         ctx.set_chrome_color_scheme(ColorVariant::LIGHT, OWL_RED);
-        for (name, mut value) in [("signin.allowed", b(false))] {
+        for (name, mut value) in [
+            ("signin.allowed", b(false)),
+            // the Home button opens Owl. Calm Home (the new tab page)
+            ("browser.show_home_button", b(true)),
+            ("homepage_is_newtabpage", b(true)),
+        ] {
             let mut err = CefString::from("");
             if ctx.set_preference(Some(&CefString::from(name)), Some(&mut value), Some(&mut err)) != 1 {
                 eprintln!("preference {name}: {err}");
@@ -217,16 +223,22 @@ fn apply_owl_settings() {
 
 wrap_browser_process_handler! {
     struct OwlBrowserProcessHandler {
-        tag: u8,
+        client: RefCell<Option<Client>>,
     }
 
     impl BrowserProcessHandler {
         fn on_context_initialized(&self) {
             apply_owl_settings();
-            // --url=... opens that address; otherwise Owl.'s home page (the bundled Calm Home)
+            *self.client.borrow_mut() = Some(chrome::new_client());
+            // --url=... opens that address; otherwise the new tab page, Owl. Calm Home
             let cmd = command_line_get_global().expect("no command line");
             let url = CefString::from(&cmd.switch_value(Some(&CefString::from("url")))).to_string();
-            shell::open(&url);
+            chrome::open(&mut self.client.borrow().clone(), &url);
+        }
+
+        fn default_client(&self) -> Option<Client> {
+            // tabs and windows Chromium opens itself use this client too, so OwlKick covers them
+            self.client.borrow().clone()
         }
     }
 }
@@ -239,12 +251,22 @@ wrap_app! {
             if process_type.map(|p| p.to_string()).unwrap_or_default().is_empty() {
                 if let Some(cl) = command_line {
                     cl.append_switch(Some(&CefString::from("hide-crash-restore-bubble")));
+                    // Owl. Calm Home and the Owl. theme, from the folders next to the exe
+                    let ext = chrome::owl_extensions();
+                    if !ext.is_empty() {
+                        cl.append_switch_with_value(Some(&CefString::from("load-extension")), Some(&CefString::from(ext.as_str())));
+                        cl.append_switch_with_value(
+                            Some(&CefString::from("disable-features")),
+                            Some(&CefString::from("DisableLoadExtensionCommandLineSwitch")),
+                        );
+                    }
+                    trace(&format!("extensions: {ext}"));
                 }
             }
         }
 
         fn browser_process_handler(&self) -> Option<BrowserProcessHandler> {
-            Some(OwlBrowserProcessHandler::new(0))
+            Some(OwlBrowserProcessHandler::new(RefCell::new(None)))
         }
     }
 }

@@ -49,6 +49,13 @@ jobs:
           # Owl. Calm Home, the home and new tab page, loaded by Owl. from the "home" folder
           New-Item -ItemType Directory "$out\home" -Force | Out-Null
           Get-ChildItem chrome-extension-homepage -Exclude screenshots, windows-helper, README.md, .gitignore, .gitattributes | Copy-Item -Destination "$out\home" -Recurse -Force
+          # Owl. has one theme: Calm Home stays light and its Theme row goes
+          Set-Content "$out\home\theme.js" '(function(){document.documentElement.dataset.theme="light";})();' -Encoding utf8
+          $nt = Get-Content "$out\home\newtab.html" -Raw
+          $nt = [regex]::Replace($nt, '(?s)\s*<div class="fld">Theme.*?</div>\s*</div>', '')
+          Set-Content "$out\home\newtab.html" $nt -Encoding utf8 -NoNewline
+          # the Owl. theme for Chromium's tabs, toolbar and menus
+          Copy-Item chromium\theme "$out\theme" -Recurse -Force
           # the Owl. icon and name on the executable
           npm install --no-save --silent rcedit@4.0.1 | Out-Null
           & node_modules\rcedit\bin\rcedit-x64.exe "$out\owl-chromium.exe" --set-icon assets\owl.ico --set-version-string ProductName "Owl." --set-version-string FileDescription "Owl. (Chromium preview)" --set-version-string CompanyName "Owl."
@@ -72,7 +79,7 @@ jobs:
           $pf = Get-ChildItem $root -Recurse -Filter Preferences -ErrorAction SilentlyContinue | Select-Object -First 1
           $pr = if ($pf) { Get-Content $pf.FullName -Raw } else { "" }
           "Secure DNS saved: $([bool]($ls -match 'cloudflare-dns.com')); mode secure: $([bool]($ls -match '\"mode\":\"secure\"'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
-          "Theme colour saved: $([bool]($pr -match 'user_color')); home page saved: $([bool]($pr -match 'home.html'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "Theme colour saved: $([bool]($pr -match 'user_color')); home button on: $([bool]($pr -match '\"show_home_button\":true')); Owl. theme installed: $([bool]($pr -match '\"theme\":\{[^}]*\"id\":\"[a-p]{32}'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           Get-Content (Join-Path $env:RUNNER_TEMP "cef-err1.txt") -ErrorAction SilentlyContinue | Select-String "preference" | ForEach-Object { "  $_" }
           $env:OWL_CEF_TRACE = Join-Path $env:RUNNER_TEMP "owl-cef-trace2.txt"
           $p = Start-Process stage\owl-chromium\owl-chromium.exe -PassThru
@@ -98,6 +105,8 @@ jobs:
           "child processes: $($kidsCl.Count); without sandbox: $unsandboxed" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           $kidsCl | ForEach-Object { "  " + (($_ -split ' ') | Where-Object { $_ -match '^--type=' }) }
           if ($unsandboxed -gt 0) { throw "some Chromium processes run without the sandbox" }
+          $ext = Get-ChildItem $root -Recurse -Filter Preferences -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object { Get-Content $_.FullName -Raw }
+          "Calm Home loaded: $([bool]($ext -match 'lejabghpgomlgigjhibhnocaddmlofid'))" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           "--- trace"; Get-Content $env:OWL_CEF_TRACE -ErrorAction SilentlyContinue | Where-Object { $_ -notmatch "run:|RunWinMain|RunConsole" } | Select-Object -Last 40
           $p.Refresh()
           $alive = -not $p.HasExited

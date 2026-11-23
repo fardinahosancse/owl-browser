@@ -4,40 +4,25 @@ This folder is an experiment on the `chromium-cef` branch: Owl. built on the **C
 Framework** (CEF, Chromium 156 through the [`cef`](https://crates.io/crates/cef) crate from the
 Tauri project) instead of **Microsoft Edge WebView2**. The shipping browser is unchanged.
 
-**Approach on this branch: Owl.'s own interface on Chromium.**
+**Approach on this branch: Chromium's own interface, in Owl.'s skin.**
 
-The window looks and works like Owl. on WebView2, not like Chrome:
+The window is Chromium's real tabbed browser (CEF "Chrome style"): its tabs, address bar, menus,
+downloads, passwords, history, bookmarks, settings, `chrome://` pages and extensions. Owl. changes
+how it looks and what it shows (`src/chrome.rs`):
 
-- a frameless window with Owl.'s toolbar at the bottom: the same `src/ui.html` (tab strip, Owl. mark,
-  back, forward, reload, home, address bar, buttons, menu, window controls), talking to Rust over the
-  same messages as the WebView2 build;
-- one Chromium view per tab above it (only the active one shown); pop-ups open as Owl. tabs;
-- **Owl. Calm Home** (`chrome-extension-homepage/`) as the home and new tab page, copied into the
-  profile with `home-shim.js`, which stands in for the extension APIs it uses. Owl. records the pages
-  you visit itself and feeds them to the page (`owl-data.js`) for recent pages, shortcuts and reports;
-- one theme: Owl.'s default (white, black, Owl. red);
+- the **Owl. theme** (`theme/`, a Chrome theme): white toolbar and tabs on paper grey, ink text,
+  Owl.'s red as the accent Chromium builds its own colours from; one theme, light;
+- **Owl. Calm Home** (`chrome-extension-homepage/`, loaded as the real extension) as the new tab and
+  home page, with its time online, reports, favourites, shortcuts and weather; Owl. keeps it light
+  and drops its Theme row;
+- Chrome extras hidden: the profile avatar (sign-in is off), media and battery saver buttons, and
+  Google's Lens, AI, shopping and translate page actions;
 - **OwlKick** on every request of every tab, **Secure DNS** (Cloudflare over HTTPS, secure mode), the
   renderer **sandbox**, and the Owl. icon and name.
 
-Shortcuts: Ctrl+T new tab, Ctrl+W close, Ctrl+R or F5 reload, Ctrl+L address bar, Ctrl+Tab next tab.
-
-### Status of this initial version (checked in CI)
-
-| | |
-|---|---|
-| Builds, starts, stays running, all child processes sandboxed | yes |
-| Owl.'s toolbar at the bottom, frameless window, Owl. icon | yes |
-| Calm Home as start page, tab title and buttons follow the page | yes |
-| Tabs: new, close, switch, reorder; back, forward, reload, stop; address bar and search | built, not yet clicked through in CI |
-| Window dragging from the tab strip | built (draggable regions), not yet tried |
-| Time online on Calm Home | not yet: it needs the extension's background counter, which Owl. does not run here |
-| Favourites, downloads list, passwords, settings pages | not yet: CEF's Alloy style has no Chrome pages; Owl.'s own versions still need porting |
-| Wi-Fi and volume on Calm Home | not yet |
-
-Why Alloy style: in CEF 156 a Chrome-style Views window crashes as soon as a view is added to it,
-and Chrome-style tabs are not created inside an Alloy-style window. So the window, toolbar and tabs
-are all Alloy style. Alloy has no Chrome UI, no extension system and no `chrome://` pages, which is
-why Calm Home runs as Owl.'s own page.
+The shapes of the tabs, toolbar and address bar stay Chromium's: changing those needs a Chromium
+source fork. Wi-Fi and volume on Calm Home need the Windows helper registered for Chromium, not yet
+done.
 
 Its profile lives in `%LOCALAPPDATA%\Owl\chromium`. CI builds it, launches it, takes a screenshot
 and uploads both as artifacts.
