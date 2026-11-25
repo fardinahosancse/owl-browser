@@ -4,13 +4,13 @@ version = 4
 
 [[package]]
 name = "adblock"
-version = "0.13.5"
+version = "0.13.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a4c8558f27608dec74695c866f9a8ef897ec7a77cb826f8a5baf0b8ba461d2a"
+checksum = "7d0e54f8c5fda98d15b910f3d787a6290cbdf5448b6318ce4fcaa39ff8ce2b0c"
 dependencies = [
  "addr",
  "arrayvec",
- "base64 0.22.1",
+ "base64",
  "bitflags 2.13.2",
  "flatbuffers",
  "idna",
@@ -312,12 +312,6 @@ dependencies = [
  "gloo-timers",
  "tokio",
 ]
-
-[[package]]
-name = "base64"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "base64"
@@ -1869,7 +1863,7 @@ version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddc03d96684f9226b8a787cdb71488417b53ab5ea8fdb1dac946cb9431cc8bff"
 dependencies = [
- "base64 0.23.1",
+ "base64",
  "bytes",
  "futures-channel",
  "futures-util",
@@ -2344,7 +2338,7 @@ dependencies = [
  "async-trait",
  "axum-extra",
  "backon",
- "base64 0.23.1",
+ "base64",
  "bitvec",
  "byteorder",
  "bytes",
@@ -3770,7 +3764,7 @@ version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16a1cfa75cc186dd73d5818e510e042e40927bccc9c236b061cea97e1eb08029"
 dependencies = [
- "base64 0.23.1",
+ "base64",
  "bytes",
  "futures-core",
  "futures-util",
@@ -4141,7 +4135,7 @@ version = "3.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df9adc193c780ef8f159aee8b61e2d5801aaa555e6eb0947fe45530ec506296f"
 dependencies = [
- "base64 0.23.1",
+ "base64",
  "bs58",
  "chrono",
  "hex 0.4.3",
@@ -5516,7 +5510,7 @@ version = "0.57.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a490119196d02a51d0871df7b9119a1f3e46d75b7e90053a801454d5c6b3491c"
 dependencies = [
- "base64 0.23.1",
+ "base64",
  "block2",
  "cookie",
  "crossbeam-channel",
